@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sidebar grouping & expansion</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Ubuntu+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#1c1f23;--surface:#262a30;--hover:#2f343b;--rail:#17191d;--border:#3a4048;--border2:#7d8590;--text:#eceff3;--muted:#aab2bd;--accent:#4c9dff;--onacc:#0b1320;--soft:#1f3350;--err:#ff8a80;--ok:#5fd38d;}
+*{box-sizing:border-box}
+body{margin:0;font-family:Ubuntu,system-ui,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+h2{font-size:20px;font-weight:500;margin:0}
+.sub{font-size:12px;color:var(--muted);margin:2px 0 0}
+.tag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}
+.btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--muted);border-radius:6px;padding:0}
+.btn svg{width:18px;height:18px}
+.btn.active{background:var(--soft);color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--onacc)}
+.btn.tog{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.ob{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);border:1px solid var(--border);background:var(--surface)}
+.ob svg{width:10px;height:10px}
+.ob.active{background:var(--accent);color:var(--onacc);border-color:var(--accent)}
+.hair{height:1px;background:var(--border);border:0;margin:0}
+.note{font-size:12px;color:var(--muted);line-height:1.5;display:flex;gap:8px}
+.bad{color:var(--err);flex:none;font-weight:700}
+.good{color:var(--ok);flex:none;font-weight:700}
+.railbox{background:var(--rail);border-radius:10px;border:1px solid var(--border);display:flex;flex-direction:column;align-items:center}
+.gl{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);align-self:flex-start}
+.mono{font-family:"Ubuntu Mono",monospace}
+</style>
+</helmet>
+
+<div style="width:1200px;height:860px;background:var(--bg);padding:28px 34px;display:flex;flex-direction:column;gap:20px">
+  <div><h2>Sidebar — grouping &amp; expansion</h2><p class="sub">Why the rails feel cramped today, and the fix: equal widths, breathing groups, and one predictable place for the expand control.</p></div>
+
+  <div style="display:flex;gap:40px;flex:1;min-height:0">
+
+    <!-- BEFORE -->
+    <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+      <span class="tag" style="color:var(--err)">Before</span>
+      <div style="display:flex;gap:20px">
+        <div class="railbox" style="width:104px;padding:8px">
+          <div style="align-self:flex-start"><div class="ob" style="border:none;background:transparent"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/></svg></div></div>
+          <div style="display:grid;grid-template-columns:repeat(3,24px);gap:4px;margin-top:4px">
+            <div class="ob active"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M240,192a8,8,0,0,1-8,8H200v32a8,8,0,0,1-16,0V200H64a8,8,0,0,1-8-8V72H24a8,8,0,0,1,0-16H56V24a8,8,0,0,1,16,0V184H232A8,8,0,0,1,240,192ZM96,72h88v88a8,8,0,0,0,16,0V64a8,8,0,0,0-8-8H96a8,8,0,0,0,0,16Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H40V56H216V200Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,40a96,96,0,1,0,96,96A96.11,96.11,0,0,0,128,40Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M235.32,81.37,174.63,20.69a16,16,0,0,0-22.63,0L85,159.71,42.34,202.34a8,8,0,0,0,11.32,11.32L96.29,171Z"/></svg></div>
+          </div>
+          <div style="width:100%;height:1px;background:var(--border);margin:6px 0"></div>
+          <div style="display:grid;grid-template-columns:repeat(3,24px);gap:4px">
+            <div class="ob active"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M200,64V168a8,8,0,0,1-16,0V83.31L69.66,197.66a8,8,0,0,1-11.32-11.32L172.69,72H88a8,8,0,0,1,0-16H192A8,8,0,0,1,200,64Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,56V88a8,8,0,0,1-16,0V64H136V192h24a8,8,0,0,1,0,16H96a8,8,0,0,1,0-16h24V64H64V88a8,8,0,0,1-16,0V56a8,8,0,0,1,8-8H200A8,8,0,0,1,208,56Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M227.32,73.37,182.63,28.69a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.32,96A16,16,0,0,0,227.32,73.37Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M200,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,80H136V56h64ZM120,56v64H56V56ZM56,136h64v64H56Zm144,64H136V136h64v64Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M168,112a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,112Z"/></svg></div>
+            <div class="ob"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M240,192a8,8,0,0,1-8,8H200v32a8,8,0,0,1-16,0V200H64a8,8,0,0,1-8-8V72H24a8,8,0,0,1,0-16H56V24a8,8,0,0,1,16,0V184H232A8,8,0,0,1,240,192Z"/></svg></div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:12px;padding-top:30px">
+          <div class="note"><span class="bad">&#10007;</span>Caret buried in the top-left corner; the left and right rails put it in different spots.</div>
+          <div class="note"><span class="bad">&#10007;</span>10&#8239;px glyphs in a 3-wide 24&#8239;px grid — tiny, dense, hard to scan.</div>
+          <div class="note"><span class="bad">&#10007;</span>Active tool is a solid blue block; groups split only by faint 1&#8239;px rules.</div>
+          <div class="note"><span class="bad">&#10007;</span>Left rail 100&#8239;px, right rail a different feel; swatches a third size again.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+      <span class="tag" style="color:var(--ok)">After</span>
+      <div style="display:flex;gap:20px">
+        <div class="railbox" style="width:148px;padding:12px;gap:8px">
+          <div style="width:100%;display:flex;justify-content:flex-end"><button class="btn tog" aria-label="Collapse"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L131.31,128ZM51.31,128l74.35-74.34a8,8,0,0,0-11.32-11.32l-80,80a8,8,0,0,0,0,11.32l80,80a8,8,0,0,0,11.32-11.32Z"/></svg></button></div>
+          <span class="gl">Capture</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn active" aria-label="Region"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M240,192a8,8,0,0,1-8,8H200v32a8,8,0,0,1-16,0V200H64a8,8,0,0,1-8-8V72H24a8,8,0,0,1,0-16H56V24a8,8,0,0,1,16,0V184H232A8,8,0,0,1,240,192ZM96,72h88v88a8,8,0,0,0,16,0V64a8,8,0,0,0-8-8H96a8,8,0,0,0,0,16Z"/></svg></button>
+            <button class="btn" aria-label="Window"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H40V56H216V200Z"/></svg></button>
+            <button class="btn" aria-label="Full screen"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Z"/></svg></button>
+          </div>
+          <div class="hair" style="width:100%"></div>
+          <span class="gl">Tools</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn active" aria-label="Arrow"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M200,64V168a8,8,0,0,1-16,0V83.31L69.66,197.66a8,8,0,0,1-11.32-11.32L172.69,72H88a8,8,0,0,1,0-16H192A8,8,0,0,1,200,64Z"/></svg></button>
+            <button class="btn" aria-label="Box"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Z"/></svg></button>
+            <button class="btn" aria-label="Text"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,56V88a8,8,0,0,1-16,0V64H136V192h24a8,8,0,0,1,0,16H96a8,8,0,0,1,0-16h24V64H64V88a8,8,0,0,1-16,0V56a8,8,0,0,1,8-8H200A8,8,0,0,1,208,56Z"/></svg></button>
+            <button class="btn" aria-label="Pen"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M227.32,73.37,182.63,28.69a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.32,96A16,16,0,0,0,227.32,73.37ZM48,179.31,76.69,208H48ZM96,204.69,51.31,160,136,75.31,180.69,120Z"/></svg></button>
+          </div>
+          <div class="hair" style="width:100%"></div>
+          <span class="gl">Redact</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" aria-label="Blur"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M96.26,37.05A8,8,0,0,1,102,27.29a104.11,104.11,0,0,1,52,0,8,8,0,0,1-4,15.49,88.09,88.09,0,0,0-44,0A8,8,0,0,1,96.26,37.05ZM150,213.22a88,88,0,0,1-44,0,8,8,0,1,0-4,15.49,104.11,104.11,0,0,0,52,0,8,8,0,0,0-4-15.49Z"/></svg></button>
+            <button class="btn" aria-label="Pixelate"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M200,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,80H136V56h64ZM120,56v64H56V56ZM56,136h64v64H56Zm144,64H136V136h64v64Z"/></svg></button>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:12px;padding-top:30px">
+          <div class="note"><span class="good">&#10003;</span>Caret pinned to the canvas-facing edge of each rail — mirrored, always findable.</div>
+          <div class="note"><span class="good">&#10003;</span>18&#8239;px glyphs, 30&#8239;px targets, 8&#8239;px gaps — scannable at a glance.</div>
+          <div class="note"><span class="good">&#10003;</span>Groups read as groups: a hairline + a little air (optional quiet label).</div>
+          <div class="note"><span class="good">&#10003;</span>Both rails: <span class="mono">56&#8239;px</span> collapsed / <span class="mono">220&#8239;px</span> open. One swatch size everywhere.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- expansion placement strip -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 22px;display:flex;align-items:center;gap:24px">
+    <div style="font-size:12px;color:var(--muted);max-width:320px"><b style="color:var(--text)">Expansion control placement.</b> Each rail's caret lives at the edge nearest the canvas, so collapse always pulls <i>outward</i> and expand pushes <i>inward</i> — the same gesture on both sides.</div>
+    <div style="flex:1;display:flex;align-items:center;gap:6px">
+      <div style="width:56px;height:70px;background:var(--rail);border-radius:8px;display:flex;justify-content:flex-end;padding:6px"><button class="btn tog" aria-label="left"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button></div>
+      <div style="flex:1;height:70px;background:var(--stage,#242424);border-radius:8px;border:1px solid var(--border)"></div>
+      <div style="width:56px;height:70px;background:var(--rail);border-radius:8px;display:flex;justify-content:flex-start;padding:6px"><button class="btn tog" aria-label="right"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/></svg></button></div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":860}}'>
+class Component extends DCLogic { renderVals(){ return {}; } }
+</script>
+</body>
+</html>

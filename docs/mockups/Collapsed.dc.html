@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rails collapsed — expansion placement</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Ubuntu+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#1c1f23;--surface:#262a30;--hover:#2f343b;--rail:#17191d;--border:#3a4048;--border2:#7d8590;--text:#eceff3;--muted:#aab2bd;--accent:#4c9dff;--accenth:#6aaeff;--onacc:#0b1320;--soft:#1f3350;--ok:#5fd38d;--err:#ff8a80;--stage:#242424;}
+*{box-sizing:border-box}
+body{margin:0;font-family:Ubuntu,system-ui,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased}
+svg.i{width:18px;height:18px;display:block;flex:none}
+button{font-family:inherit}
+.btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--muted);border-radius:6px;cursor:pointer;padding:0;transition:background .12s,color .12s}
+.btn:hover{background:var(--hover);color:var(--text)}
+.btn.active{background:var(--soft);color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--onacc)}
+.btn.tog{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.btn.danger{color:var(--muted)}
+.railc{background:var(--rail);width:56px;flex:none;display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 0}
+.hair{width:30px;height:1px;background:var(--border);border:0;margin:2px 0}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-size:12px;color:var(--ok)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.pill{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 6px;border-radius:6px;background:var(--surface);border:1px solid var(--border)}
+.zv{font-family:"Ubuntu Mono",monospace;font-size:12px;color:var(--text);min-width:40px;text-align:center}
+.pbtn{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 14px;border:none;border-radius:6px;background:var(--accent);color:var(--onacc);font-size:13px;font-weight:500;cursor:pointer}
+.cur{width:30px;height:22px;border-radius:5px;border:1px solid var(--border2)}
+.flag{position:absolute;font-size:11px;color:var(--accent);font-weight:500;white-space:nowrap}
+a{color:var(--accent)}
+</style>
+</helmet>
+
+<div style="width:1360px;height:840px;background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;position:relative">
+
+  <!-- HEADER -->
+  <div style="height:52px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)">
+    <div style="display:flex;flex-direction:column;justify-content:center;min-width:150px">
+      <div style="font-size:14px;font-weight:500;line-height:18px">Mountain-ridge.png</div>
+      <div style="font-size:12px;color:var(--muted);line-height:16px">Edit · 1440×900 · PNG · 2 layers · saved</div>
+    </div>
+    <div class="chip"><span class="dot"></span>Captured</div>
+    <div style="flex:1"></div>
+    <div class="pill">
+      <button class="btn" aria-label="Zoom out"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z"/></svg></button>
+      <span class="zv">140%</span>
+      <button class="btn" aria-label="Zoom in"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg></button>
+      <button class="btn" aria-label="Fit"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M144,104V64a8,8,0,0,1,16,0V84.69l42.34-42.35a8,8,0,0,1,11.32,11.32L171.31,96H192a8,8,0,0,1,0,16H152A8,8,0,0,1,144,104Zm-40,40H64a8,8,0,0,0,0,16H84.69L42.34,202.34a8,8,0,0,0,11.32,11.32L96,171.31V192a8,8,0,0,0,16,0V152A8,8,0,0,0,104,144Zm67.31,16H192a8,8,0,0,0,0-16H152a8,8,0,0,0-8,8v40a8,8,0,0,0,16,0V171.31l42.34,42.35a8,8,0,0,0,11.32-11.32ZM104,56a8,8,0,0,0-8,8V84.69L53.66,42.34A8,8,0,0,0,42.34,53.66L84.69,96H64a8,8,0,0,0,0,16h40a8,8,0,0,0,8-8V64A8,8,0,0,0,104,56Z"/></svg></button>
+    </div>
+    <button class="pbtn"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.43l13.63,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z"/></svg>Capture</button>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+
+    <!-- LEFT COLLAPSED -->
+    <div class="railc">
+      <button class="btn tog" aria-label="Expand tools"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M141.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L124.69,128,50.34,53.66A8,8,0,0,1,61.66,42.34l80,80A8,8,0,0,1,141.66,133.66Zm80-11.32-80-80a8,8,0,0,0-11.32,11.32L204.69,128l-74.35,74.34a8,8,0,0,0,11.32,11.32l80-80A8,8,0,0,0,221.66,122.34Z"/></svg></button>
+      <hr class="hair">
+      <button class="btn active" aria-label="Region"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M240,192a8,8,0,0,1-8,8H200v32a8,8,0,0,1-16,0V200H64a8,8,0,0,1-8-8V72H24a8,8,0,0,1,0-16H56V24a8,8,0,0,1,16,0V184H232A8,8,0,0,1,240,192ZM96,72h88v88a8,8,0,0,0,16,0V64a8,8,0,0,0-8-8H96a8,8,0,0,0,0,16Z"/></svg></button>
+      <button class="btn" aria-label="Full screen"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Zm-48,48a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,224Z"/></svg></button>
+      <button class="btn" aria-label="Delayed"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M128,40a96,96,0,1,0,96,96A96.11,96.11,0,0,0,128,40Zm0,176a80,80,0,1,1,80-80A80.09,80.09,0,0,1,128,216ZM173.66,90.34a8,8,0,0,1,0,11.32l-40,40a8,8,0,0,1-11.32-11.32l40-40A8,8,0,0,1,173.66,90.34ZM96,16a8,8,0,0,1,8-8h48a8,8,0,0,1,0,16H104A8,8,0,0,1,96,16Z"/></svg></button>
+      <hr class="hair">
+      <button class="btn active" aria-label="Arrow"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M200,64V168a8,8,0,0,1-16,0V83.31L69.66,197.66a8,8,0,0,1-11.32-11.32L172.69,72H88a8,8,0,0,1,0-16H192A8,8,0,0,1,200,64Z"/></svg></button>
+      <button class="btn" aria-label="Box"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Z"/></svg></button>
+      <button class="btn" aria-label="Text"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M208,56V88a8,8,0,0,1-16,0V64H136V192h24a8,8,0,0,1,0,16H96a8,8,0,0,1,0-16h24V64H64V88a8,8,0,0,1-16,0V56a8,8,0,0,1,8-8H200A8,8,0,0,1,208,56Z"/></svg></button>
+      <button class="btn" aria-label="Pen"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M227.32,73.37,182.63,28.69a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.32,96A16,16,0,0,0,227.32,73.37ZM48,179.31,76.69,208H48ZM96,204.69,51.31,160,136,75.31,180.69,120Zm96-96L147.32,64l24-24L216,84.69Z"/></svg></button>
+      <button class="btn" aria-label="Blur"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M96.26,37.05A8,8,0,0,1,102,27.29a104.11,104.11,0,0,1,52,0,8,8,0,0,1-4,15.49,88.09,88.09,0,0,0-44,0A8,8,0,0,1,96.26,37.05ZM53.79,55.14a104.05,104.05,0,0,0-26,45,8,8,0,0,0,15.42,4.27,88,88,0,0,1,22-38.09A8,8,0,0,0,53.79,55.14ZM150,213.22a88,88,0,0,1-44,0,8,8,0,1,0-4,15.49,104.11,104.11,0,0,0,52,0,8,8,0,0,0-4-15.49ZM222.65,146a8,8,0,0,0-9.85,5.58,87.91,87.91,0,0,1-22,38.08,8,8,0,1,0,11.42,11.21,104,104,0,0,0,26-45A8,8,0,0,0,222.65,146Zm-9.86-41.54a8,8,0,0,0,15.42-4.28,104,104,0,0,0-26-45,8,8,0,1,0-11.41,11.22A88,88,0,0,1,212.79,104.45Z"/></svg></button>
+      <button class="btn" aria-label="Step"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216ZM140,80v96a8,8,0,0,1-16,0V95l-11.56,7.71a8,8,0,1,1-8.88-13.32l24-16A8,8,0,0,1,140,80Z"/></svg></button>
+      <button class="btn" aria-label="Crop"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M240,192a8,8,0,0,1-8,8H200v32a8,8,0,0,1-16,0V200H64a8,8,0,0,1-8-8V72H24a8,8,0,0,1,0-16H56V24a8,8,0,0,1,16,0V184H232A8,8,0,0,1,240,192ZM96,72h88v88a8,8,0,0,0,16,0V64a8,8,0,0,0-8-8H96a8,8,0,0,0,0,16Z"/></svg></button>
+      <div style="flex:1"></div>
+      <hr class="hair">
+      <button class="btn danger" aria-label="Discard"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg></button>
+      <button class="btn" aria-label="Copy"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"/></svg></button>
+      <button class="btn primary" aria-label="Save"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M224,152v56a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V152a8,8,0,0,1,16,0v56H208V152a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,132.69V40a8,8,0,0,0-16,0v92.69L93.66,106.34a8,8,0,0,0-11.32,11.32Z"/></svg></button>
+    </div>
+
+    <!-- STAGE -->
+    <div style="flex:1;min-width:0;background:var(--stage);position:relative;display:flex;align-items:center;justify-content:center">
+      <div style="width:760px;height:470px;border-radius:8px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.5);background:linear-gradient(160deg,#2a3b55 0%,#3f5f74 45%,#c98b6b 100%);position:relative">
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(0,0,0,.25))"></div>
+        <svg width="760" height="200" viewBox="0 0 760 200" style="position:absolute;bottom:120px;left:0"><path d="M0,200 L150,90 L250,150 L400,60 L540,140 L680,80 L760,130 L760,200 Z" fill="#1f2e3f" opacity="0.85"/></svg>
+        <svg width="760" height="140" viewBox="0 0 760 140" style="position:absolute;bottom:0;left:0"><path d="M0,140 L120,70 L300,120 L470,50 L620,110 L760,70 L760,140 Z" fill="#15202c"/></svg>
+      </div>
+      <div style="position:absolute;left:16px;bottom:16px;display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:6px;background:rgba(38,42,48,.9);border:1px solid var(--border);font-family:'Ubuntu Mono',monospace;font-size:12px;color:var(--text)">140%</div>
+    </div>
+
+    <!-- RIGHT COLLAPSED -->
+    <div class="railc">
+      <button class="btn tog" aria-label="Expand panels"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L131.31,128ZM51.31,128l74.35-74.34a8,8,0,0,0-11.32-11.32l-80,80a8,8,0,0,0,0,11.32l80,80a8,8,0,0,0,11.32-11.32Z"/></svg></button>
+      <hr class="hair">
+      <button class="btn active" aria-label="Layers"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M230.91,172A8,8,0,0,1,228,182.91l-96,56a8,8,0,0,1-8.06,0l-96-56A8,8,0,0,1,36,169.09l92,53.65,92-53.65A8,8,0,0,1,230.91,172ZM220,121.09l-92,53.65L36,121.09A8,8,0,0,0,28,134.91l96,56a8,8,0,0,0,8.06,0l96-56A8,8,0,1,0,220,121.09ZM24,80a8,8,0,0,1,4-6.91l96-56a8,8,0,0,1,8.06,0l96,56a8,8,0,0,1,0,13.82l-96,56a8,8,0,0,1-8.06,0l-96-56A8,8,0,0,1,24,80Z"/></svg></button>
+      <button class="btn" aria-label="Captures"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H72A16,16,0,0,0,56,56V72H40A16,16,0,0,0,24,88V200a16,16,0,0,0,16,16H184a16,16,0,0,0,16-16V184h16a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM184,200H40V88H56v80a16,16,0,0,0,16,16H184Zm32-32H72V56H216Z"/></svg></button>
+      <button class="btn" aria-label="Props"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M40,88H73a32,32,0,0,0,62,0h81a8,8,0,0,0,0-16H135a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16Zm64-24A16,16,0,1,1,88,80,16,16,0,0,1,104,64ZM216,168H199a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16h97a32,32,0,0,0,62,0h17a8,8,0,0,0,0-16Zm-48,24a16,16,0,1,1,16-16A16,16,0,0,1,168,192Z"/></svg></button>
+      <hr class="hair">
+      <div class="cur" style="background:#e5484d"></div>
+      <div class="cur" style="background:#ffb224"></div>
+      <div class="cur" style="background:#46a758"></div>
+      <div class="cur" style="background:#0091ff"></div>
+      <div class="cur" style="background:#6e56cf"></div>
+      <div class="cur" style="background:#ffffff"></div>
+      <hr class="hair">
+      <button class="btn" aria-label="Eyedropper"><svg class="i" viewBox="0 0 256 256" fill="currentColor"><path d="M224,67.3a35.79,35.79,0,0,0-11.26-25.66c-14-13.28-36.72-12.78-50.62,1.13L142.8,62.2a24,24,0,0,0-33.14.77l-9,9a16,16,0,0,0,0,22.64l2,2.06-51,51a39.75,39.75,0,0,0-10.53,38l-8,18.41A13.68,13.68,0,0,0,36,219.3a15.92,15.92,0,0,0,17.71,3.35L71.23,215a39.89,39.89,0,0,0,37.06-10.75l51-51,2.06,2.06a16,16,0,0,0,22.62,0l9-9a24,24,0,0,0,.74-33.18l19.75-19.87A35.75,35.75,0,0,0,224,67.3ZM97,193a24,24,0,0,1-24,6,8,8,0,0,0-5.55.31l-18.1,7.91L57,189.41a8,8,0,0,0,.25-5.75A23.88,23.88,0,0,1,63,159l51-51,33.94,34Z"/></svg></button>
+    </div>
+  </div>
+
+  <!-- expansion-placement callouts -->
+  <div class="flag" style="left:64px;top:62px">↙ expand caret — top, canvas edge</div>
+  <div class="flag" style="right:64px;top:62px;text-align:right">expand caret — mirrored ↘</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":840}}'>
+class Component extends DCLogic { renderVals(){ return {}; } }
+</script>
+</body>
+</html>

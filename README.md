@@ -1,225 +1,193 @@
-# LinScreenCapture
+# LinScreenCapture 2
 
-LinScreenCapture is a modern, open-source screenshot tool built for Linux Debian-based systems. Capture screenshots with real-time area selection, annotate with a full suite of drawing tools, and browse your image files — all from a clean, dark-themed interface.
+A screenshot studio for Linux, rebuilt from the ground up on **GTK 4 + Python**. Capture a region, window or screen with one key, and land straight in an editor with arrows, boxes, text, step numbers, callouts, blur and crop, all on a dark "Graphite Night" interface with one control size, one glyph size and soft corners.
 
-**Version:** 1.4.0 Beta
-**Created:** January 2025
+**Status:** version 2.0 is in design and early implementation. The screenshots below are high-fidelity mockups rendered from the design canvas; they are the contract the application is built against. Version 1.4.0 (C / GTK 3) lives in the [original repository](https://github.com/MensuraMedia/linscreencapture).
 
-## Quick Install (One Command)
+| | |
+| --- | --- |
+| Design canvas | [LinScreenCapture 2 — Studio Redesign Mockups](https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA) |
+| Technical specification | [docs/GUI_SPEC.md](docs/GUI_SPEC.md) (living copy: [Claude Doc](https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732)) |
+| Artboard sources | [docs/mockups/](docs/mockups/) (`*.dc.html`, plus the generator for the feature boards) |
+| Stack | Python 3.12 · GTK 4.14 · libadwaita 1.5 · Cairo · Pillow · python-xlib · XDG portal |
+| Licence | CC BY-NC 4.0 |
 
-```bash
-git clone https://github.com/MensuraMedia/linscreencapture.git && bash linscreencapture/install.sh
-```
+## The Studio Editor
 
-Installs dependencies, builds, and sets up desktop integration. Works on Debian, Ubuntu, Linux Mint, Pop!_OS, and derivatives. See [INSTALL.md](INSTALL.md) for other methods or [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for keybinding notes.
+![Studio Editor with both rails open](screenshots/01_studio_editor.png)
 
-## Screenshots
+One window, three zones. A 52 px header carries the file name and status, a zoom pill and the single filled **Capture** button. The left rail groups **Capture**, **Tools** and **Actions**; the right rail switches between **Layers**, **Captures** and **Props** above a colour card and a navigator. The stage shows the capture at 1:1 with a zoom HUD.
 
-### Sidebar — 16 Tools at a Glance
-<img src="screenshots/linshot_00a_sidebar.png" alt="Sidebar Tools" width="300">
+### Rails collapse to 56 px
 
-The sidebar provides instant access to every tool in LinShot:
+![Both rails collapsed](screenshots/02_rails_collapsed.png)
 
-- **LinShot** — Capture a new screenshot (area selection with crosshair)
-- **Line** — Draw straight lines with configurable width and color
-- **Arrow** — Draw filled arrows (Shift+drag snaps to 45° angles)
-- **Box** — Draw rectangles (Ctrl+drag constrains to square)
-- **Circle** — Draw ellipses (Ctrl+drag constrains to circle)
-- **Text** — Place text annotations with font, size, bold, and italic
-- **Select** — Marquee selection with dashed border for copy/paste/delete
-- **Flatten** — Commit all overlays and annotations permanently into the image
-- **Copy** — Copy the image or current selection to clipboard
-- **Border** — Draw decorative double-border frames
-- **Blur** — Pixelate/mosaic a region to redact sensitive content
-- **Crop** — Draw a crop region with live preview and dimensions
-- **Resize** — Resize by percentage or exact pixel dimensions
-- **Rotate** — Rotate 90°/180° or flip horizontal/vertical
-- **Bright** — Adjust brightness, contrast, grayscale, or invert colors in real time
-- **Save** — Save the image with all annotations applied
+Both rails share one width: 220 px open, 56 px collapsed. The expand caret always sits at the canvas-facing edge, so collapse pulls outward and expand pushes inward on both sides. Collapsing hands 164 px per side back to the stage. The active tool is always visible in the collapsed rail.
 
-### Image Tab — Screenshot Editor
-<img src="screenshots/linshot_01_main.png" alt="Image Tab" width="800">
+### Capture overlay
 
-The main editing workspace. Capture a screenshot or open any image from the Files tab, then annotate with 16 sidebar tools: Line, Arrow, Box, Circle, Text, Border, Blur, Crop, Resize, Rotate, and Brightness. The left sidebar provides quick access to all tools, while the bottom bar shows persistent image dimensions and file size alongside transient status messages. Supports Ctrl+Scroll zoom (10%-1000%), multi-paste overlays, and Flatten to commit all changes. ESC cancels an in-progress capture.
+![Capture overlay with a region selected](screenshots/03_capture_overlay.png)
 
-### Annotations — Drawing Tools in Action
-<img src="screenshots/linshot_00_annotations.png" alt="Annotations" width="800">
+The screen freezes, a veil dims everything outside the selection, and a crosshair follows the pointer. The top bar switches between Region, Window and Full screen without leaving the overlay and lists the keys: **Enter** captures, **Esc** cancels, **Space** moves the rectangle, **Shift** constrains to a square. Eight handles resize the selection, arrows nudge by 1 px (Shift+arrows by 10 px), and the chips show the pointer position and the colour under it.
 
-Annotation tools applied to a screenshot: arrows, boxes, circles, lines, borders, and text with customizable colors, widths, and shadows. Each tool has independent settings configured in the Tools tab. Text supports 18 font families with bold, italic, and size controls. All annotations are moveable until flattened, and every operation can be undone with Ctrl+Z (up to 20 levels including image operations like crop, resize, and rotate).
+### Step numbers, callouts and text
 
-### Files Tab — Image Browser
-<img src="screenshots/linshot_02_files.png" alt="Files Tab" width="800">
+![Captures panel with step numbers, a callout and a text annotation](screenshots/04_captures_annotations.png)
 
-Browse all image files (PNG, JPG, BMP, GIF, WebP, TIFF) in the configured screenshot folder. Thumbnails auto-refresh each time you switch to this tab, so newly added files appear immediately. The toolbar shows the total image count. Single-click to select, Ctrl+Click to toggle individual selections, Shift+Click to select a range. Press Delete or click the Delete button to remove selected files from disk (with confirmation). Double-click any image to open it in the editor.
+Every annotation is a layer. Step numbers renumber themselves when one is deleted, callouts carry their own text, and selected text shows resize handles. The **Captures** panel lists the save folder newest first: double-click opens a file in the editor, Delete removes it after confirmation.
 
-### Tools Tab — Per-Tool Settings
-<img src="screenshots/linshot_03_tools.png" alt="Tools Tab" width="800">
+### Redaction and per-tool settings
 
-Configure each annotation tool independently. Universal Setting at the top applies color, width, and shadow to all tools at once when enabled. Below, a 3-column grid provides per-tool controls for Line, Arrow, Box, Circle, Border, and Blur — each with a 12-color circular palette, width spinner, shadow toggle, and intensity slider. The Text section at the bottom offers font family (18 fonts), size, bold, italic, shadow, and a live preview showing "Sample Text / 0123456789" that updates as you change settings. All settings persist between sessions.
+![Props panel with a pixelated password field](screenshots/05_props_redaction.png)
 
-### Settings Tab — Application Configuration
-<img src="screenshots/linshot_04_settings.png" alt="Settings Tab" width="800">
+Blur and pixelate are layers too, so they can be moved and undone. The **Props** panel shows the settings of the active tool (mode and block size here), the shared shape settings (width, shadow, intensity, a universal switch that applies them to every tool) and the text settings (family, size, bold, italic, shadow).
 
-Configure the screenshot save path, filename format (LinShot/Screenshot prefix with auto-numbering or timestamps), and system integration options. Set LinShot as the default screenshot application, configure the capture hotkey (PrintScreen, Ctrl+PrintScreen, Shift+PrintScreen, Ctrl+Shift+S, or Ctrl+Alt+S), and enable launch at startup. Shortcut key presets are listed for quick selection.
+### Preferences
 
-### About Tab — Application Information
-<img src="screenshots/linshot_05_settings.png" alt="About Tab" width="800">
+![Preferences dialog, Capture page](screenshots/06_preferences.png)
 
-Displays LinShot version, project description, and key details: creation date (January 2025), beta status, open-source license (CC BY-NC 4.0), platform (Linux Debian/Ubuntu/Mint), toolkit (GTK 3 + Cairo + X11), and source repository link.
+Save folder, file name prefix, numbering scheme, format, clipboard behaviour, delayed capture, pointer inclusion, pin opacity, capture backend and window defaults. The System page holds the PrintScreen hotkey presets and autostart; the Shortcuts page lists every key.
+
+### Empty state, delayed capture and toasts
+
+![Empty stage with a countdown chip and a toast](screenshots/07_empty_state.png)
+
+Before the first capture the stage explains the three ways to start. The status chip counts down a delayed capture, and toasts confirm copies and saves with an Undo.
+
+### The control system
+
+![Button, icon and swatch system](screenshots/08_control_system.png)
+
+![Sidebar grouping before and after](screenshots/09_sidebar_anatomy.png)
+
+One 30 × 30 control, one 18 px glyph, 6 px corners, an accent-soft active state instead of a solid blue block, and 26 px swatches on a 6-column grid. Groups read as groups: a hairline, a little air and a quiet uppercase label.
 
 ## Features
 
-### Annotation Tools
-- **Line** — Straight lines with configurable width and color
-- **Arrow** — Filled arrows with proportional shaft and head, Shift+drag for 45° snap
-- **Box** — Rectangles with configurable width, Ctrl+drag to constrain to square
-- **Circle** — Ellipses with configurable width, Ctrl+drag to constrain to circle
-- **Text** — Customizable font (18 families), size, bold, italic with live preview
-- **Freehand** — Free-form drawing
-- **Border** — Decorative double-border frames around selected regions
-- **Blur** — Pixelate/mosaic effect to redact sensitive areas, adjustable intensity
-- **Marquee Selection** — Select and copy regions with dashed marching-ants box
+**Capture**
 
-### Image Editing
-- **Crop** — Draw a region with visual preview and dimensions, crop on release
-- **Resize** — Resize by percentage or exact pixel dimensions
-- **Rotate / Flip** — Rotate 90/180 degrees, flip horizontal/vertical
-- **Brightness / Color** — Real-time brightness and contrast adjustment, grayscale, invert colors
-- **Ctrl+Z Undo** — Undo annotations and image operations (crop, resize, rotate, brightness) up to 20 levels
+- Region, window and full-screen capture; delayed capture with a visible countdown; pin a capture to the screen as a floating window.
+- Scrolling capture (stitches successive segments while you scroll), scheduled for milestone 7.
+- Every capture is saved to the configured folder **and** copied to the clipboard before the editor opens. Esc leaves no file behind.
+- Backends chosen at start-up: XDG desktop portal (Wayland and X11), python-xlib on X11, `gnome-screenshot` / `grim` as a last resort.
+- One resident instance; the system PrintScreen binding and `linscreencapture --capture` activate it over D-Bus in under 300 ms.
 
-### Tool Settings
-- **Per-Tool Settings** — Independent color palettes, line widths, and shadow options for each tool
-- **Universal Setting** — Apply color, width, and shadow to all tools at once with a single checkbox
-- **Shadow Effects** — Diffused multi-pass drop shadows with adjustable intensity for all tools
-- **Color Swatches** — 12-color circular palette with soft glow selection indicator
-- **Text Preview** — Live sample text that updates with font, size, bold, italic, and shadow changes
+**Annotate**
 
-### Capture & Edit
-- **Area Capture** — Click and drag overlay with visual feedback, crosshair cursor, and live dimension display
-- **Multi-Paste** — Ctrl+V pastes images as movable overlays; paste multiple times for independent overlays
-- **Flatten** — Commit all overlays and annotations permanently into the image
-- **Ctrl+Scroll Zoom** — Zoom in/out on the screenshot editor (10%-1000%)
-- **Multi-Format Support** — Opens and edits PNG, JPG, JPEG, BMP, GIF, WebP, TIFF files
-- **Auto Clipboard** — Every capture is automatically copied to clipboard and saved
-- **Sequential Save** — Save dialog defaults to configured path with _1, _2, _3 suffix
+- Select, Move, Arrow, Line, Box, Circle, Text, Pen, Marker, Step number, Callout, Fill.
+- Blur and Pixelate redaction as movable layers; Crop with live dimensions; Resize, Rotate and Flip; Brightness, Contrast, Grayscale and Invert with live preview.
+- Layers panel with thumbnails, kind badges, visibility toggles and drag reordering; Flatten merges everything into the base image.
+- Undo and Redo, 20 levels deep, across annotations and image operations.
+- Shift-drag snaps lines and arrows to 45°; Ctrl-drag constrains boxes and circles; Ctrl+V pastes an image as a new layer.
 
-### Files Tab
-- **Image Browser** — Displays all image files from the configured screenshot folder
-- **Auto-Refresh** — Detects new files when switching to the Files tab
-- **Multi-Select** — Click to select, Ctrl+Click to toggle, Shift+Click for range
-- **Delete** — Delete key or Delete button removes selected files from disk (with confirmation)
-- **Double-Click** — Opens any image in the screenshot editor for annotation
+**Colour**
 
-### Application
-- **Dark Theme** — Consistent dark UI across sidebar, tabs, and all settings
-- **System Tray** — Minimize to tray, right-click menu for quick capture
-- **Configurable Hotkey** — Set as default screenshot app with PrintScreen remapping
-- **Single Instance** — Lock file prevents duplicate launches, signals existing instance
-- **Persistent Settings** — All tool colors, widths, shadows, and text options saved between sessions
-- **5 Tabs** — Image, Files, Tools, Settings, About
+- Twelve-swatch palette with a ringed selection, hex entry and an eyedropper that samples from the stage; the collapsed rail keeps the first six swatches one click away.
 
-## Installation
+**Files**
 
-### Dependencies
+- Sequential or timestamped names with a configurable prefix (`LinShot_12.png`, `Screenshot_2026-10-08.png`); PNG, JPEG and WebP.
+- Captures panel: thumbnails of the save folder, newest first, with open, refresh and delete.
+- Settings migrate automatically from LinScreenCapture 1.x (`~/.config/linshot/settings.conf`).
 
-**Build:** `cmake`, `build-essential`, `libgtk-3-dev`, `libx11-dev`, `libcairo2-dev`
+**Interface**
 
-**Runtime — clipboard:** LinScreenCapture copies each capture to the system clipboard itself (via
-GTK), so pasting into another GTK app (GIMP, Firefox) works out of the box. Pasting into a
-**terminal or other non-GTK app** (e.g. the Claude Code CLI) additionally requires a clipboard
-helper, because those consumers read the image by shelling out to one:
+- Graphite Night dark theme shipped as one GTK 4 stylesheet; identical on every desktop.
+- Phosphor Icons (regular weight) bundled as symbolic icons in a GResource; 46 glyphs, recoloured by CSS.
+- Keyboard-first: single-letter tool keys, Ctrl+[ / Ctrl+] for the rails, Ctrl+0 fit, Ctrl+1 1:1, F1 shortcuts window.
+- Toasts instead of dialogs for Copied, Saved and errors; dialogs only for Flatten, Delete and unsaved changes.
 
-| Session | Package | Provides |
-|---|---|---|
-| X11 (Cinnamon/Mint default) | `xclip` | `xclip -selection clipboard -t image/png -o` |
-| Wayland | `wl-clipboard` | `wl-paste --type image/png` |
+## What changed from 1.4
 
-```bash
-# X11:
-sudo apt install xclip
-# Wayland:
-sudo apt install wl-clipboard
-```
+| 1.4 (C / GTK 3) | 2.0 (Python / GTK 4) |
+| --- | --- |
+| Five tabs: Image, Files, Tools, Settings, About | One Studio window: rails, stage, panels, preferences dialog |
+| 16 labelled sidebar buttons, 24 px targets, 10 px hand-drawn Cairo glyphs | 30 px targets, 18 px Phosphor glyphs, grouped with hairlines and labels |
+| X11 only (`XGetImage`) | Portal, X11 and CLI backends; works on Wayland |
+| Lock file + SIGUSR1 single instance | `Gio.Application` activation over D-Bus |
+| Annotations drawn into one list | Layers with thumbnails, visibility, reordering |
+| Blur, Border, Resize, Rotate, Bright as modal tools | Blur and Pixelate as layers; Resize, Rotate, Brightness as popovers with live preview |
+| — | Step numbers, callouts, marker, fill, pin to screen, delayed capture, navigator, toasts |
+| 4,438-line `main_window.c` | Five-layer Python package; the model has no GTK and is unit-tested headless |
 
-If a captured screenshot won't paste into a terminal app, this helper is almost always missing —
-see [KNOWN_ISSUES.md](KNOWN_ISSUES.md). The one-command install and the `.deb` pull `xclip` in
-automatically; a manual source build must install it as shown below.
-
-### Build from source
-
-```bash
-# Install dependencies (Debian/Ubuntu/Mint)
-sudo apt install cmake build-essential libgtk-3-dev libx11-dev libcairo2-dev xclip
-
-# Build
-git clone https://github.com/MensuraMedia/linscreencapture.git
-cd linscreencapture
-mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make
-
-# Run
-./linshot
-```
-
-### Install .deb package
-
-```bash
-# Build the package
-bash packaging/build-deb.sh
-
-# Install
-sudo dpkg -i linshot_1.4.0_amd64.deb
-
-# Uninstall
-sudo apt remove linshot
-```
-
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
 | Shortcut | Action |
-|----------|--------|
-| Ctrl+N | New capture |
-| Ctrl+S | Save with annotations |
-| Ctrl+C | Copy to clipboard (selection or full image) |
-| Ctrl+V | Paste from clipboard as movable overlay (multi-paste supported) |
-| Ctrl+Z | Undo annotation or image operation (up to 20 levels) |
-| Ctrl+A | Select all and copy |
-| Ctrl+Scroll | Zoom in/out on screenshot editor |
-| Shift+Drag | Snap Line/Arrow to 45° angles |
-| Ctrl+Drag | Constrain Box/Circle/Select to square/circle |
-| Escape | Clear selection, discard pastes, or cancel capture |
-| Delete | Delete selected files (Files tab) or erase selection content |
-| PrintScreen | Capture (configurable in Settings) |
+| --- | --- |
+| PrintScreen (system) | Region capture |
+| Ctrl+N / Ctrl+Shift+N | Region capture / Full-screen capture |
+| Ctrl+S / Ctrl+Shift+S | Save / Save As |
+| Ctrl+C / Ctrl+V | Copy composition or selection / Paste image as a layer |
+| Ctrl+Z / Ctrl+Shift+Z | Undo / Redo |
+| Ctrl+D · Delete | Duplicate layer · Delete layer or capture file |
+| V A L B C T P M | Select, Arrow, Line, Box, Circle, Text, Pen, Marker |
+| U X N K | Blur, Pixelate, Step number, Crop |
+| Ctrl+scroll · Ctrl+0 · Ctrl+1 | Zoom · Fit · 1:1 |
+| Ctrl+[ / Ctrl+] | Toggle left / right rail |
+| Ctrl+, · F1 | Preferences · Shortcuts window |
+| Esc | Cancel overlay, crop or text; clear selection |
 
-## Sidebar Tools
+## Architecture
 
-| Tool | Description |
-|------|-------------|
-| LinShot | Take a new screenshot |
-| Line | Draw straight lines |
-| Arrow | Draw filled arrows |
-| Box | Draw rectangles |
-| Circle | Draw ellipses |
-| Text | Add text annotations |
-| Select | Marquee selection tool |
-| Flatten | Commit overlays and annotations to image |
-| Copy | Copy image or selection to clipboard |
-| Border | Draw decorative double-border frames |
-| Blur | Pixelate/mosaic regions to redact content |
-| Crop | Draw region to crop image (with live preview) |
-| Resize | Resize by percentage or exact dimensions |
-| Rotate | Rotate 90/180 degrees, flip horizontal/vertical |
-| Bright | Brightness, contrast, grayscale, invert |
-| Save | Save image with annotations |
+```
+linscreencapture/
+  app/        Adw.Application + GActions, EditorController, ViewState
+  ui/         StudioWindow, rails, stage, capture overlay, preferences, widgets, style.css
+  model/      Document, Annotations, UndoStack, Settings, CapturesIndex   (pure Python)
+  services/   CaptureService, Clipboard, FileStore, HotkeyRegistrar, IconLoader
+  backends/   portal, x11, cli
+data/         icons (Phosphor, -symbolic), gresource.xml, .desktop
+docs/         GUI_SPEC.md, mockups/
+tests/
+```
 
-## License
+Each layer imports only the layer below it. The model has no GTK, so annotations, undo and settings run under plain `pytest`; widget tests run under `xvfb-run`. The full specification, including every control's icon file and action name, the CSS tokens and the acceptance criteria per milestone, is in [docs/GUI_SPEC.md](docs/GUI_SPEC.md).
 
-Creative Commons Attribution-NonCommercial 4.0 (CC BY-NC 4.0).
-Free for education, research, and personal projects. Commercial use requires permission.
+## Development setup
 
-See [LICENSE](LICENSE) for details.
+```bash
+sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 python3-cairo \
+                 python3-pil python3-xlib xdg-desktop-portal xdg-desktop-portal-gtk xclip \
+                 libglib2.0-dev-bin fonts-ubuntu
+git clone https://github.com/MensuraMedia/linscreencapture3.git
+cd linscreencapture3
+python3 -m venv --system-site-packages .venv && . .venv/bin/activate
+pip install -e .[dev]          # available from milestone 1
+linscreencapture
+```
 
-## Repository
+Icons are synced from a local Phosphor checkout at build time (`tools/sync_icons.py --source <phosphor>/regular`) and compiled into `linscreencapture.gresource`; the installed app never reads the source folder.
 
-[github.com/MensuraMedia/linscreencapture](https://github.com/MensuraMedia/linscreencapture)
+### Regenerating the mockup renders
+
+The feature artboards in `docs/mockups/` are generated from `Main.dc.html` by `docs/mockups/gen_mockups.py` and rendered with headless Firefox:
+
+```bash
+firefox --headless --profile /tmp/ffp --no-remote --window-size=1360,840 \
+        --screenshot screenshots/01_studio_editor.png file://$PWD/docs/mockups/Main.dc.html
+```
+
+## Roadmap
+
+| # | Milestone | Done when |
+| --- | --- | --- |
+| 1 | Skeleton and icons | Empty dark window; icon sync and GResource build from `pip install -e .` |
+| 2 | Studio shell | Window matches the Main and Collapsed artboards within 2 px; rails toggle |
+| 3 | Model and settings | Headless tests green; 1.x settings migrate |
+| 4 | Capture | Region, window, screen on X11 and Wayland; clipboard and file written before the editor opens |
+| 5 | Annotation tools | Every tool is a layer: drawn, selected, moved, undone |
+| 6 | Image operations | Crop, resize, rotate, brightness, blur, pixelate, flatten, save, copy, captures panel |
+| 7 | System integration | Hotkey registrar (GNOME-safe), autostart, delayed, pin, scrolling capture, preferences |
+| 8 | Polish and release | Navigator, shortcuts window, toasts, tests under xvfb, packaging |
+
+## Previous version
+
+Screenshots of LinScreenCapture 1.4.0 are kept in [screenshots/v1/](screenshots/v1/). Its C sources remain in `src/` and `include/` as the behavioural reference until milestone 6 reaches parity, then they are removed.
+
+## Credits and licence
+
+Icons: [Phosphor Icons](https://phosphoricons.com) (MIT). Fonts: Ubuntu and Ubuntu Mono.
+
+LinScreenCapture is released under Creative Commons Attribution-NonCommercial 4.0 (CC BY-NC 4.0). Free for education, research and personal projects; commercial use requires permission. See [LICENSE.md](LICENSE.md).
+
+Repository: [github.com/MensuraMedia/linscreencapture3](https://github.com/MensuraMedia/linscreencapture3)
