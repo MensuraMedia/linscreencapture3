@@ -2,7 +2,7 @@
 from __future__ import annotations
 from gi.repository import Gtk
 
-from .widgets import StatusChip, ZoomPill
+from .widgets import ZoomPill
 from ..services import icon_loader
 from ..app.view_state import ViewState
 
@@ -23,22 +23,7 @@ class HeaderBar(Gtk.HeaderBar):
         self.set_decoration_layout(_system_layout())
         self.state = state
 
-        # title block (left), status chip
-        block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER, halign=Gtk.Align.START)
-        block.set_size_request(150, -1)
-        self.title = Gtk.Label(label=state.title, xalign=0.0)
-        self.title.add_css_class("title")
-        self.subtitle = Gtk.Label(label=state.subtitle, xalign=0.0)
-        self.subtitle.add_css_class("subtitle")
-        block.append(self.title)
-        block.append(self.subtitle)
-        self.pack_start(block)
-        self.chip = StatusChip(state.status, state.status_kind)
-        self.chip.set_margin_start(14)
-        self.pack_start(self.chip)
-        self.set_title_widget(Gtk.Box())  # empty centre: the mockup's flexible spacer
-
-        # capture button (rightmost), zoom pill before it
+        # capture first (top-left), then the title block
         self.capture = Gtk.Button()
         cb = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         cb.append(icon_loader.icon("camera", 18))
@@ -49,13 +34,27 @@ class HeaderBar(Gtk.HeaderBar):
         self.capture.update_property([Gtk.AccessibleProperty.LABEL], ["Capture a new screenshot"])
         self.capture.set_action_name("app.capture-region")
         self.capture.set_valign(Gtk.Align.CENTER)
-        self.pack_end(self.capture)
+        self.pack_start(self.capture)
+
+        block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER, halign=Gtk.Align.START)
+        block.set_margin_start(14)
+        self.title = Gtk.Label(label=state.title, xalign=0.0)
+        self.title.add_css_class("title")
+        self.subtitle = Gtk.Label(label=state.subtitle, xalign=0.0, visible=bool(state.subtitle))
+        self.subtitle.add_css_class("subtitle")
+        block.append(self.title)
+        block.append(self.subtitle)
+        self.pack_start(block)
+        self.set_title_widget(Gtk.Box())  # empty centre: the mockup's flexible spacer
+
         self.zoom = ZoomPill()
         self.zoom.set_margin_end(14)
         self.pack_end(self.zoom)
 
         state.connect("notify::title", lambda s, _p: self.title.set_label(s.title))
-        state.connect("notify::subtitle", lambda s, _p: self.subtitle.set_label(s.subtitle))
-        state.connect("notify::status", lambda s, _p: self.chip.set_text(s.status))
-        state.connect("notify::status-kind", lambda s, _p: self.chip.set_kind(s.status_kind))
+        state.connect("notify::subtitle", self._subtitle_changed)
         state.connect("notify::zoom", lambda s, _p: self.zoom.set_zoom(s.zoom))
+
+    def _subtitle_changed(self, s: ViewState, _p) -> None:
+        self.subtitle.set_label(s.subtitle)
+        self.subtitle.set_visible(bool(s.subtitle))

@@ -103,16 +103,24 @@ button.primary-pill:hover { background: @accent_hover; }
 .colour-well { min-width: 52px; min-height: 32px; border-radius: 6px; border: 1px solid @border2; }
 .hex { font-family: "Ubuntu Mono", monospace; font-size: 13px; color: @text; }
 .sublabel { font-size: 11px; color: @muted; }
-button.swatch { min-width: 24px; min-height: 24px; padding: 0; border-radius: 5px; border: 1px solid alpha(white, 0.14);
-  background-image: none; box-shadow: none; outline: none; }
+button.swatch { min-width: 18px; min-height: 18px; padding: 0; border-radius: 50%; border: none;
+  background-image: none; box-shadow: inset 0 0 0 1px alpha(white, 0.12); outline: none; transition: outline-color 120ms; }
+button.swatch:hover { outline: 2px solid alpha(@text, 0.35); outline-offset: 2px; }
 button.swatch:checked { outline: 2px solid @accent; outline-offset: 2px; }
 button.swatch:focus-visible { outline: 2px solid @accent; outline-offset: 2px; }
-.chip-swatch { min-width: 28px; min-height: 20px; border-radius: 5px; border: 1px solid @border2; }
-.chip-swatch.current { outline: 2px solid @accent; outline-offset: 1px; }
 entry.hex-entry { background: @bg; border: 1px solid @border; border-radius: 6px; min-height: 28px; padding: 0 8px;
   font-family: "Ubuntu Mono", monospace; font-size: 12px; color: @text; box-shadow: none; outline: none; }
 entry.hex-entry:focus { border-color: @accent; }
 .navigator { background: @navigator; border: 1px solid @border; border-radius: 8px; min-height: 116px; }
+
+/* library page */
+.library { background: @stage; }
+.library-head { background: @surface; border-bottom: 1px solid @border; min-height: 52px; padding: 0 14px; }
+.library-grid { background: transparent; padding: 14px; }
+.library-grid child { padding: 6px; margin: 2px; border-radius: 8px; background: transparent; }
+.library-grid child:hover { background: alpha(@surface, 0.6); }
+.library-grid child:selected { background: @accent_soft; }
+.library-cell picture { border-radius: 6px; }
 
 /* captures grid */
 .captures-grid { background: transparent; }

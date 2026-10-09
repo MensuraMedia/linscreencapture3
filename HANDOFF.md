@@ -18,8 +18,8 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | Repo | `/home/user/projects/linscreencapture3`, remote `origin` = `github.com/MensuraMedia/linscreencapture3` (branch `main`); `upstream` = the 1.4 repo `MensuraMedia/linscreencapture` |
 | Last pushed commit | see `git log --oneline -1`; everything is committed and pushed at the time of writing |
 | Run | `make resources && python3 -m linscreencapture` (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
-| Test | `make test` → 14 tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
-| Renders | `make snapshot` → `screenshots/dev/shell_*.png` (open, collapsed, captures, props) for comparison with `screenshots/01_*.png` and `02_*.png` |
+| Test | `make test` → 16 tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
+| Renders | `make snapshot` → `screenshots/dev/shell_*.png` (open, collapsed, library, props) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |
 | Spec | `docs/GUI_SPEC.md` (repo copy) and the living doc https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732 |
 | Local changelog | `changelog.md` (git-ignored by the family convention; keep it updated every session) |
@@ -56,6 +56,9 @@ The full phase table with gate criteria is in `docs/GUI_SPEC.md` section 10 and 
    `linshot` strings are the labelled legacy config path.
 6. Old C sources stay as the behavioural reference until Phase 5 parity.
 7. Placeholder actions toast "X arrives in Phase N" so every button is wired from day one.
+8. Shell adjustments (2026-10-08, `docs/SHELL-ADJUSTMENTS-2026-10-08.md`): Capture top-left, no status
+   chip, name-only title until a capture exists, `Settings` bottom-right of the right rail, round colour
+   swatches with no card/well/hex entry, and **Library** (full-stage page, Ctrl+L) instead of a Captures panel.
 
 ## 5. Code map (Phase 1)
 
@@ -72,7 +75,8 @@ linscreencapture/
                          StatusChip, ZoomPill, SwatchGrid, LayerRow, colour_class()
   ui/header_bar.py       Gtk.HeaderBar subclass (title block, chip, zoom pill, Capture, window controls)
   ui/tool_rail.py        Item descriptors (icon, label, action, target, collapsed) → open/collapsed pages
-  ui/panel_rail.py       Layers / Captures / Props pages, ColourCard, Navigator, collapsed page
+  ui/panel_rail.py       Layers / Props pages, ColourPalette, Navigator, Settings button, collapsed page
+  ui/library_page.py     Library page (grid of the save folder) shown in the stage stack
   ui/stage.py            empty-state placeholder + HUD; DrawingArea reserved for Phase 4
   ui/studio_window.py    composes everything; win.* actions; breakpoint; close saves settings
 tools/sync_icons.py, tools/snapshot_shell.py, tools/launch.sh

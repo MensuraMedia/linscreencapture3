@@ -146,10 +146,12 @@ class ZoomPill(Gtk.Box):
 
 # ---- colour ------------------------------------------------------------------
 class SwatchGrid(Gtk.Grid):
-    """6-column grid of toggle swatches; ``on_select(hex)`` fires on user choice."""
+    """Round 18 px swatches, 6 per row, 8 px gaps; ``on_select(hex)`` fires on user choice."""
 
-    def __init__(self, colours: Iterable[str] = PALETTE, on_select: Callable[[str], None] | None = None):
-        super().__init__(column_spacing=6, row_spacing=6, column_homogeneous=True)
+    def __init__(self, colours: Iterable[str] = PALETTE, on_select: Callable[[str], None] | None = None,
+                 per_row: int = 6):
+        super().__init__(column_spacing=8, row_spacing=8, halign=Gtk.Align.START)
+        self.per_row = per_row
         self._on_select = on_select
         self._buttons: dict[str, Gtk.ToggleButton] = {}
         self._updating = False
@@ -168,7 +170,8 @@ class SwatchGrid(Gtk.Grid):
                 b.set_group(first)
             b.connect("toggled", self._toggled, hx)
             self._buttons[hx] = b
-            self.attach(b, i % 6, i // 6, 1, 1)
+            b.set_valign(Gtk.Align.CENTER)
+            self.attach(b, i % per_row, i // per_row, 1, 1)
 
     def _toggled(self, btn: Gtk.ToggleButton, hx: str) -> None:
         if btn.get_active() and not self._updating and self._on_select:

@@ -38,9 +38,12 @@ def test_rail_buttons_are_30px_with_tooltip_and_action(window):
 
 
 def test_header_pieces(window):
-    assert window.header.chip.get_height() == 26
+    assert not hasattr(window.header, "chip")  # status chip removed
     assert window.header.zoom.get_height() == 30
     assert window.header.capture.get_height() == 30
+    prev = window.header.capture.get_prev_sibling()  # first widget in the start box (an empty WindowControls may precede it)
+    assert prev is None or isinstance(prev, Gtk.WindowControls)
+    assert not window.header.subtitle.get_visible() and window.header.title.get_label() == "LinScreenCapture"
     assert window.header.get_decoration_layout().endswith("close")
     assert "icon" not in window.header.get_decoration_layout()
 
@@ -88,12 +91,30 @@ def test_panel_switch_and_colour_sync(window):
     assert window.panel_rail.panels.get_visible_child_name() == "props"
     window.state.colour = "#0091ff"
     pump(50)
-    card = window.panel_rail.colour
-    assert card.hex.get_label() == "#0091FF" and card.entry.get_text() == "#0091FF"
-    assert "bg-0091ff" in card.well.get_css_classes()
-    card.entry.set_text("#46A758")
-    card.entry.emit("activate")
+    pal = window.panel_rail.palette
+    checked = [hx for hx, b in pal.swatches._buttons.items() if b.get_active()]
+    assert checked == ["#0091ff"] and pal.current == "#0091ff"
+    pal.swatches._buttons["#46a758"].set_active(True)
     assert window.state.colour == "#46a758"
+
+
+def test_library_page_toggles(window):
+    window.activate_action("win.library", None)
+    pump(100)
+    assert window.state.library and window.stage.pages.get_visible_child_name() == "library"
+    assert window.header.title.get_label() == "Library"
+    lib_btn = next(b for b in _buttons(window.tool_rail) if b.get_tooltip_text() == "Library")
+    assert isinstance(lib_btn, Gtk.ToggleButton) and lib_btn.get_active()
+    window.activate_action("win.library", None)
+    pump(100)
+    assert not window.state.library and window.stage.pages.get_visible_child_name() == "empty"
+    assert window.header.title.get_label() == "LinScreenCapture"
+
+
+def test_settings_button_is_last_in_right_rail(window):
+    btn = window.panel_rail.settings_btn
+    assert btn.get_action_name() == "app.preferences" and btn.get_tooltip_text() == "Settings"
+    assert btn.get_next_sibling() is None and btn.get_halign() == Gtk.Align.END
 
 
 def test_close_saves_settings(window):

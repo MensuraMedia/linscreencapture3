@@ -34,7 +34,7 @@ The screen freezes, a veil dims everything outside the selection, and a crosshai
 
 ![Captures panel with step numbers, a callout and a text annotation](screenshots/04_captures_annotations.png)
 
-Every annotation is a layer. Step numbers renumber themselves when one is deleted, callouts carry their own text, and selected text shows resize handles. The **Captures** panel lists the save folder newest first: double-click opens a file in the editor, Delete removes it after confirmation.
+Every annotation is a layer. Step numbers renumber themselves when one is deleted, callouts carry their own text, and selected text shows resize handles. The save folder is browsed in the **Library**, a full-stage page (this mockup still shows the earlier right-rail panel): double-click opens a file in the editor, Delete removes it after confirmation.
 
 ### Redaction and per-tool settings
 
@@ -82,12 +82,12 @@ One 30 × 30 control, one 18 px glyph, 6 px corners, an accent-soft active state
 
 **Colour**
 
-- Twelve-swatch palette with a ringed selection, hex entry and an eyedropper that samples from the stage; the collapsed rail keeps the first six swatches one click away.
+- Twelve round swatches sitting directly in the rail with an accent ring on the current colour, a custom-colour button and an eyedropper that samples from the stage; the collapsed rail keeps the first six one click away.
 
 **Files**
 
 - Sequential or timestamped names with a configurable prefix (`LinScreenCapture_12.png`, `Screenshot_2026-10-08.png`); PNG, JPEG and WebP.
-- Captures panel: thumbnails of the save folder, newest first, with open, refresh and delete.
+- Library: a full-stage page of the save folder, newest first, with large thumbnails, names and dates; open, refresh and delete (left-rail Library button or Ctrl+L).
 - Settings migrate automatically from LinScreenCapture 1.x (legacy `~/.config/linshot/settings.conf`).
 
 **Interface**
@@ -124,7 +124,8 @@ One 30 × 30 control, one 18 px glyph, 6 px corners, an accent-soft active state
 | U X N K | Blur, Pixelate, Step number, Crop |
 | Ctrl+scroll · Ctrl+0 · Ctrl+1 | Zoom · Fit · 1:1 |
 | Ctrl+[ / Ctrl+] | Toggle left / right rail |
-| Ctrl+, · F1 | Preferences · Shortcuts window |
+| Ctrl+L | Library page |
+| Ctrl+, · F1 | Settings · Shortcuts window |
 | Esc | Cancel overlay, crop or text; clear selection |
 
 ## Architecture
@@ -156,6 +157,8 @@ python3 -m linscreencapture    # or: pip install -e .[dev] && linscreencapture
 ```
 
 `make icons` re-syncs the 51 bundled Phosphor glyphs from a local checkout (`ICON_SRC=~/projects/assets/icons/regular`); the SVGs are committed, so a plain clone builds without it. `make test` runs the suite (under Xvfb when `xvfb-run` is installed, otherwise on the live display) and `make snapshot` renders the shell to `screenshots/dev/` for side-by-side comparison with the mockups.
+
+Shell adjustments made after Phase 1 (Capture top-left, no status chip, round colour swatches, Settings bottom-right, Library page) are documented in `docs/SHELL-ADJUSTMENTS-2026-10-08.md`; `screenshots/dev/` shows the running shell.
 
 Window chrome: the Graphite header is the window's title bar (client-side decoration). The minimise / maximise / close buttons follow the desktop's `gtk-decoration-layout`, dragging the header moves the window and double-click maximises. Both rails collapse automatically below 1100 px window width and reopen above it unless you toggled them by hand (Ctrl+[ / Ctrl+] or the carets); the minimum window is 960×600.
 

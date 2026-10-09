@@ -4,6 +4,8 @@ from gi.repository import Gtk
 
 from ..services import icon_loader
 from ..app.view_state import ViewState
+from ..model.captures_index import CapturesIndex
+from .library_page import LibraryPage
 
 
 def _kind(text: str) -> Gtk.Label:
@@ -13,12 +15,14 @@ def _kind(text: str) -> Gtk.Label:
 
 
 class Stage(Gtk.Overlay):
-    def __init__(self, state: ViewState):
+    def __init__(self, state: ViewState, captures: CapturesIndex):
         super().__init__(hexpand=True, vexpand=True)
         self.state = state
         self.add_css_class("stage")
-        self.pages = Gtk.Stack(hexpand=True, vexpand=True)
+        self.pages = Gtk.Stack(hexpand=True, vexpand=True, transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=120)
         self.pages.add_named(self._build_empty(), "empty")
+        self.library = LibraryPage(captures)
+        self.pages.add_named(self.library, "library")
         # canvas page (Phase 4 draws into it)
         self.canvas = Gtk.DrawingArea(hexpand=True, vexpand=True)
         scroller = Gtk.ScrolledWindow(hexpand=True, vexpand=True, child=self.canvas)
@@ -31,6 +35,8 @@ class Stage(Gtk.Overlay):
         self.hud.add_css_class("hud")
         self.add_overlay(self.hud)
         state.connect("notify::zoom", self._update_hud)
+        state.connect("notify::library", self._library_changed)
+        self._editor_page = "empty"
 
     def _build_empty(self) -> Gtk.Box:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
@@ -61,3 +67,13 @@ class Stage(Gtk.Overlay):
             self.hud.set_label("—")
         else:
             self.hud.set_label(f"{round(self.state.zoom * 100):d}%")
+
+    def _library_changed(self, *_a) -> None:
+        if self.state.library:
+            if self.pages.get_visible_child_name() != "library":
+                self._editor_page = self.pages.get_visible_child_name()
+            self.pages.set_visible_child_name("library")
+            self.hud.set_visible(False)
+        else:
+            self.pages.set_visible_child_name(self._editor_page)
+            self.hud.set_visible(True)

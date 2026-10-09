@@ -56,7 +56,7 @@ TOOLS_B = (
 ACTIONS = (
     Item("trash", "Discard", "win.discard", None, True, False, ("danger",), "actions"),
     Item("stack-simple", "Flatten", "win.flatten", None, False, False, (), "actions"),
-    Item("images", "Captures", "win.panel", "captures", False, False, (), "actions"),
+    Item("images", "Library", "win.library", None, False, True, (), "actions"),
     Item("copy", "Copy", "win.copy", None, True, False, (), "actions"),
     Item("download-simple", "Save", "win.save", None, True, False, ("primary",), "actions"),
 )

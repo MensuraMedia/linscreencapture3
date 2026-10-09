@@ -18,6 +18,7 @@ ACCELS = {
     "win.copy": ["<Control>c"],
     "win.undo": ["<Control>z"],
     "win.redo": ["<Control><Shift>z"],
+    "win.library": ["<Control>l"],
     "win.toggle-left-rail": ["<Control>bracketleft"],
     "win.toggle-right-rail": ["<Control>bracketright"],
     "win.zoom-in": ["<Control>plus", "<Control>equal"],
@@ -79,4 +80,5 @@ class Application(Adw.Application):
     def _placeholder(self, name: str, phase: int) -> None:
         win = self.props.active_window
         if win is not None and hasattr(win, "toast"):
-            win.toast(f"{name.replace('-', ' ').capitalize()} arrives in Phase {phase}")
+            label = "Settings" if name == "preferences" else name.replace("-", " ").capitalize()
+            win.toast(f"{label} arrives in Phase {phase}")

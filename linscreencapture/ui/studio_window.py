@@ -17,7 +17,8 @@ CAPTURE_MODES = ("region", "window", "screen", "scrolling", "delayed")
 # action -> phase that implements it (placeholders show a toast until then)
 PLACEHOLDERS = {
     "save": 5, "copy": 5, "discard": 5, "flatten": 5, "resize": 5, "rotate": 5, "adjust": 5,
-    "duplicate-file": 5, "captures-delete": 5, "undo": 4, "redo": 4, "eyedropper": 4,
+    "duplicate-file": 5, "library-open": 5, "library-delete": 5, "undo": 4, "redo": 4, "eyedropper": 4,
+    "custom-colour": 4,
 }
 
 
@@ -29,7 +30,6 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.state = ViewState()
         self.state.left_collapsed = self.settings.left_collapsed
         self.state.right_collapsed = self.settings.right_collapsed
-        self.state.subtitle = f"Press PrintScreen or click Capture · {GLib.filename_display_basename(self.settings.screenshot_path)}"
         self.captures = CapturesIndex(self.settings.screenshot_path)
 
         self.set_default_size(max(self.settings.window_width, MIN_WIDTH), max(self.settings.window_height, MIN_HEIGHT))
@@ -45,8 +45,8 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.breakpoint_bin.set_size_request(MIN_WIDTH, MIN_HEIGHT)
         body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.tool_rail = ToolRail(self.state)
-        self.stage = Stage(self.state)
-        self.panel_rail = PanelRail(self.state, self.captures)
+        self.stage = Stage(self.state, self.captures)
+        self.panel_rail = PanelRail(self.state)
         body.append(self.tool_rail)
         body.append(self.stage)
         body.append(self.panel_rail)
@@ -77,7 +77,12 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._simple("zoom-out", lambda: self.state.zoom_step(-1))
         self._simple("zoom-fit", lambda: setattr(self.state, "zoom", 1.0))
         self._simple("zoom-actual", lambda: setattr(self.state, "zoom", 1.0))
-        self._simple("captures-refresh", self.captures.scan)
+        self._simple("library-refresh", self.captures.scan)
+        lib = Gio.SimpleAction.new_stateful("library", None, GLib.Variant("b", False))
+        lib.connect("change-state", self._library_change)
+        lib.connect("activate", lambda a, _p: a.change_state(GLib.Variant("b", not a.get_state().get_boolean())))
+        self.add_action(lib)
+        self.state.connect("notify::library", lambda s, _p: lib.set_state(GLib.Variant("b", s.library)))
         for name, phase in PLACEHOLDERS.items():
             self._simple(name, lambda n=name, p=phase: self.toast(f"{n.replace('-', ' ').capitalize()} arrives in Phase {p}"))
 
@@ -98,6 +103,14 @@ class StudioWindow(Gtk.ApplicationWindow):
         a.connect("change-state", change)
         self.add_action(a)
         return a
+
+    def _library_change(self, action: Gio.SimpleAction, value: GLib.Variant) -> None:
+        show = value.get_boolean()
+        action.set_state(value)
+        self.state.library = show
+        self.state.title = "Library" if show else "LinScreenCapture"
+        if show:
+            self.captures.scan()
 
     # -- responsive rails --------------------------------------------------
     def _bp_apply(self, *_a) -> None:

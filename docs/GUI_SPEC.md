@@ -544,3 +544,14 @@ Clipboard and file are written before the editor appears; ESC leaves no trace.
 **Risks:** portal permission prompts → prefer X11 on X11 sessions and remember a successful non-interactive call; GTK symbolic recolouring changes → icon pixel test; Ubuntu font absent → CSS fallback, no layout depends on glyph width.
 
 **Deliverables after M8:** `linscreencapture/`, `data/`, `tools/`, `tests/`, `docs/GUI_SPEC.md`, `docs/QA.md`, updated README/INSTALL/KNOWN_ISSUES. Old `src/`, `include/`, `CMakeLists.txt` removed once M6 reaches parity.
+
+## 11. Amendments
+
+Operator-requested changes after Phase 1 (2026-10-08). Detail: `docs/SHELL-ADJUSTMENTS-2026-10-08.md`.
+
+1. Header order is Capture, title block, spacer, zoom pill, window controls. There is no status chip.
+2. The title block shows only the name until a document exists; the info subtitle appears with the first capture.
+3. The right rail has two panels, Layers and Props. A `Settings` text button sits bottom-right of the open rail; the collapsed rail ends with a gear.
+4. Colour: no card, no foreground well, no hex entry. 18 px round swatches, 6 per row, accent ring on the current one; custom-colour and eyedropper buttons in the label row.
+5. The Captures panel is replaced by **Library**, a full-stage page (180×120 thumbnails, name, date, Open / Delete / Refresh / Close) toggled by the left-rail `Library` button or Ctrl+L.
+6. The mockup artboards are not redrawn for these changes; `screenshots/dev/` renders of the running shell are the visual reference for them.

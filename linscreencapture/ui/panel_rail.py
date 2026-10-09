@@ -1,15 +1,14 @@
-"""Right rail: Layers / Captures / Props panels, colour card, navigator."""
+"""Right rail: Layers / Props panels, colour palette, navigator, Settings."""
 from __future__ import annotations
-from gi.repository import Gdk, Gio, Gtk, Pango
+from gi.repository import Gtk
 
 from .widgets import (rail_button, group_label, hairline, SwatchGrid, LayerRow, PALETTE,
-                      colour_class, set_colour_class, normalise_hex, rail_page, pin_width)
+                      colour_class, rail_page, pin_width)
 from ..services import icon_loader
 from ..app.view_state import ViewState
-from ..model.captures_index import CapturesIndex, CaptureEntry
 
 OPEN_WIDTH, COLLAPSED_WIDTH = 220, 56
-PANEL_ITEMS = (("stack", "Layers", "layers"), ("images", "Captures", "captures"), ("sliders-horizontal", "Props", "props"))
+PANEL_ITEMS = (("stack", "Layers", "layers"), ("sliders-horizontal", "Props", "props"))
 TOOL_NAMES = {"select": "Select", "arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text",
               "pen": "Pen", "marker": "Marker", "blur": "Blur", "pixelate": "Pixelate", "fill": "Fill", "step": "Step number",
               "callout": "Callout", "crop": "Crop", "move": "Move"}
@@ -19,54 +18,51 @@ def _panel_buttons() -> list[Gtk.ToggleButton]:
     return [rail_button(icon, label, "win.panel", target, toggle=True) for icon, label, target in PANEL_ITEMS]
 
 
-class ColourCard(Gtk.Box):
+def _settings_button() -> Gtk.Button:
+    b = Gtk.Button()
+    bb = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    bb.append(icon_loader.icon("gear", 18))
+    bb.append(Gtk.Label(label="Settings"))
+    b.set_child(bb)
+    b.add_css_class("text-btn")
+    b.set_tooltip_text("Settings")
+    b.update_property([Gtk.AccessibleProperty.LABEL], ["Settings"])
+    b.set_action_name("app.preferences")
+    b.set_halign(Gtk.Align.END)
+    return b
+
+
+class ColourPalette(Gtk.Box):
+    """Quiet label row (eyedropper, custom colour) over round swatches; no card, no well."""
+
     def __init__(self, state: ViewState):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        self.add_css_class("card")
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.state = state
-        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        self.well = Gtk.Box(valign=Gtk.Align.CENTER)
-        self.well.add_css_class("colour-well")
-        row.append(self.well)
-        txt = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
-        self.hex = Gtk.Label(xalign=0.0)
-        self.hex.add_css_class("hex")
-        sub = Gtk.Label(label="Foreground", xalign=0.0)
-        sub.add_css_class("sublabel")
-        txt.append(self.hex)
-        txt.append(sub)
-        row.append(txt)
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+        lbl = group_label("Colour")
+        lbl.set_hexpand(True)
+        lbl.set_valign(Gtk.Align.CENTER)
+        row.append(lbl)
+        self.custom = rail_button("plus", "Custom colour", "win.custom-colour", classes=("small",), size=14)
+        row.append(self.custom)
+        row.append(rail_button("eyedropper", "Eyedropper", "win.eyedropper", classes=("small",), size=16))
         self.append(row)
         self.swatches = SwatchGrid(PALETTE, on_select=self._chosen)
+        self.swatches.set_margin_start(2)
         self.append(self.swatches)
-        bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        bottom.append(rail_button("eyedropper", "Eyedropper", "win.eyedropper"))
-        self.entry = Gtk.Entry(hexpand=True, max_length=7, width_chars=6, max_width_chars=8)
-        self.entry.add_css_class("hex-entry")
-        self.entry.set_tooltip_text("Hex colour")
-        self.entry.update_property([Gtk.AccessibleProperty.LABEL], ["Hex colour"])
-        self.entry.connect("activate", self._entry_activate)
-        bottom.append(self.entry)
-        self.append(bottom)
         state.connect("notify::colour", self._sync)
         self._sync()
+
+    @property
+    def current(self) -> str:
+        return self.state.colour
 
     def _chosen(self, hx: str) -> None:
         self.state.colour = hx
 
-    def _entry_activate(self, entry: Gtk.Entry) -> None:
-        hx = normalise_hex(entry.get_text())
-        if hx:
-            self.state.colour = hx
-        else:
-            self._sync()
-
     def _sync(self, *_a) -> None:
-        hx = self.state.colour
-        set_colour_class(self.well, hx)
-        self.hex.set_label(hx.upper())
-        self.entry.set_text(hx.upper())
-        self.swatches.select(hx)
+        self.swatches.select(self.state.colour)
+        self.custom.set_tooltip_text(f"Custom colour · current {self.state.colour.upper()}")
 
 
 class Navigator(Gtk.DrawingArea):
@@ -90,13 +86,12 @@ class Navigator(Gtk.DrawingArea):
 
 
 class PanelRail(Gtk.Stack):
-    def __init__(self, state: ViewState, captures: CapturesIndex):
+    def __init__(self, state: ViewState):
         super().__init__(hhomogeneous=False, vhomogeneous=True, interpolate_size=True,
                          transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=120)
         self.set_hexpand(False)  # explicit: children with hexpand must not widen the rail
         self.set_vexpand(True)
         self.state = state
-        self.captures = captures
         self.add_css_class("panel-rail")
         self.add_named(pin_width(self._build_open(), OPEN_WIDTH), "open")
         self.add_named(pin_width(self._build_collapsed(), COLLAPSED_WIDTH), "collapsed")
@@ -120,23 +115,20 @@ class PanelRail(Gtk.Stack):
         self.panels = Gtk.Stack(vhomogeneous=False, hhomogeneous=False,
                                 transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=120)
         self.panels.add_named(self._build_layers(), "layers")
-        self.panels.add_named(self._build_captures(), "captures")
         self.panels.add_named(self._build_props(), "props")
         self.panels.set_visible_child_name(self.state.panel)
         box.append(self.panels)
-        self.colour_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.colour_section.append(hairline())
-        lbl = group_label("Colour")
-        lbl.set_margin_top(8)
-        self.colour_section.append(lbl)
-        self.colour = ColourCard(self.state)
-        self.colour_section.append(self.colour)
-        box.append(self.colour_section)
+        box.append(hairline())
+        self.palette = ColourPalette(self.state)
+        self.palette.set_margin_top(10)
+        self.palette.set_margin_bottom(6)
+        box.append(self.palette)
         box.append(Gtk.Box(vexpand=True))
-        self.navigator_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.navigator_section.append(group_label("Navigator"))
-        self.navigator_section.append(Navigator())
-        box.append(self.navigator_section)
+        box.append(group_label("Navigator"))
+        box.append(Navigator())
+        self.settings_btn = _settings_button()
+        self.settings_btn.set_margin_top(6)
+        box.append(self.settings_btn)
         self._panel_changed()
         return box
 
@@ -153,60 +145,11 @@ class PanelRail(Gtk.Stack):
         box.append(self.layers)
         return box
 
-    def _build_captures(self) -> Gtk.Box:
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_top=4, margin_bottom=10)
-        head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2, margin_bottom=8)
-        self.captures_label = group_label("0 captures")
-        self.captures_label.set_hexpand(True)
-        self.captures_label.set_valign(Gtk.Align.CENTER)
-        head.append(self.captures_label)
-        head.append(rail_button("arrows-clockwise", "Refresh", "win.captures-refresh", classes=("small",), size=16))
-        head.append(rail_button("trash", "Delete selected", "win.captures-delete", classes=("small", "danger"), size=16))
-        box.append(head)
-        factory = Gtk.SignalListItemFactory()
-        factory.connect("setup", self._cap_setup)
-        factory.connect("bind", self._cap_bind)
-        self.captures_selection = Gtk.SingleSelection(model=self.captures.store, autoselect=False)
-        self.captures_view = Gtk.GridView(model=self.captures_selection, factory=factory,
-                                          min_columns=2, max_columns=2, single_click_activate=False)
-        self.captures_view.add_css_class("captures-grid")
-        self.captures_view.set_hexpand(False)
-        self.captures_view.set_accessible_role(Gtk.AccessibleRole.GRID)
-        scroller = Gtk.ScrolledWindow(child=self.captures_view, hscrollbar_policy=Gtk.PolicyType.NEVER,
-                                      vscrollbar_policy=Gtk.PolicyType.AUTOMATIC, propagate_natural_height=True,
-                                      max_content_height=380)
-        box.append(scroller)
-        hint = Gtk.Label(label="Double-click opens · Delete removes", xalign=0.0, margin_top=8)
-        hint.add_css_class("sublabel")
-        box.append(hint)
-        self.captures.connect("scanned", lambda _i, n: self.captures_label.set_label(f"{n} CAPTURES"))
-        return box
-
-    def _cap_setup(self, _f, item: Gtk.ListItem) -> None:
-        cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, margin_bottom=6)
-        pic = Gtk.Picture(content_fit=Gtk.ContentFit.COVER, can_shrink=True)
-        pic.set_size_request(94, 64)
-        pic.add_css_class("cap-thumb")
-        pic.set_overflow(Gtk.Overflow.HIDDEN)
-        name = Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END, max_width_chars=9, width_chars=6)
-        name.add_css_class("cap-name")
-        cell.append(pic)
-        cell.append(name)
-        item.set_child(cell)
-
-    def _cap_bind(self, _f, item: Gtk.ListItem) -> None:
-        entry: CaptureEntry = item.get_item()
-        cell = item.get_child()
-        pic, name = cell.get_first_child(), cell.get_last_child()
-        pic.set_paintable(entry.texture)
-        name.set_label(entry.name)
-        cell.set_tooltip_text(entry.name)
-
     def _build_props(self) -> Gtk.Widget:
         box = self._build_props_content()
         return Gtk.ScrolledWindow(child=box, hscrollbar_policy=Gtk.PolicyType.NEVER,
                                   vscrollbar_policy=Gtk.PolicyType.AUTOMATIC, propagate_natural_height=True,
-                                  vexpand=True)
+                                  vexpand=False)
 
     def _build_props_content(self) -> Gtk.Box:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_top=6, margin_bottom=10)
@@ -267,17 +210,6 @@ class PanelRail(Gtk.Stack):
         r.append(self._with_label(tsw, "shadow"))
         card.append(r)
         box.append(card)
-        box.append(Gtk.Box(vexpand=True))
-        prefs = Gtk.Button()
-        pb = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        pb.append(icon_loader.icon("gear", 18))
-        pb.append(Gtk.Label(label="Preferences…"))
-        prefs.set_child(pb)
-        prefs.add_css_class("text-btn")
-        prefs.set_halign(Gtk.Align.START)
-        prefs.set_action_name("app.preferences")
-        prefs.set_margin_top(10)
-        box.append(prefs)
         return box
 
     @staticmethod
@@ -342,21 +274,19 @@ class PanelRail(Gtk.Stack):
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
         box.append(hairline(30))
-        self.chips: dict[str, Gtk.Box] = {}
-        for hx in PALETTE[:6]:
-            chip = Gtk.Box(halign=Gtk.Align.CENTER)
-            chip.add_css_class("chip-swatch")
-            chip.add_css_class(colour_class(hx))
-            chip.set_tooltip_text(hx.upper())
-            click = Gtk.GestureClick()
-            click.connect("released", lambda g, *_a, h=hx: setattr(self.state, "colour", h))
-            chip.add_controller(click)
-            self.chips[hx] = chip
-            box.append(chip)
+        self.dots = SwatchGrid(PALETTE[:6], on_select=lambda hx: setattr(self.state, "colour", hx), per_row=1)
+        self.dots.set_halign(Gtk.Align.CENTER)
+        self.dots.set_row_spacing(10)
+        box.append(self.dots)
         box.append(hairline(30))
         ed = rail_button("eyedropper", "Eyedropper", "win.eyedropper")
         ed.set_halign(Gtk.Align.CENTER)
         box.append(ed)
+        box.append(Gtk.Box(vexpand=True))
+        box.append(hairline(30))
+        gear = rail_button("gear", "Settings", "app.preferences")
+        gear.set_halign(Gtk.Align.CENTER)
+        box.append(gear)
         self._colour_changed()
         return box
 
@@ -366,16 +296,9 @@ class PanelRail(Gtk.Stack):
 
     def _panel_changed(self, *_a) -> None:
         self.panels.set_visible_child_name(self.state.panel)
-        props = self.state.panel == "props"
-        self.colour_section.set_visible(not props)
-        self.navigator_section.set_visible(not props)
 
     def _tool_changed(self, *_a) -> None:
         self.props_tool_label.set_label(f"{TOOL_NAMES.get(self.state.tool, self.state.tool)} · active tool".upper())
 
     def _colour_changed(self, *_a) -> None:
-        for hx, chip in self.chips.items():
-            if hx == self.state.colour:
-                chip.add_css_class("current")
-            else:
-                chip.remove_css_class("current")
+        self.dots.select(self.state.colour)

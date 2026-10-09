@@ -52,12 +52,13 @@ def main() -> int:
             render(win, OUT / "shell_collapsed.png")
             win.state.left_collapsed = False
             win.state.right_collapsed = False
-            win.state.panel = "captures"
-            GLib.timeout_add(700, step3)
+            win.activate_action("win.library", None)
+            GLib.timeout_add(900, step3)
             return False
 
         def step3():
-            render(win, OUT / "shell_captures.png")
+            render(win, OUT / "shell_library.png")
+            win.activate_action("win.library", None)
             win.state.panel = "props"
             win.state.tool = "blur"
             GLib.timeout_add(700, step4)
