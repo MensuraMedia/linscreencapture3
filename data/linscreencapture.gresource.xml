@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/com/mensuramedia/linscreencapture">
+    <file compressed="true">style.css</file>
+    <file>icons/scalable/actions/lsc-camera-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-minus-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-plus-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrows-in-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-caret-double-left-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-caret-double-right-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-selection-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-app-window-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-monitor-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrows-vertical-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-timer-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-push-pin-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-cursor-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrow-up-right-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-line-segment-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-square-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-circle-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-text-t-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-pencil-simple-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-highlighter-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-circle-dashed-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-checkerboard-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-paint-bucket-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-number-circle-one-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-chat-teardrop-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-crop-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrows-out-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrow-clockwise-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-sun-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrows-out-cardinal-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-copy-simple-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-trash-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-stack-simple-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-images-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-copy-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-download-simple-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-stack-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-sliders-horizontal-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-eye-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-eye-slash-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-eyedropper-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrows-clockwise-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-gear-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-check-circle-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-warning-circle-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-x-circle-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-info-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-keyboard-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-folder-open-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-x-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-caret-down-symbolic.svg</file>
+  </gresource>
+</gresources>

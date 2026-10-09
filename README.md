@@ -2,7 +2,7 @@
 
 A screenshot studio for Linux, rebuilt from the ground up on **GTK 4 + Python**. Capture a region, window or screen with one key, and land straight in an editor with arrows, boxes, text, step numbers, callouts, blur and crop, all on a dark "Graphite Night" interface with one control size, one glyph size and soft corners.
 
-**Status:** version 2.0 is in design and early implementation. The screenshots below are high-fidelity mockups rendered from the design canvas; they are the contract the application is built against. Version 1.4.0 (C / GTK 3) lives in the [original repository](https://github.com/MensuraMedia/linscreencapture).
+**Status:** version 2.0, Phase 1 of 7 (the Studio layout shell) is implemented: window, header-as-title-bar, both rails in open and collapsed states, stage placeholder and static panels. Capture and editing arrive in the next phases. The screenshots below are high-fidelity mockups rendered from the design canvas; they are the contract the application is built against, and `screenshots/dev/` holds renders of the running shell for comparison. Version 1.4.0 (C / GTK 3) lives in the [original repository](https://github.com/MensuraMedia/linscreencapture).
 
 | | |
 | --- | --- |
@@ -151,12 +151,13 @@ sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 python3
                  libglib2.0-dev-bin fonts-ubuntu
 git clone https://github.com/MensuraMedia/linscreencapture3.git
 cd linscreencapture3
-python3 -m venv --system-site-packages .venv && . .venv/bin/activate
-pip install -e .[dev]          # available from milestone 1
-linscreencapture
+make resources                 # compiles data/ + style.css into linscreencapture/linscreencapture.gresource
+python3 -m linscreencapture    # or: pip install -e .[dev] && linscreencapture
 ```
 
-Icons are synced from a local Phosphor checkout at build time (`tools/sync_icons.py --source <phosphor>/regular`) and compiled into `linscreencapture.gresource`; the installed app never reads the source folder.
+`make icons` re-syncs the 51 bundled Phosphor glyphs from a local checkout (`ICON_SRC=~/projects/assets/icons/regular`); the SVGs are committed, so a plain clone builds without it. `make test` runs the suite (under Xvfb when `xvfb-run` is installed, otherwise on the live display) and `make snapshot` renders the shell to `screenshots/dev/` for side-by-side comparison with the mockups.
+
+Window chrome: the Graphite header is the window's title bar (client-side decoration). The minimise / maximise / close buttons follow the desktop's `gtk-decoration-layout`, dragging the header moves the window and double-click maximises. Both rails collapse automatically below 1100 px window width and reopen above it unless you toggled them by hand (Ctrl+[ / Ctrl+] or the carets); the minimum window is 960×600.
 
 ### Regenerating the mockup renders
 
@@ -169,16 +170,15 @@ firefox --headless --profile /tmp/ffp --no-remote --window-size=1360,840 \
 
 ## Roadmap
 
-| # | Milestone | Done when |
-| --- | --- | --- |
-| 1 | Skeleton and icons | Empty dark window; icon sync and GResource build from `pip install -e .` |
-| 2 | Studio shell | Window matches the Main and Collapsed artboards within 2 px; rails toggle |
-| 3 | Model and settings | Headless tests green; 1.x settings migrate |
-| 4 | Capture | Region, window, screen on X11 and Wayland; clipboard and file written before the editor opens |
-| 5 | Annotation tools | Every tool is a layer: drawn, selected, moved, undone |
-| 6 | Image operations | Crop, resize, rotate, brightness, blur, pixelate, flatten, save, copy, captures panel |
-| 7 | System integration | Hotkey registrar (GNOME-safe), autostart, delayed, pin, scrolling capture, preferences |
-| 8 | Polish and release | Navigator, shortcuts window, toasts, tests under xvfb, packaging |
+| # | Phase | Done when | Status |
+| --- | --- | --- | --- |
+| 1 | Layout shell | Window matches the Main and Collapsed artboards; every button has tooltip and action; rails toggle and auto-collapse; tests green | **done** |
+| 2 | Model and settings | Headless tests green; 1.x settings migrate | next |
+| 3 | Capture | Region, window, screen on X11 and Wayland; clipboard and file written before the editor opens | |
+| 4 | Annotation tools and layers | Every tool is a layer: drawn, selected, moved, undone | |
+| 5 | Image operations and files | Crop, resize, rotate, brightness, blur, pixelate, flatten, save, copy, captures panel; old C sources removed | |
+| 6 | System integration | Hotkey registrar (GNOME-safe), autostart, delayed, pin, scrolling capture, preferences | |
+| 7 | Polish and release | Navigator, shortcuts window, toasts, golden-image tests, packaging | |
 
 ## Previous version
 

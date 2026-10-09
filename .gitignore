@@ -19,7 +19,6 @@ build/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
 
 # Python virtual environments
 venv/
@@ -46,7 +45,6 @@ generate_icon.c
 *.deb
 
 # Runtime data
-linscreencapture_recent_history/
 
 # Claude Code instruction sets (private)
 .claude/
@@ -55,7 +53,6 @@ CLAUDE.md
 changelog.md
 
 # Other
-linscreencapture
 screenshot_app
 # Python 2.x rewrite
 .venv/
@@ -63,3 +60,4 @@ screenshot_app
 .pytest_cache/
 *.egg-info/
 dist/
+screenshots/dev/_cfg/

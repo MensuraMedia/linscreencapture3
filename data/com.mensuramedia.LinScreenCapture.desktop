@@ -1,0 +1,19 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=LinScreenCapture
+GenericName=Screenshot Tool
+Comment=Capture, annotate and share screenshots
+Exec=linscreencapture
+Icon=com.mensuramedia.LinScreenCapture
+Terminal=false
+Categories=Utility;Graphics;GTK;
+Keywords=screenshot;capture;screen;snip;annotation;
+MimeType=image/png;image/jpeg;
+StartupNotify=true
+DBusActivatable=true
+Actions=capture;
+
+[Desktop Action capture]
+Name=Capture a region
+Exec=linscreencapture --capture

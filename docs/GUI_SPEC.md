@@ -110,6 +110,8 @@ linscreencapture
 
 ## 5. Application architecture
 
+Phase 1 (done 2026-10-08) built `app/application.py`, `app/view_state.py`, `model/settings.py` (window/rail subset), `model/captures_index.py`, `services/icon_loader.py`, the whole `ui/` layer as a static shell, `tools/sync_icons.py`, `tools/snapshot_shell.py` and `tests/`. Rail pages are pinned to 220 / 56 px with an EXTERNAL-policy scrolled window and an explicit `hexpand=False`, because any child with `hexpand` would otherwise widen the rail.
+
 One package, `linscreencapture`, in five layers; each layer imports only the one below it and the model imports no GTK, so annotations, undo and settings are testable without a display.
 
 ```mermaid
@@ -189,7 +191,7 @@ tests/
 
 ## 6. Window layout and component specification
 
-Opens at 1360×840, minimum 960×600, desktop title bar; header, then body = left rail, stage, right rail. All sizes in CSS px.
+Opens at 1360×840, minimum 960×600. The 52 px header **is the title bar** (client-side decoration, `Gtk.HeaderBar` with the system's `gtk-decoration-layout` minus the icon/menu tokens): window buttons sit at its right end, dragging moves, double-click maximises; GTK hides the buttons when the compositor decorates. Both rails auto-collapse below 1100 px (`Adw.Breakpoint`) unless toggled by hand. All sizes in CSS px.
 
 ```
 StudioWindow (Gtk.ApplicationWindow, css .studio)
@@ -200,7 +202,8 @@ StudioWindow (Gtk.ApplicationWindow, css .studio)
       │  ├─ StatusChip        Gtk.Box .chip: 7 px .dot + Gtk.Label
       │  ├─ spacer            Gtk.Box hexpand
       │  ├─ ZoomPill          Gtk.Box .pill: RailButton minus, Gtk.Label .zoom-value, RailButton plus, RailButton arrows-in
-      │  └─ CaptureButton     Gtk.Button .primary-pill: camera icon + "Capture"
+      │  ├─ CaptureButton     Gtk.Button .primary-pill: camera icon + "Capture"
+      │  └─ (window controls) Gtk.WindowControls, added by Gtk.HeaderBar, styled .rail-btn-like
       └─ Body                Gtk.Box horizontal, vexpand
          ├─ ToolRail         Gtk.Stack .rail {open | collapsed}, crossfade 120 ms, width 220 / 56
          ├─ Stage            Gtk.Overlay .stage, hexpand

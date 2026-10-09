@@ -1,0 +1,153 @@
+/* LinScreenCapture 2 — Graphite Night. One palette, one control grammar. */
+@define-color bg #1c1f23;
+@define-color surface #262a30;
+@define-color hover #2f343b;
+@define-color rail #17191d;
+@define-color border #3a4048;
+@define-color border2 #7d8590;
+@define-color text #eceff3;
+@define-color muted #aab2bd;
+@define-color accent #4c9dff;
+@define-color accent_hover #6aaeff;
+@define-color on_accent #0b1320;
+@define-color accent_soft #1f3350;
+@define-color ok #5fd38d;
+@define-color attention #ffbf4d;
+@define-color error #ff8a80;
+@define-color danger_soft #3f2422;
+@define-color stage #242424;
+@define-color navigator #0f1115;
+
+window.studio { background-color: @bg; color: @text; font-family: "Ubuntu", "Cantarell", sans-serif; font-size: 12px; }
+window.studio label { color: @text; }
+.mono { font-family: "Ubuntu Mono", monospace; }
+
+/* ---- header doubles as the title bar (client-side decoration) ---- */
+headerbar.studio-header { background: @surface; background-image: none; min-height: 52px; padding: 0 8px 0 14px;
+  border-bottom: 1px solid @border; box-shadow: none; border-radius: 0; }
+headerbar.studio-header > windowhandle > box { padding: 0; }
+headerbar.studio-header .start, headerbar.studio-header .end { margin: 0; }
+windowcontrols { margin-left: 8px; }
+windowcontrols button { min-width: 30px; min-height: 30px; padding: 0; margin: 0 1px; border: none; border-radius: 6px;
+  background: transparent; color: @muted; box-shadow: none; -gtk-icon-size: 16px; }
+windowcontrols button > image { background: transparent; background-image: none; border-radius: 6px; padding: 0; margin: 0; min-width: 16px; min-height: 16px; color: @muted; box-shadow: none; }
+windowcontrols button:hover { background: @hover; color: @text; }
+windowcontrols button:hover > image { background: transparent; color: @text; }
+windowcontrols button.close, windowcontrols button.close > image { background: transparent; color: @muted; }
+windowcontrols button.close:hover { background: @danger_soft; }
+windowcontrols button.close:hover > image { color: @error; }
+window.studio:backdrop headerbar.studio-header { background: @surface; }
+.title { font-size: 14px; font-weight: 500; color: @text; }
+.subtitle { font-size: 12px; color: @muted; }
+
+/* ---- rails ---- */
+.rail-pin, .rail-pin > viewport { background: @rail; }
+.rail-pin scrollbar { opacity: 0; }
+.rail { background: @rail; padding: 10px; }
+.rail.collapsed { padding: 10px 0; }
+.group-label { font-size: 10px; letter-spacing: 0.08em; color: @muted; margin: 2px; }
+separator.hairline { background: alpha(@border, 0.7); min-height: 1px; min-width: 1px; margin: 0; opacity: 1; }
+.rail flowbox { padding: 0; }
+.rail flowboxchild { padding: 0; margin: 0; }
+
+.rail-btn, button.rail-btn { min-width: 30px; min-height: 30px; padding: 0; border: none; border-radius: 6px;
+  background: transparent; background-image: none; color: @muted; box-shadow: none; outline: none;
+  transition: background 120ms ease, color 120ms ease; -gtk-icon-size: 18px; }
+.rail-btn:hover { background: @hover; color: @text; }
+.rail-btn:checked, .rail-btn.active { background: @accent_soft; color: @accent; }
+.rail-btn.primary { background: @accent; color: @on_accent; }
+.rail-btn.primary:hover { background: @accent_hover; }
+.rail-btn.danger:hover { background: @danger_soft; color: @error; }
+.rail-btn:disabled { opacity: 0.4; color: @muted; }
+.rail-btn:focus-visible { outline: 2px solid @accent; outline-offset: 1px; }
+.rail-btn.outlined { background: @surface; color: @text; border: 1px solid @border; min-width: 28px; min-height: 28px; }
+.rail-btn.small { min-width: 26px; min-height: 26px; -gtk-icon-size: 16px; }
+.rail-btn.eye:checked { background: transparent; color: @muted; }
+.rail-btn.eye:checked:hover { background: @hover; color: @text; }
+.rail-btn image { color: inherit; }
+
+/* ---- header controls ---- */
+.chip { background: @surface; border: 1px solid @border; border-radius: 6px; min-height: 26px; padding: 0 10px; font-size: 12px; color: @ok; }
+.chip label { color: @ok; }
+.chip.attention label { color: @attention; }
+.chip.error label { color: @error; }
+.chip .dot { min-width: 7px; min-height: 7px; border-radius: 50%; background: @ok; margin-right: 6px; }
+.chip.attention .dot { background: @attention; }
+.chip.error .dot { background: @error; }
+.pill { background: @surface; border: 1px solid @border; border-radius: 6px; min-height: 30px; padding: 0 6px; }
+.zoom-value { font-family: "Ubuntu Mono", monospace; font-size: 12px; min-width: 40px; color: @text; }
+button.primary-pill { background: @accent; background-image: none; color: @on_accent; border: none; border-radius: 6px; min-height: 30px;
+  padding: 0 14px; font-size: 13px; font-weight: 500; box-shadow: none; -gtk-icon-size: 18px; }
+button.primary-pill label, button.primary-pill image { color: @on_accent; }
+button.primary-pill:hover { background: @accent_hover; }
+
+/* ---- stage ---- */
+.stage { background: @stage; }
+.hud { background: alpha(@surface, 0.9); border: 1px solid @border; border-radius: 6px; min-height: 28px; padding: 0 10px;
+  font-family: "Ubuntu Mono", monospace; font-size: 12px; color: @text; }
+.empty-title { font-size: 14px; font-weight: 500; color: @text; }
+.empty-sub { font-size: 12px; color: @muted; }
+.empty-glyph { color: @muted; -gtk-icon-size: 48px; }
+
+/* ---- right rail ---- */
+.layer-list { background: transparent; }
+.layer-list row { min-height: 40px; padding: 0 6px; border-radius: 6px; background: transparent; }
+.layer-list row:hover { background: @hover; }
+.layer-list row:selected { background: @accent_soft; }
+.layer-name { font-size: 12px; color: @text; }
+.thumb { border: 1px solid @border; border-radius: 4px; min-width: 40px; min-height: 28px; }
+.kind { font-size: 9px; letter-spacing: 0.06em; color: @muted; border: 1px solid @border; border-radius: 4px; padding: 1px 5px; }
+.empty-box { border: 1px dashed @border; border-radius: 6px; color: @muted; min-height: 80px; }
+
+.card { background: @surface; border: 1px solid @border; border-radius: 10px; padding: 10px; }
+.colour-well { min-width: 52px; min-height: 32px; border-radius: 6px; border: 1px solid @border2; }
+.hex { font-family: "Ubuntu Mono", monospace; font-size: 13px; color: @text; }
+.sublabel { font-size: 11px; color: @muted; }
+button.swatch { min-width: 24px; min-height: 24px; padding: 0; border-radius: 5px; border: 1px solid alpha(white, 0.14);
+  background-image: none; box-shadow: none; outline: none; }
+button.swatch:checked { outline: 2px solid @accent; outline-offset: 2px; }
+button.swatch:focus-visible { outline: 2px solid @accent; outline-offset: 2px; }
+.chip-swatch { min-width: 28px; min-height: 20px; border-radius: 5px; border: 1px solid @border2; }
+.chip-swatch.current { outline: 2px solid @accent; outline-offset: 1px; }
+entry.hex-entry { background: @bg; border: 1px solid @border; border-radius: 6px; min-height: 28px; padding: 0 8px;
+  font-family: "Ubuntu Mono", monospace; font-size: 12px; color: @text; box-shadow: none; outline: none; }
+entry.hex-entry:focus { border-color: @accent; }
+.navigator { background: @navigator; border: 1px solid @border; border-radius: 8px; min-height: 116px; }
+
+/* captures grid */
+.captures-grid { background: transparent; }
+.captures-grid child { padding: 0; margin: 0; border-radius: 4px; }
+.captures-grid child:selected { background: transparent; outline: 2px solid @accent; outline-offset: 2px; }
+.cap-thumb { border: 1px solid @border; border-radius: 4px; }
+.cap-name { font-size: 11px; color: @muted; }
+
+/* props controls */
+.props-row label { color: @muted; font-size: 11px; }
+.props-row .value { font-family: "Ubuntu Mono", monospace; font-size: 12px; color: @text; }
+spinbutton.compact { background: @bg; border: 1px solid @border; border-radius: 6px; min-height: 28px; box-shadow: none; color: @text; }
+spinbutton.compact text { color: @text; min-width: 24px; font-family: "Ubuntu Mono", monospace; font-size: 12px; }
+spinbutton.compact button { min-width: 26px; min-height: 26px; padding: 0; background: transparent; color: @muted; border: none; box-shadow: none; }
+spinbutton.compact button:hover { color: @text; background: @hover; }
+switch { background: @border; border: none; box-shadow: none; min-height: 20px; min-width: 34px; }
+switch slider { background: @muted; border: none; box-shadow: none; min-height: 14px; min-width: 14px; margin: 3px; }
+switch:checked { background: @accent; }
+switch:checked slider { background: @on_accent; }
+scale trough { background: @border; min-height: 4px; border: none; box-shadow: none; }
+scale highlight { background: @accent; min-height: 4px; border: none; }
+scale slider { background: @text; border: 2px solid @accent; min-height: 12px; min-width: 12px; margin: -6px; box-shadow: none; }
+dropdown > button { background: @bg; border: 1px solid @border; border-radius: 6px; min-height: 28px; padding: 0 8px; color: @text; box-shadow: none; }
+button.seg { background: @bg; border: 1px solid @border; border-radius: 6px; min-height: 24px; padding: 0 8px; color: @muted; box-shadow: none; background-image: none; }
+button.seg:checked { background: @accent_soft; color: @accent; border-color: @accent_soft; }
+button.tbtn { min-width: 28px; min-height: 28px; padding: 0; background: @bg; border: 1px solid @border; border-radius: 6px; color: @muted; font-weight: 700; box-shadow: none; background-image: none; }
+button.tbtn:checked { background: @accent_soft; color: @accent; border-color: @accent_soft; }
+button.text-btn { background: transparent; border: none; box-shadow: none; padding: 0 8px; min-height: 30px; border-radius: 6px; color: @text; font-size: 12px; -gtk-icon-size: 18px; }
+button.text-btn:hover { background: @hover; }
+
+/* popovers, tooltips, toasts */
+popover > contents { background: @surface; border: 1px solid @border; border-radius: 10px; color: @text; box-shadow: 0 8px 24px alpha(black, 0.4); }
+tooltip { background: @surface; border: 1px solid @border; border-radius: 6px; color: @text; font-size: 12px; padding: 4px 8px; }
+tooltip label { color: @text; }
+toast { background: @surface; border: 1px solid @border; border-radius: 8px; color: @text; box-shadow: 0 8px 24px alpha(black, 0.4); }
+toast label { color: @text; }
+scrollbar { background: transparent; }
+scrollbar slider { background: alpha(@muted, 0.4); border-radius: 4px; min-width: 6px; }

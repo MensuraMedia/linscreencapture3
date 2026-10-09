@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "linscreencapture"
+version = "2.0.0.dev1"
+description = "Screenshot studio for Linux on GTK 4 + Python"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "CC-BY-NC-4.0" }
+dependencies = ["PyGObject>=3.46", "pycairo>=1.25", "Pillow>=10"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+linscreencapture = "linscreencapture.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["linscreencapture*"]
+
+[tool.setuptools.package-data]
+linscreencapture = ["linscreencapture.gresource", "ui/style.css"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
