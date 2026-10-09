@@ -7,6 +7,7 @@ A screenshot studio for Linux, rebuilt from the ground up on **GTK 4 + Python**.
 | | |
 | --- | --- |
 | Design canvas | [LinScreenCapture 2 — Studio Redesign Mockups](https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA) |
+| Feature reference | [docs/FEATURES.md](docs/FEATURES.md) — everything implemented so far, by function |
 | Technical specification | [docs/GUI_SPEC.md](docs/GUI_SPEC.md) (living copy: [Claude Doc](https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732)) |
 | Artboard sources | [docs/mockups/](docs/mockups/) (`*.dc.html`, plus the generator for the feature boards) |
 | Stack | Python 3.12 · GTK 4.14 · libadwaita 1.5 · Cairo · Pillow · python-xlib · XDG portal |

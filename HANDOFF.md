@@ -1,8 +1,15 @@
 # HANDOFF — LinScreenCapture 2 (linscreencapture3)
 
-Written 2026-10-08 after Phase 1. Read this first; it says where everything is, what was
+Written 2026-10-08 after Phase 1, kept current through Phase 3 and the review rounds of 2026-10-09. Read this first; it says where everything is, what was
 decided, and what to do next. The spec (`docs/GUI_SPEC.md`) is authoritative for the GUI;
 this file is authoritative for process and state.
+
+## 0. Where things stand (2026-10-09)
+
+Phases 1–3 are done and pushed: shell, model + settings migration, capture (X11 verified live; portal and CLI
+backends written). Two operator review rounds reshaped the shell (see decisions 8–11). Next: Phase 4, annotation
+tools and live layers (checklist in section 8). The operator reviews renders and asks for layout tweaks between
+phases; expect that and keep `docs/FEATURES.md`, this file and `changelog.md` current with every change.
 
 ## 1. Mission
 
@@ -22,6 +29,8 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | Renders | `make snapshot` → `screenshots/dev/shell_*.png` (default, open, collapsed, library, text tool, document, document zoomed, settings); `tools/snapshot_overlay.py` renders the live capture overlay to `screenshots/dev/overlay.png` (git-ignored: it contains the real screen) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |
 | Spec | `docs/GUI_SPEC.md` (repo copy) and the living doc https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732 |
+| Feature reference | `docs/FEATURES.md` — every implemented function, action, key, setting and module (update it with each phase) |
+| Change notes | `docs/SHELL-ADJUSTMENTS-2026-10-08.md`, `docs/TOOL-PLACEMENT.md` (operator review rounds) |
 | Local changelog | `changelog.md` (git-ignored by the family convention; keep it updated every session) |
 | Backups | `~/backups/linscreencapture3/<YYYYMMDD-HHMMSS>_linscreencapture3.tar.gz` + `backup-log.md`, via `bash ~/projects/Zai-ZCode/s009_backup_project.sh /home/user/projects/linscreencapture3 -m "..."` after every completed phase |
 | Icons | Phosphor regular, 51 glyphs committed under `data/icons/scalable/actions/lsc-*-symbolic.svg`; re-sync with `make icons` from `~/projects/assets/icons/regular` |
