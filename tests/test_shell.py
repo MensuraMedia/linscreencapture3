@@ -27,8 +27,8 @@ def test_rail_buttons_are_30px_with_tooltip_and_action(window):
     assert len(btns) > 40
     for b in btns:
         if b.get_mapped():
-            if b.get_action_name() == "win.panel" and isinstance(b, Gtk.ToggleButton):
-                assert b.get_height() == 30  # the three-way panel switch stretches across the rail by design
+            if b.get_action_name() == "app.capture-region" and b.get_width() > 30:
+                assert b.get_height() == 30  # the full-width Capture button at the top of the left rail
             else:
                 assert (b.get_width(), b.get_height()) in ((30, 30), (26, 26)), (b.get_tooltip_text(), b.get_width(), b.get_height())
         assert b.get_tooltip_text(), "button without tooltip"
@@ -38,12 +38,40 @@ def test_rail_buttons_are_30px_with_tooltip_and_action(window):
 
 
 def test_header_pieces(window):
-    assert not hasattr(window.header, "chip")  # status chip removed
-    assert window.header.zoom.get_height() == 30
-    assert window.header.capture.get_height() == 30
-    prev = window.header.capture.get_prev_sibling()  # first widget in the start box (an empty WindowControls may precede it)
-    assert prev is None or isinstance(prev, Gtk.WindowControls)
+    assert not hasattr(window.header, "chip") and not hasattr(window.header, "zoom") and not hasattr(window.header, "capture")
     assert not window.header.subtitle.get_visible() and window.header.title.get_label() == "LinScreenCapture"
+    props = window.header.props
+    assert props.get_mapped() and props.title.get_label() == "ARROW" and props.sets.get_visible_child_name() == "shape"
+    window.state.tool = "text"
+    pump(50)
+    assert props.title.get_label() == "TEXT" and props.sets.get_visible_child_name() == "text"
+    window.state.tool = "pixelate"
+    pump(50)
+    assert props.sets.get_visible_child_name() == "redact" and props.mode.get_first_child().get_active()
+    window.state.tool = "arrow"
+
+
+def test_capture_button_tops_the_left_rail(window):
+    cap = window.tool_rail.capture
+    assert cap.get_action_name() == "app.capture-region" and cap.get_width() > 120 and cap.get_height() == 30
+    assert cap.get_parent().get_prev_sibling() is None  # first row of the open rail
+
+
+def test_right_rail_holds_view_and_edit(window):
+    pr = window.panel_rail
+    assert pr.zoom.get_height() == 30 and pr.zoom.value.get_label() == "100%"
+    window.activate_action("win.zoom-in", None)
+    pump(50)
+    assert pr.zoom.value.get_label() == "150%"
+    window.activate_action("win.zoom-fit", None)
+    assert [b.get_action_name() for b in pr.edit_buttons] == ["win.copy", "win.flatten"]
+    left_actions = [b.get_tooltip_text() for b in _buttons(window.tool_rail.get_child_by_name("open")) if b.get_action_name() in ("win.copy", "win.flatten")]
+    assert left_actions == []
+
+
+def test_rail_carets_are_single_chevrons(window):
+    icons = {b.lsc_icon for b in _buttons(window.tool_rail) + _buttons(window.panel_rail) if "rail" in (b.get_action_name() or "")}
+    assert icons == {"caret-left", "caret-right"}
     assert window.header.get_decoration_layout().endswith("close")
     assert "icon" not in window.header.get_decoration_layout()
 
@@ -85,10 +113,7 @@ def test_breakpoint_respects_manual_choice(window):
     assert not window.state.left_collapsed and not window.state.right_collapsed
 
 
-def test_panel_switch_and_colour_sync(window):
-    window.activate_action("win.panel", GLib.Variant("s", "props"))
-    pump(50)
-    assert window.panel_rail.panels.get_visible_child_name() == "props"
+def test_colour_sync(window):
     window.state.colour = "#0091ff"
     pump(50)
     pal = window.panel_rail.palette

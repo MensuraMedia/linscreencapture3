@@ -59,13 +59,12 @@ def main() -> int:
         def step3():
             render(win, OUT / "shell_library.png")
             win.activate_action("win.library", None)
-            win.state.panel = "props"
-            win.state.tool = "blur"
+            win.state.tool = "text"
             GLib.timeout_add(700, step4)
             return False
 
         def step4():
-            render(win, OUT / "shell_props.png")
+            render(win, OUT / "shell_text_tool.png")
             a.quit()
             return False
         GLib.timeout_add(900, step1)

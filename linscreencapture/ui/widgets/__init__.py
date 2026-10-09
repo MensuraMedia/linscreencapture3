@@ -218,3 +218,69 @@ class LayerRow(Gtk.ListBoxRow):
 
     def _eye_toggled(self, btn: Gtk.ToggleButton) -> None:
         btn.set_child(icon_loader.icon("eye" if btn.get_active() else "eye-slash", 16))
+
+
+# ---- compact controls shared by the header strip ----------------------------
+def compact_spin(lo: float, hi: float, value: float, step: float = 1, tooltip: str = "") -> Gtk.SpinButton:
+    sb = Gtk.SpinButton.new_with_range(lo, hi, step)
+    sb.set_value(value)
+    sb.add_css_class("compact")
+    sb.set_valign(Gtk.Align.CENTER)
+    if tooltip:
+        sb.set_tooltip_text(tooltip)
+        sb.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+    return sb
+
+
+def labelled(text: str, widget: Gtk.Widget) -> Gtk.Box:
+    """``text`` (11 px muted) followed by ``widget``, vertically centred."""
+    b = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, valign=Gtk.Align.CENTER)
+    b.add_css_class("props-row")
+    lbl = Gtk.Label(label=text, xalign=0.0, valign=Gtk.Align.CENTER)
+    b.append(lbl)
+    b.append(widget)
+    return b
+
+
+def segmented(options: tuple[str, ...], active: int = 0, tooltip: str = "") -> Gtk.Box:
+    b = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4, halign=Gtk.Align.START, valign=Gtk.Align.CENTER)
+    first = None
+    for n, o in enumerate(options):
+        tb = Gtk.ToggleButton(label=o, active=(n == active))
+        tb.add_css_class("seg")
+        if tooltip:
+            tb.set_tooltip_text(f"{tooltip}: {o}")
+        if first is None:
+            first = tb
+        else:
+            tb.set_group(first)
+        b.append(tb)
+    return b
+
+
+def scale_with_value(lo: float, hi: float, value: float, digits: int = 0, width: int = 90, tooltip: str = ""):
+    """A horizontal scale with a monospace value label; returns (scale, box)."""
+    b = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, valign=Gtk.Align.CENTER)
+    s = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 1 if digits == 0 else 0.05)
+    s.set_value(value)
+    s.set_size_request(width, -1)
+    s.set_draw_value(False)
+    s.set_valign(Gtk.Align.CENTER)
+    if tooltip:
+        s.set_tooltip_text(tooltip)
+        s.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+    b.append(s)
+    fmt = (lambda v: f"{v:.{digits}f}".lstrip("0") or "0") if digits else (lambda v: f"{int(v)}")
+    v = Gtk.Label(label=fmt(value), xalign=1.0)
+    v.add_css_class("value")
+    v.set_size_request(28, -1)
+    b.append(v)
+    s.connect("value-changed", lambda sc: v.set_label(fmt(sc.get_value())))
+    return s, b
+
+
+def switch(active: bool, tooltip: str) -> Gtk.Switch:
+    sw = Gtk.Switch(active=active, valign=Gtk.Align.CENTER)
+    sw.set_tooltip_text(tooltip)
+    sw.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+    return sw

@@ -1,9 +1,11 @@
-"""The 52 px Graphite header, which is also the window's title bar (CSD)."""
+"""The 52 px Graphite header, which is also the window's title bar (CSD).
+
+Left: the title block. Centre: the tool-properties strip for the active tool. Right: window controls.
+"""
 from __future__ import annotations
 from gi.repository import Gtk
 
-from .widgets import ZoomPill
-from ..services import icon_loader
+from .tool_props import ToolProps
 from ..app.view_state import ViewState
 
 
@@ -23,21 +25,8 @@ class HeaderBar(Gtk.HeaderBar):
         self.set_decoration_layout(_system_layout())
         self.state = state
 
-        # capture first (top-left), then the title block
-        self.capture = Gtk.Button()
-        cb = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        cb.append(icon_loader.icon("camera", 18))
-        cb.append(Gtk.Label(label="Capture"))
-        self.capture.set_child(cb)
-        self.capture.add_css_class("primary-pill")
-        self.capture.set_tooltip_text("Capture a new screenshot")
-        self.capture.update_property([Gtk.AccessibleProperty.LABEL], ["Capture a new screenshot"])
-        self.capture.set_action_name("app.capture-region")
-        self.capture.set_valign(Gtk.Align.CENTER)
-        self.pack_start(self.capture)
-
         block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER, halign=Gtk.Align.START)
-        block.set_margin_start(14)
+        block.set_size_request(150, -1)
         self.title = Gtk.Label(label=state.title, xalign=0.0)
         self.title.add_css_class("title")
         self.subtitle = Gtk.Label(label=state.subtitle, xalign=0.0, visible=bool(state.subtitle))
@@ -45,15 +34,12 @@ class HeaderBar(Gtk.HeaderBar):
         block.append(self.title)
         block.append(self.subtitle)
         self.pack_start(block)
-        self.set_title_widget(Gtk.Box())  # empty centre: the mockup's flexible spacer
 
-        self.zoom = ZoomPill()
-        self.zoom.set_margin_end(14)
-        self.pack_end(self.zoom)
+        self.props = ToolProps(state)
+        self.set_title_widget(self.props)
 
         state.connect("notify::title", lambda s, _p: self.title.set_label(s.title))
         state.connect("notify::subtitle", self._subtitle_changed)
-        state.connect("notify::zoom", lambda s, _p: self.zoom.set_zoom(s.zoom))
 
     def _subtitle_changed(self, s: ViewState, _p) -> None:
         self.subtitle.set_label(s.subtitle)

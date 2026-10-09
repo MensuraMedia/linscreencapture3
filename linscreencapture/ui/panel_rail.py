@@ -1,21 +1,14 @@
-"""Right rail: Layers / Props panels, colour palette, navigator, Settings."""
+"""Right rail: layers, colour palette, view (zoom), edit (copy, flatten), navigator, Settings."""
 from __future__ import annotations
 from gi.repository import Gtk
 
 from .widgets import (rail_button, group_label, hairline, SwatchGrid, LayerRow, PALETTE,
-                      colour_class, rail_page, pin_width)
+                      colour_class, rail_page, pin_width, ZoomPill)
 from ..services import icon_loader
 from ..app.view_state import ViewState
 
 OPEN_WIDTH, COLLAPSED_WIDTH = 220, 56
-PANEL_ITEMS = (("stack", "Layers", "layers"), ("sliders-horizontal", "Props", "props"))
-TOOL_NAMES = {"select": "Select", "arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text",
-              "pen": "Pen", "marker": "Marker", "blur": "Blur", "pixelate": "Pixelate", "fill": "Fill", "step": "Step number",
-              "callout": "Callout", "crop": "Crop", "move": "Move"}
-
-
-def _panel_buttons() -> list[Gtk.ToggleButton]:
-    return [rail_button(icon, label, "win.panel", target, toggle=True) for icon, label, target in PANEL_ITEMS]
+EDIT_ITEMS = (("copy", "Copy", "win.copy"), ("stack-simple", "Flatten", "win.flatten"))
 
 
 def _settings_button() -> Gtk.Button:
@@ -96,8 +89,6 @@ class PanelRail(Gtk.Stack):
         self.add_named(pin_width(self._build_open(), OPEN_WIDTH), "open")
         self.add_named(pin_width(self._build_collapsed(), COLLAPSED_WIDTH), "collapsed")
         state.connect("notify::right-collapsed", self._sync)
-        state.connect("notify::panel", self._panel_changed)
-        state.connect("notify::tool", self._tool_changed)
         state.connect("notify::colour", self._colour_changed)
         self._sync()
 
@@ -106,34 +97,42 @@ class PanelRail(Gtk.Stack):
         box = rail_page(OPEN_WIDTH)
         box.add_css_class("rail")
         top = Gtk.Box(halign=Gtk.Align.START, margin_bottom=6)
-        top.append(rail_button("caret-double-right", "Collapse panels", "win.toggle-right-rail"))
+        top.append(rail_button("caret-right", "Collapse panels", "win.toggle-right-rail"))
         box.append(top)
-        switch = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_bottom=4, homogeneous=True)
-        for b in _panel_buttons():
-            switch.append(b)
-        box.append(switch)
-        self.panels = Gtk.Stack(vhomogeneous=False, hhomogeneous=False,
-                                transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=120)
-        self.panels.add_named(self._build_layers(), "layers")
-        self.panels.add_named(self._build_props(), "props")
-        self.panels.set_visible_child_name(self.state.panel)
-        box.append(self.panels)
+        box.append(group_label("Layers"))
+        box.append(self._build_layers())
         box.append(hairline())
         self.palette = ColourPalette(self.state)
         self.palette.set_margin_top(10)
-        self.palette.set_margin_bottom(6)
+        self.palette.set_margin_bottom(10)
         box.append(self.palette)
+        box.append(hairline())
+        lbl = group_label("View")
+        lbl.set_margin_top(10)
+        box.append(lbl)
+        self.zoom = ZoomPill()
+        self.zoom.set_halign(Gtk.Align.START)
+        self.zoom.set_margin_top(4)
+        box.append(self.zoom)
+        lbl = group_label("Edit")
+        lbl.set_margin_top(10)
+        box.append(lbl)
+        edit = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_top=4)
+        self.edit_buttons = [rail_button(icon, label, action) for icon, label, action in EDIT_ITEMS]
+        for b in self.edit_buttons:
+            edit.append(b)
+        box.append(edit)
         box.append(Gtk.Box(vexpand=True))
         box.append(group_label("Navigator"))
         box.append(Navigator())
         self.settings_btn = _settings_button()
         self.settings_btn.set_margin_top(6)
         box.append(self.settings_btn)
-        self._panel_changed()
+        self.state.connect("notify::zoom", lambda s, _p: self.zoom.set_zoom(s.zoom))
         return box
 
     def _build_layers(self) -> Gtk.Box:
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_top=4, margin_bottom=10)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_top=6, margin_bottom=10)
         self.layers = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.layers.add_css_class("layer-list")
         self.layers.set_accessible_role(Gtk.AccessibleRole.LIST)
@@ -145,143 +144,33 @@ class PanelRail(Gtk.Stack):
         box.append(self.layers)
         return box
 
-    def _build_props(self) -> Gtk.Widget:
-        box = self._build_props_content()
-        return Gtk.ScrolledWindow(child=box, hscrollbar_policy=Gtk.PolicyType.NEVER,
-                                  vscrollbar_policy=Gtk.PolicyType.AUTOMATIC, propagate_natural_height=True,
-                                  vexpand=False)
-
-    def _build_props_content(self) -> Gtk.Box:
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_top=6, margin_bottom=10)
-        self.props_tool_label = group_label("Blur · active tool")
-        box.append(self.props_tool_label)
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        card.add_css_class("card")
-        card.append(self._row("Mode", self._segmented(("Pixelate", "Blur"))))
-        self.block_scale, blk = self._scale(4, 32, 12, "12")
-        card.append(self._row("Block", blk))
-        box.append(card)
-        lbl = group_label("Shapes · line, arrow, box, circle")
-        lbl.set_margin_top(10)
-        box.append(lbl)
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        card.add_css_class("card")
-        self.width_spin = Gtk.SpinButton.new_with_range(1, 20, 1)
-        self.width_spin.set_value(4)
-        self.width_spin.add_css_class("compact")
-        self.width_spin.set_tooltip_text("Line width")
-        card.append(self._row("Width", self.width_spin))
-        sw = Gtk.Switch(active=True, valign=Gtk.Align.CENTER)
-        sw.set_tooltip_text("Shadow")
-        card.append(self._row("Shadow", self._with_label(sw, "on")))
-        self.intensity_scale, inten = self._scale(0, 1, 0.6, ".60", digits=2)
-        card.append(self._row("Intensity", inten))
-        uni = Gtk.Switch(active=False, valign=Gtk.Align.CENTER)
-        uni.set_tooltip_text("Apply colour, width and shadow to all tools")
-        card.append(self._row("Universal", self._with_label(uni, "all tools")))
-        box.append(card)
-        lbl = group_label("Text")
-        lbl.set_margin_top(10)
-        box.append(lbl)
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        card.add_css_class("card")
-        r = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self.font_dd = Gtk.DropDown.new_from_strings(["Ubuntu", "Cantarell", "DejaVu Sans", "Liberation Sans", "Noto Sans"])
-        self.font_dd.set_hexpand(True)
-        self.font_dd.set_tooltip_text("Font family")
-        r.append(self.font_dd)
-        self.size_spin = Gtk.SpinButton.new_with_range(6, 96, 1)
-        self.size_spin.set_value(18)
-        self.size_spin.add_css_class("compact")
-        self.size_spin.set_tooltip_text("Font size")
-        r.append(self.size_spin)
-        card.append(r)
-        r = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        bold = Gtk.ToggleButton(label="B", active=True)
-        bold.add_css_class("tbtn")
-        bold.set_tooltip_text("Bold")
-        italic = Gtk.ToggleButton(label="I")
-        italic.add_css_class("tbtn")
-        italic.set_tooltip_text("Italic")
-        r.append(bold)
-        r.append(italic)
-        tsw = Gtk.Switch(active=True, valign=Gtk.Align.CENTER)
-        tsw.set_tooltip_text("Text shadow")
-        r.append(self._with_label(tsw, "shadow"))
-        card.append(r)
-        box.append(card)
-        return box
-
-    @staticmethod
-    def _row(label: str, widget: Gtk.Widget) -> Gtk.Box:
-        r = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        r.add_css_class("props-row")
-        l = Gtk.Label(label=label, xalign=0.0)
-        l.set_size_request(56, -1)
-        r.append(l)
-        widget.set_hexpand(True)
-        r.append(widget)
-        return r
-
-    @staticmethod
-    def _with_label(widget: Gtk.Widget, text: str) -> Gtk.Box:
-        b = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        b.append(widget)
-        l = Gtk.Label(label=text, xalign=0.0)
-        l.add_css_class("sublabel")
-        b.append(l)
-        return b
-
-    @staticmethod
-    def _segmented(options: tuple[str, ...]) -> Gtk.Box:
-        b = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4, halign=Gtk.Align.START)
-        first = None
-        for n, o in enumerate(options):
-            t = Gtk.ToggleButton(label=o, active=(n == 0))
-            t.add_css_class("seg")
-            if first is None:
-                first = t
-            else:
-                t.set_group(first)
-            b.append(t)
-        return b
-
-    @staticmethod
-    def _scale(lo: float, hi: float, value: float, text: str, digits: int = 0):
-        b = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        s = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 1 if digits == 0 else 0.05)
-        s.set_value(value)
-        s.set_hexpand(True)
-        s.set_draw_value(False)
-        b.append(s)
-        v = Gtk.Label(label=text, xalign=1.0)
-        v.add_css_class("value")
-        v.set_size_request(28, -1)
-        b.append(v)
-        s.connect("value-changed", lambda sc: v.set_label(f"{sc.get_value():.{digits}f}".lstrip("0") if digits else f"{int(sc.get_value())}"))
-        return s, b
-
     # -- collapsed page ----------------------------------------------------
     def _build_collapsed(self) -> Gtk.Box:
         box = rail_page(COLLAPSED_WIDTH, 8)
         box.add_css_class("rail")
         box.add_css_class("collapsed")
-        exp = rail_button("caret-double-left", "Expand panels", "win.toggle-right-rail", classes=("outlined",))
+        exp = rail_button("caret-left", "Expand panels", "win.toggle-right-rail", classes=("outlined",))
         exp.set_halign(Gtk.Align.CENTER)
         box.append(exp)
-        box.append(hairline(30))
-        for b in _panel_buttons():
-            b.set_halign(Gtk.Align.CENTER)
-            box.append(b)
         box.append(hairline(30))
         self.dots = SwatchGrid(PALETTE[:6], on_select=lambda hx: setattr(self.state, "colour", hx), per_row=1)
         self.dots.set_halign(Gtk.Align.CENTER)
         self.dots.set_row_spacing(10)
         box.append(self.dots)
-        box.append(hairline(30))
         ed = rail_button("eyedropper", "Eyedropper", "win.eyedropper")
         ed.set_halign(Gtk.Align.CENTER)
         box.append(ed)
+        box.append(hairline(30))
+        for icon, label, action in (("minus", "Zoom out", "win.zoom-out"), ("plus", "Zoom in", "win.zoom-in"),
+                                    ("arrows-in", "Fit to window", "win.zoom-fit")):
+            b = rail_button(icon, label, action)
+            b.set_halign(Gtk.Align.CENTER)
+            box.append(b)
+        box.append(hairline(30))
+        for icon, label, action in EDIT_ITEMS:
+            b = rail_button(icon, label, action)
+            b.set_halign(Gtk.Align.CENTER)
+            box.append(b)
         box.append(Gtk.Box(vexpand=True))
         box.append(hairline(30))
         gear = rail_button("gear", "Settings", "app.preferences")
@@ -293,12 +182,6 @@ class PanelRail(Gtk.Stack):
     # -- state sync --------------------------------------------------------
     def _sync(self, *_a) -> None:
         self.set_visible_child_name("collapsed" if self.state.right_collapsed else "open")
-
-    def _panel_changed(self, *_a) -> None:
-        self.panels.set_visible_child_name(self.state.panel)
-
-    def _tool_changed(self, *_a) -> None:
-        self.props_tool_label.set_label(f"{TOOL_NAMES.get(self.state.tool, self.state.tool)} · active tool".upper())
 
     def _colour_changed(self, *_a) -> None:
         self.dots.select(self.state.colour)

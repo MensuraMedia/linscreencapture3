@@ -40,6 +40,13 @@ window.studio:backdrop headerbar.studio-header { background: @surface; }
 .title { font-size: 14px; font-weight: 500; color: @text; }
 .subtitle { font-size: 12px; color: @muted; }
 
+/* header tool-properties strip */
+.tool-props { padding: 0 8px; }
+.tool-props .group-label { margin: 0; }
+.tool-props .props-row label { font-size: 11px; color: @muted; }
+.tool-props .props-row .value { font-family: "Ubuntu Mono", monospace; font-size: 12px; color: @text; }
+.tool-props dropdown > button { min-height: 28px; padding: 0 8px; }
+
 /* ---- rails ---- */
 .rail-pin, .rail-pin > viewport { background: @rail; }
 .rail-pin scrollbar { opacity: 0; }
@@ -76,7 +83,7 @@ separator.hairline { background: alpha(@border, 0.7); min-height: 1px; min-width
 .chip.error .dot { background: @error; }
 .pill { background: @surface; border: 1px solid @border; border-radius: 6px; min-height: 30px; padding: 0 6px; }
 .zoom-value { font-family: "Ubuntu Mono", monospace; font-size: 12px; min-width: 40px; color: @text; }
-button.primary-pill { background: @accent; background-image: none; color: @on_accent; border: none; border-radius: 6px; min-height: 30px;
+button.primary-pill { background: @accent; background-image: none; color: @on_accent; border: none; border-radius: 6px; min-height: 30px; outline: none;
   padding: 0 14px; font-size: 13px; font-weight: 500; box-shadow: none; -gtk-icon-size: 18px; }
 button.primary-pill label, button.primary-pill image { color: @on_accent; }
 button.primary-pill:hover { background: @accent_hover; }

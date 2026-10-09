@@ -18,8 +18,8 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | Repo | `/home/user/projects/linscreencapture3`, remote `origin` = `github.com/MensuraMedia/linscreencapture3` (branch `main`); `upstream` = the 1.4 repo `MensuraMedia/linscreencapture` |
 | Last pushed commit | see `git log --oneline -1`; everything is committed and pushed at the time of writing |
 | Run | `make resources && python3 -m linscreencapture` (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
-| Test | `make test` → 47 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
-| Renders | `make snapshot` → `screenshots/dev/shell_*.png` (open, collapsed, library, props) for comparison with `screenshots/01_*.png` and `02_*.png` |
+| Test | `make test` → 50 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
+| Renders | `make snapshot` → `screenshots/dev/shell_*.png` (open, collapsed, library, text tool) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |
 | Spec | `docs/GUI_SPEC.md` (repo copy) and the living doc https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732 |
 | Local changelog | `changelog.md` (git-ignored by the family convention; keep it updated every session) |
@@ -59,6 +59,9 @@ The full phase table with gate criteria is in `docs/GUI_SPEC.md` section 10 and 
 8. Shell adjustments (2026-10-08, `docs/SHELL-ADJUSTMENTS-2026-10-08.md`): Capture top-left, no status
    chip, name-only title until a capture exists, `Settings` bottom-right of the right rail, round colour
    swatches with no card/well/hex entry, and **Library** (full-stage page, Ctrl+L) instead of a Captures panel.
+9. Tool placement (2026-10-09, `docs/TOOL-PLACEMENT.md`): Capture tops the left rail; tool properties are a
+   contextual header strip (`ui/tool_props.py`); zoom/fit and Copy/Flatten live in the right rail; no Props tab;
+   single-chevron carets.
 
 ## 5. Code map (Phase 1)
 
@@ -76,9 +79,10 @@ linscreencapture/
   ui/style.css           Graphite Night tokens + every widget rule
   ui/widgets/            rail_button, group_label, hairline, flow_group (Gtk.Grid), rail_page, pin_width,
                          StatusChip, ZoomPill, SwatchGrid, LayerRow, colour_class()
-  ui/header_bar.py       Gtk.HeaderBar subclass (title block, chip, zoom pill, Capture, window controls)
+  ui/header_bar.py       Gtk.HeaderBar subclass (title block, ToolProps strip as title widget, window controls)
+  ui/tool_props.py       per-tool control sets in a Gtk.Stack keyed by tool group; follows ViewState.tool
   ui/tool_rail.py        Item descriptors (icon, label, action, target, collapsed) → open/collapsed pages
-  ui/panel_rail.py       Layers / Props pages, ColourPalette, Navigator, Settings button, collapsed page
+  ui/panel_rail.py       Layers, ColourPalette, VIEW (ZoomPill), EDIT (Copy, Flatten), Navigator, Settings; collapsed page
   ui/library_page.py     Library page (grid of the save folder) shown in the stage stack
   ui/stage.py            empty-state placeholder + HUD; DrawingArea reserved for Phase 4
   ui/studio_window.py    composes everything; win.* actions; breakpoint; close saves settings

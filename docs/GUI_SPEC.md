@@ -557,3 +557,8 @@ Operator-requested changes after Phase 1 (2026-10-08). Detail: `docs/SHELL-ADJUS
 4. Colour: no card, no foreground well, no hex entry. 18 px round swatches, 6 per row, accent ring on the current one; custom-colour and eyedropper buttons in the label row.
 5. The Captures panel is replaced by **Library**, a full-stage page (180×120 thumbnails, name, date, Open / Delete / Refresh / Close) toggled by the left-rail `Library` button or Ctrl+L.
 6. The mockup artboards are not redrawn for these changes; `screenshots/dev/` renders of the running shell are the visual reference for them.
+
+Tool placement (2026-10-09, `docs/TOOL-PLACEMENT.md`): Capture moved to the top of the left rail; tool
+properties moved from the right-rail Props tab to a contextual strip in the header centre (`ui/tool_props.py`);
+zoom and fit moved to a `VIEW` group in the right rail; Copy and Flatten moved to an `EDIT` group in the right
+rail; the right rail has no tabs (Layers is its first group); rail carets are single chevrons.

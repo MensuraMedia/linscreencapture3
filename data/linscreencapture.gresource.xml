@@ -53,5 +53,7 @@
     <file>icons/scalable/actions/lsc-folder-open-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-x-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-caret-down-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-caret-left-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-caret-right-symbolic.svg</file>
   </gresource>
 </gresources>

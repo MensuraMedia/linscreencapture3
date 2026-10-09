@@ -6,7 +6,7 @@ from .header_bar import HeaderBar
 from .tool_rail import ToolRail
 from .panel_rail import PanelRail
 from .stage import Stage
-from ..app.view_state import ViewState, TOOLS, PANELS
+from ..app.view_state import ViewState, TOOLS
 from ..model.settings import Settings
 from ..model.captures_index import CapturesIndex
 
@@ -66,10 +66,8 @@ class StudioWindow(Gtk.ApplicationWindow):
     # -- actions -----------------------------------------------------------
     def _install_actions(self) -> None:
         tool = self._stateful("tool", self.state.tool, TOOLS, lambda v: setattr(self.state, "tool", v))
-        panel = self._stateful("panel", self.state.panel, PANELS, lambda v: setattr(self.state, "panel", v))
         # programmatic state changes (tests, later phases) must move the toggles too
         self.state.connect("notify::tool", lambda s, _p: tool.set_state(GLib.Variant("s", s.tool)))
-        self.state.connect("notify::panel", lambda s, _p: panel.set_state(GLib.Variant("s", s.panel)))
         self._stateful("capture-mode", "region", CAPTURE_MODES, lambda v: None)
         self._simple("toggle-left-rail", lambda: self.state.toggle_rail("left"))
         self._simple("toggle-right-rail", lambda: self.state.toggle_rail("right"))

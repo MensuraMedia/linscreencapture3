@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from gi.repository import Gtk
 
 from .widgets import rail_button, group_label, hairline, flow_group, rail_page, pin_width
+from ..services import icon_loader
 from ..app.view_state import ViewState
 
 OPEN_WIDTH, COLLAPSED_WIDTH = 220, 56
@@ -55,9 +56,7 @@ TOOLS_B = (
 )
 ACTIONS = (
     Item("trash", "Discard", "win.discard", None, True, False, ("danger",), "actions"),
-    Item("stack-simple", "Flatten", "win.flatten", None, False, False, (), "actions"),
     Item("images", "Library", "win.library", None, False, True, (), "actions"),
-    Item("copy", "Copy", "win.copy", None, True, False, (), "actions"),
     Item("download-simple", "Save", "win.save", None, True, False, ("primary",), "actions"),
 )
 ALL_ITEMS = CAPTURE + TOOLS_A + TOOLS_B + ACTIONS
@@ -65,6 +64,23 @@ ALL_ITEMS = CAPTURE + TOOLS_A + TOOLS_B + ACTIONS
 
 def make(item: Item) -> Gtk.Button:
     return rail_button(item.icon, item.label, item.action, item.target, item.classes, toggle=item.toggle)
+
+
+def capture_button(compact: bool = False) -> Gtk.Button:
+    """The primary Capture button: full width at the top of the open rail, icon-only when collapsed."""
+    if compact:
+        return rail_button("camera", "Capture a new screenshot", "app.capture-region", classes=("primary",))
+    b = Gtk.Button()
+    inner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, halign=Gtk.Align.CENTER)
+    inner.append(icon_loader.icon("camera", 18))
+    inner.append(Gtk.Label(label="Capture"))
+    b.set_child(inner)
+    b.add_css_class("primary-pill")
+    b.set_hexpand(True)
+    b.set_tooltip_text("Capture a new screenshot")
+    b.update_property([Gtk.AccessibleProperty.LABEL], ["Capture a new screenshot"])
+    b.set_action_name("app.capture-region")
+    return b
 
 
 class ToolRail(Gtk.Stack):
@@ -87,8 +103,10 @@ class ToolRail(Gtk.Stack):
     def _build_open(self) -> Gtk.Box:
         box = rail_page(OPEN_WIDTH)
         box.add_css_class("rail")
-        top = Gtk.Box(halign=Gtk.Align.END, margin_bottom=6)
-        top.append(rail_button("caret-double-left", "Collapse tools", "win.toggle-left-rail"))
+        top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_bottom=10)
+        self.capture = capture_button()
+        top.append(self.capture)
+        top.append(rail_button("caret-left", "Collapse tools", "win.toggle-left-rail"))
         box.append(top)
         box.append(group_label("Capture"))
         cap = flow_group(make(i) for i in CAPTURE)
@@ -126,9 +144,12 @@ class ToolRail(Gtk.Stack):
         box = rail_page(COLLAPSED_WIDTH, 8)
         box.add_css_class("rail")
         box.add_css_class("collapsed")
-        exp = rail_button("caret-double-right", "Expand tools", "win.toggle-left-rail", classes=("outlined",))
+        exp = rail_button("caret-right", "Expand tools", "win.toggle-left-rail", classes=("outlined",))
         exp.set_halign(Gtk.Align.CENTER)
         box.append(exp)
+        cap = capture_button(compact=True)
+        cap.set_halign(Gtk.Align.CENTER)
+        box.append(cap)
         box.append(hairline(30))
         for item in CAPTURE:
             if item.collapsed:

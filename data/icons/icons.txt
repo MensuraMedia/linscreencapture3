@@ -49,3 +49,5 @@ keyboard
 folder-open
 x
 caret-down
+caret-left
+caret-right
