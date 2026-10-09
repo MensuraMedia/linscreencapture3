@@ -26,4 +26,4 @@ def test_legacy_screenshot_path_is_read(tmp_path):
     legacy.mkdir()
     (legacy / "settings.conf").write_text("[Settings]\nscreenshot_path=/home/user/Shots\nfilename_format=1\n")
     t = Settings.load(root=str(tmp_path))
-    assert t.screenshot_path == "/home/user/Shots"
+    assert t.screenshot_path == "/home/user/Shots" and t.numbering == "sequence" and t.prefix == "Screenshot_"

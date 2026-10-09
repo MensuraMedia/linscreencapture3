@@ -547,6 +547,8 @@ Clipboard and file are written before the editor appears; ESC leaves no trace.
 
 ## 11. Amendments
 
+Phase 2 (2026-10-09): the model layer exists (`model/annotations.py`, `document.py`, `undo.py`, full `settings.py`). Settings now live in four key-file groups ([Window], [Capture], [System], [Tools]) instead of the flat 1.4 `[Settings]` group; the 1.4 file is migrated once and left untouched. The `border` tool is not carried over; blur and pixelate are kinds that modify the composite beneath them.
+
 Operator-requested changes after Phase 1 (2026-10-08). Detail: `docs/SHELL-ADJUSTMENTS-2026-10-08.md`.
 
 1. Header order is Capture, title block, spacer, zoom pill, window controls. There is no status chip.

@@ -18,7 +18,7 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | Repo | `/home/user/projects/linscreencapture3`, remote `origin` = `github.com/MensuraMedia/linscreencapture3` (branch `main`); `upstream` = the 1.4 repo `MensuraMedia/linscreencapture` |
 | Last pushed commit | see `git log --oneline -1`; everything is committed and pushed at the time of writing |
 | Run | `make resources && python3 -m linscreencapture` (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
-| Test | `make test` → 16 tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
+| Test | `make test` → 47 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
 | Renders | `make snapshot` → `screenshots/dev/shell_*.png` (open, collapsed, library, props) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |
 | Spec | `docs/GUI_SPEC.md` (repo copy) and the living doc https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732 |
@@ -35,8 +35,8 @@ Each phase is gated on the operator's sign-off of the previous one.
 | # | Phase | Scope | Status |
 | --- | --- | --- | --- |
 | 1 | Layout shell | window, CSD header, rails open/collapsed, auto-collapse, stage placeholder, static panels, icon pipeline, CSS, tests | **done** (commit "Phase 1: Studio layout shell") — awaiting on-screen sign-off |
-| 2 | Model and settings | `Document`, `Annotation` dataclasses + Cairo draw (port `src/editor_tools.c`), `UndoStack` (20), full `Settings` schema + 1.x migration | next |
-| 3 | Capture | backends (portal, X11 bulk copy, CLI), `CaptureService`, overlay window, `FileStore`, clipboard, `--capture` activation, live status chip | |
+| 2 | Model and settings | `Document`, `Annotation` dataclasses + Cairo draw (port `src/editor_tools.c`), `UndoStack` (20), full `Settings` schema + 1.x migration | **done** (commit "Phase 2: model and settings") — awaiting sign-off |
+| 3 | Capture | backends (portal, X11 bulk copy, CLI), `CaptureService`, overlay window, `FileStore`, clipboard, `--capture` activation, live subtitle | next |
 | 4 | Annotation tools and layers | stage draws the document; all tools; handles; Layers panel live; colour and props wired | |
 | 5 | Image operations and files | crop/resize/rotate/brightness, blur/pixelate layers, flatten, save/copy/discard/paste, captures actions; **then remove `src/`, `include/`, `CMakeLists.txt`, `debian/`, `install.sh`, `uninstall.sh`, `packaging/build-deb.sh`** | |
 | 6 | System integration | hotkey registrar (GNOME append fix), autostart, delayed, pin, scrolling capture, preferences dialog | |
@@ -67,7 +67,10 @@ linscreencapture/
   __main__.py            entry; Application().run()
   app/application.py     Adw.Application, app id com.mensuramedia.LinScreenCapture, accels, --capture
   app/view_state.py      GObject: zoom, left/right_collapsed (+ *_manual), panel, tool, colour, status, title
-  model/settings.py      GLib.KeyFile persistence, Phase-1 subset, legacy read
+  model/settings.py      full schema ([Window] [Capture] [System] [Tools]), 1.x migration, tool_style(), next_filename()
+  model/annotations.py   Annotation + Style dataclasses, Cairo painters for 12 kinds, pixelate/blur pixel ops, geometry helpers
+  model/document.py      Document (base surface + Layer list), flatten/save/open, PIL<->cairo conversion
+  model/undo.py          UndoStack (20) + commands: AddLayer, RemoveLayer, MoveLayer, EditAnnotation, SetVisible, ReplaceBase
   model/captures_index.py threaded thumbnail scan → Gio.ListStore (newest first)
   services/icon_loader.py GResource register, IconTheme resource path, icon(name, size)
   ui/style.css           Graphite Night tokens + every widget rule
@@ -106,11 +109,28 @@ data/ icons, gresource.xml, .desktop files
 - Typing a letter in the hex entry: if it switches tools, scope the single-letter accelerators to the
   stage in Phase 4 (listed in `app/application.py`, `ACCELS`).
 
-## 8. Phase 2 start checklist
+## 8. Phase 3 start checklist (capture)
 
-1. Port `src/editor_tools.c` → `model/annotations.py` (dataclasses + Cairo draw functions; keep the
-   shadow and blur-block semantics), add `model/document.py` and `model/undo.py`.
-2. Extend `model/settings.py` to the full schema table in spec §2 and migrate the legacy file on
-   first run (copy, do not move).
-3. `pytest tests/model` must run without a display; add property tests for undo.
-4. Update `changelog.md`, this file (status table), README roadmap; backup; commit; push.
+1. `backends/base.py` protocol: `capture_screen()`, `capture_region(x, y, w, h)`, `capture_window()` → `cairo.ImageSurface`;
+   `backends/portal.py` (org.freedesktop.portal.Screenshot via Gio.DBusProxy), `backends/x11.py` (python-xlib
+   `root.get_image`, one bulk copy into ARGB32, no per-pixel loop), `backends/cli.py` (gnome-screenshot / grim).
+2. `services/capture_service.py` picks by `Settings.backend` ("auto": portal on Wayland, X11 on X11, CLI last) and
+   falls through once on failure; runs in a thread, returns on the main loop.
+3. `ui/capture_overlay.py`: fullscreen frozen-screen window per monitor, veil, crosshair, handles, dimension chip,
+   mode bar, Enter/Esc/Space/arrows (spec §6, `screenshots/03_capture_overlay.png`).
+4. `services/file_store.py`: `Settings.next_filename()` + `Document.save()`; clipboard via `Gdk.Clipboard.set()`;
+   both before the editor shows. `app.capture-*` actions replace their placeholders; the stage shows the document
+   (`Document.render` on the DrawingArea, zoom from ViewState); header subtitle = `Document.summary()`.
+5. Tests: backend contract tests skipped without their environment; overlay geometry tests under the live display.
+6. Update `changelog.md`, this file, README roadmap; backup; commit; push.
+
+## 9. Model notes (Phase 2)
+
+- `Annotation.kind` ∈ arrow, line, box, circle, text, pen, marker, step, callout, fill, blur, pixelate. Blur and
+  pixelate modify the pixels of the target surface beneath them (as 1.4 did), so they must be drawn in layer order
+  onto the composite; `Document.render(cr, target)` passes the surface for that reason.
+- Shadows: three offset passes, intensity×0.25/pass, as in `editor_tools.c`. Marker = pen at 4× width, 40 % alpha.
+  Step = filled circle, radius max(10, font×0.75), white number; steps renumber on add/remove/move.
+- `Settings.tool_style(tool)` builds the drawing `Style`; `universal=True` makes every tool read the arrow entry.
+- 1.4 → 2.0 key mapping is in `Settings._read_legacy`; `filename_format` 0/2 → `LinScreenCapture_`, 1/3 →
+  `Screenshot_`; ≥2 → timestamp. `border` tool is dropped. Colours accept `rgb()`/`rgba()`/hex.

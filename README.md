@@ -176,8 +176,8 @@ firefox --headless --profile /tmp/ffp --no-remote --window-size=1360,840 \
 | # | Phase | Done when | Status |
 | --- | --- | --- | --- |
 | 1 | Layout shell | Window matches the Main and Collapsed artboards; every button has tooltip and action; rails toggle and auto-collapse; tests green | **done** |
-| 2 | Model and settings | Headless tests green; 1.x settings migrate | next |
-| 3 | Capture | Region, window, screen on X11 and Wayland; clipboard and file written before the editor opens | |
+| 2 | Model and settings | Headless tests green; 1.x settings migrate | **done** |
+| 3 | Capture | Region, window, screen on X11 and Wayland; clipboard and file written before the editor opens | next |
 | 4 | Annotation tools and layers | Every tool is a layer: drawn, selected, moved, undone | |
 | 5 | Image operations and files | Crop, resize, rotate, brightness, blur, pixelate, flatten, save, copy, captures panel; old C sources removed | |
 | 6 | System integration | Hotkey registrar (GNOME-safe), autostart, delayed, pin, scrolling capture, preferences | |
