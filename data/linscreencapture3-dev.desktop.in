@@ -1,0 +1,18 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=LinScreenCapture3
+GenericName=Screenshot Tool (development build)
+Comment=LinScreenCapture 2 — Studio Editor, running from the source checkout
+Exec=@ROOT@/tools/launch.sh
+Icon=linscreencapture3
+Terminal=false
+Categories=Utility;GTK;
+Keywords=screenshot;capture;screen;snip;annotation;
+StartupNotify=true
+StartupWMClass=com.mensuramedia.LinScreenCapture
+Actions=capture;
+
+[Desktop Action capture]
+Name=Capture a region
+Exec=@ROOT@/tools/launch.sh --capture
