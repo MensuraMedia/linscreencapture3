@@ -17,7 +17,7 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | --- | --- |
 | Repo | `/home/user/projects/linscreencapture3`, remote `origin` = `github.com/MensuraMedia/linscreencapture3` (branch `main`); `upstream` = the 1.4 repo `MensuraMedia/linscreencapture` |
 | Last pushed commit | see `git log --oneline -1`; everything is committed and pushed at the time of writing |
-| Run | `make resources && python3 -m linscreencapture` (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
+| Run | `make resources && python3 -m linscreencapture` (add `--debug` or `LSC_DEBUG=1` for timestamped start-up, toolkit and capture logging via `app/logging_setup.py`) (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
 | Test | `make test` → 63 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
 | Renders | `make snapshot` → `screenshots/dev/shell_*.png` (open, collapsed, library, text tool, document); `tools/snapshot_overlay.py` renders the live capture overlay to `screenshots/dev/overlay.png` (git-ignored: it contains the real screen) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |

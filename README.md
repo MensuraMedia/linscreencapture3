@@ -156,6 +156,8 @@ make resources                 # compiles data/ + style.css into linscreencaptur
 python3 -m linscreencapture    # or: pip install -e .[dev] && linscreencapture
 ```
 
+Start-up and capture diagnostics: `python3 -m linscreencapture --debug` (or `LSC_DEBUG=1`) prints timestamped lines for toolkit versions, resources, settings, backend order, window build time and every capture step, and routes GTK/GLib messages into the same stream.
+
 `make icons` re-syncs the 51 bundled Phosphor glyphs from a local checkout (`ICON_SRC=~/projects/assets/icons/regular`); the SVGs are committed, so a plain clone builds without it. `make test` runs the suite (under Xvfb when `xvfb-run` is installed, otherwise on the live display) and `make snapshot` renders the shell to `screenshots/dev/` for side-by-side comparison with the mockups.
 
 Shell adjustments made after Phase 1 are documented in `docs/SHELL-ADJUSTMENTS-2026-10-08.md` and `docs/TOOL-PLACEMENT.md` (Capture tops the left rail, tool properties live in the header, zoom and Copy/Flatten in the right rail); `screenshots/dev/` shows the running shell.
