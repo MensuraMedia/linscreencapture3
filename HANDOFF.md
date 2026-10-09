@@ -18,8 +18,8 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | Repo | `/home/user/projects/linscreencapture3`, remote `origin` = `github.com/MensuraMedia/linscreencapture3` (branch `main`); `upstream` = the 1.4 repo `MensuraMedia/linscreencapture` |
 | Last pushed commit | see `git log --oneline -1`; everything is committed and pushed at the time of writing |
 | Run | `make resources && python3 -m linscreencapture` (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
-| Test | `make test` → 50 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
-| Renders | `make snapshot` → `screenshots/dev/shell_*.png` (open, collapsed, library, text tool) for comparison with `screenshots/01_*.png` and `02_*.png` |
+| Test | `make test` → 63 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
+| Renders | `make snapshot` → `screenshots/dev/shell_*.png` (open, collapsed, library, text tool, document); `tools/snapshot_overlay.py` renders the live capture overlay to `screenshots/dev/overlay.png` (git-ignored: it contains the real screen) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |
 | Spec | `docs/GUI_SPEC.md` (repo copy) and the living doc https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732 |
 | Local changelog | `changelog.md` (git-ignored by the family convention; keep it updated every session) |
@@ -36,8 +36,8 @@ Each phase is gated on the operator's sign-off of the previous one.
 | --- | --- | --- | --- |
 | 1 | Layout shell | window, CSD header, rails open/collapsed, auto-collapse, stage placeholder, static panels, icon pipeline, CSS, tests | **done** (commit "Phase 1: Studio layout shell") — awaiting on-screen sign-off |
 | 2 | Model and settings | `Document`, `Annotation` dataclasses + Cairo draw (port `src/editor_tools.c`), `UndoStack` (20), full `Settings` schema + 1.x migration | **done** (commit "Phase 2: model and settings") — awaiting sign-off |
-| 3 | Capture | backends (portal, X11 bulk copy, CLI), `CaptureService`, overlay window, `FileStore`, clipboard, `--capture` activation, live subtitle | next |
-| 4 | Annotation tools and layers | stage draws the document; all tools; handles; Layers panel live; colour and props wired | |
+| 3 | Capture | backends (portal, X11 bulk copy, CLI), `CaptureService`, overlay window, `FileStore`, clipboard, `--capture` activation, live subtitle | **done** (commit "Phase 3: capture") — awaiting sign-off |
+| 4 | Annotation tools and layers | stage draws the document; all tools; handles; Layers panel live; colour and props wired | next |
 | 5 | Image operations and files | crop/resize/rotate/brightness, blur/pixelate layers, flatten, save/copy/discard/paste, captures actions; **then remove `src/`, `include/`, `CMakeLists.txt`, `debian/`, `install.sh`, `uninstall.sh`, `packaging/build-deb.sh`** | |
 | 6 | System integration | hotkey registrar (GNOME append fix), autostart, delayed, pin, scrolling capture, preferences dialog | |
 | 7 | Polish and release | navigator live, shortcuts window, about, toasts, golden-image tests, packaging, tag 2.0.0 | |
@@ -84,7 +84,13 @@ linscreencapture/
   ui/tool_rail.py        Item descriptors (icon, label, action, target, collapsed) → open/collapsed pages
   ui/panel_rail.py       Layers, ColourPalette, VIEW (ZoomPill), EDIT (Copy, Flatten), Navigator, Settings; collapsed page
   ui/library_page.py     Library page (grid of the save folder) shown in the stage stack
-  ui/stage.py            empty-state placeholder + HUD; DrawingArea reserved for Phase 4
+  ui/stage.py            empty state, Library page, document canvas (flatten cache, zoom, rounded + shadow), Ctrl+scroll zoom, fit_zoom()
+  ui/capture_overlay.py  OverlaySession (shared state, physical root px) + OverlayWindow per monitor: veil, handles, crosshair, chips, mode bar, keys
+  app/capture_controller.py hide studio → settle → backend → overlay/region or screen → crop → save → clipboard → load_document
+  backends/              base (protocol, crop), x11 (python-xlib bulk copy, _NET_CLIENT_LIST_STACKING windows), portal (D-Bus Screenshot), cli
+  services/capture_service.py backend order by session/preference, one fall-through per backend, thread → main loop
+  services/selection.py  pure selection geometry (handles, hit, resize, move, clamp, square)
+  services/file_store.py save_capture(); services/clipboard.py copy_surface() via Gdk.MemoryTexture + ContentProvider
   ui/studio_window.py    composes everything; win.* actions; breakpoint; close saves settings
 tools/sync_icons.py, tools/snapshot_shell.py, tools/launch.sh
 tests/ conftest (live-display fixtures), test_icons, test_settings, test_shell
@@ -113,20 +119,34 @@ data/ icons, gresource.xml, .desktop files
 - Typing a letter in the hex entry: if it switches tools, scope the single-letter accelerators to the
   stage in Phase 4 (listed in `app/application.py`, `ACCELS`).
 
-## 8. Phase 3 start checklist (capture)
+## 8. Phase 4 start checklist (annotation tools and layers)
 
-1. `backends/base.py` protocol: `capture_screen()`, `capture_region(x, y, w, h)`, `capture_window()` → `cairo.ImageSurface`;
-   `backends/portal.py` (org.freedesktop.portal.Screenshot via Gio.DBusProxy), `backends/x11.py` (python-xlib
-   `root.get_image`, one bulk copy into ARGB32, no per-pixel loop), `backends/cli.py` (gnome-screenshot / grim).
-2. `services/capture_service.py` picks by `Settings.backend` ("auto": portal on Wayland, X11 on X11, CLI last) and
-   falls through once on failure; runs in a thread, returns on the main loop.
-3. `ui/capture_overlay.py`: fullscreen frozen-screen window per monitor, veil, crosshair, handles, dimension chip,
-   mode bar, Enter/Esc/Space/arrows (spec §6, `screenshots/03_capture_overlay.png`).
-4. `services/file_store.py`: `Settings.next_filename()` + `Document.save()`; clipboard via `Gdk.Clipboard.set()`;
-   both before the editor shows. `app.capture-*` actions replace their placeholders; the stage shows the document
-   (`Document.render` on the DrawingArea, zoom from ViewState); header subtitle = `Document.summary()`.
-5. Tests: backend contract tests skipped without their environment; overlay geometry tests under the live display.
-6. Update `changelog.md`, this file, README roadmap; backup; commit; push.
+1. `app/editor_controller.py`: pointer gestures on `Stage.canvas` (drag → `Annotation` of the active tool with
+   `Settings.tool_style(tool)` and `ViewState.colour`; Shift = `snap45`/square, Ctrl = `constrain_square`;
+   Text = inline `Gtk.Text` editor; Step = next number; Callout = text at anchor, tail to the target),
+   live preview at 60 % while dragging, commit through `UndoStack.do(AddLayer(...))`, then `window.refresh_document()`.
+2. Select/Move: hit test via `Annotation.contains` top-down, 8 handles, drag = `EditAnnotation` with the moved
+   bounds, Delete = `RemoveLayer`, Ctrl+D = duplicate; `win.undo`/`win.redo` replace their placeholders.
+3. Layers panel live: rows from `Document.layers`, selection ↔ editor selection, eye = `SetVisible`, drag reorder =
+   `MoveLayer`, Delete key; thumbnails from a per-layer render.
+4. Bind the header strip (`ui/tool_props.py`) and the palette to `Settings.tools[tool]` (width, shadow, intensity,
+   fill), text and blur settings; `win.custom-colour` → `Gtk.ColorDialog`; eyedropper samples the composite.
+5. Zoom HUD/pill already follow `ViewState.zoom`; make `ReplaceBase` ops (crop etc.) wait for Phase 5.
+6. Tests: controller geometry headless (tool → annotation from drag points), shell tests for layer rows and undo.
+
+## 9. Capture notes (Phase 3)
+
+- Flow (`CaptureController`): hide the studio → 300 ms settle (+ delay seconds for Delayed) → `CaptureService.capture_screen`
+  (thread) → mode `screen`: finish; `region`/`window`: `OverlaySession.show()` one window per monitor → `crop` →
+  `save_capture` (next name in the save folder) → clipboard (if enabled) → `load_document` → present + toast.
+  `--capture` at start-up creates the window hidden and shows it with the result.
+- Backend order: preference from Settings, else X11 → portal → CLI on X11 sessions and portal → X11 → CLI on Wayland;
+  each is tried once; the last error is reported. X11 copies the root `GetImage` bytes in one numpy copy (BGRX → ARGB32).
+- Overlay coordinates are physical root pixels; each monitor window converts with its origin and scale factor.
+  Window mode uses `_NET_CLIENT_LIST_STACKING` (+ `_NET_FRAME_EXTENTS`) on X11; without a window list it falls back
+  to region. Keys: Enter, Esc, Space (move while dragging), arrows (±1/±10), Shift (square), Ctrl+A, double-click.
+- Known limits: a selection cannot span monitors; HiDPI assumes integer scale factors; the portal path is untested here
+  (no Wayland session on the dev machine).
 
 ## 9. Model notes (Phase 2)
 

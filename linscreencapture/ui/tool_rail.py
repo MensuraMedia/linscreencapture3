@@ -69,7 +69,7 @@ def make(item: Item) -> Gtk.Button:
 def capture_button(compact: bool = False) -> Gtk.Button:
     """The primary Capture button: full width at the top of the open rail, icon-only when collapsed."""
     if compact:
-        return rail_button("camera", "Capture a new screenshot", "app.capture-region", classes=("primary",))
+        return rail_button("camera", "Capture a new screenshot", "app.capture", classes=("primary",))
     b = Gtk.Button()
     inner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, halign=Gtk.Align.CENTER)
     inner.append(icon_loader.icon("camera", 18))
@@ -79,7 +79,7 @@ def capture_button(compact: bool = False) -> Gtk.Button:
     b.set_hexpand(True)
     b.set_tooltip_text("Capture a new screenshot")
     b.update_property([Gtk.AccessibleProperty.LABEL], ["Capture a new screenshot"])
-    b.set_action_name("app.capture-region")
+    b.set_action_name("app.capture")
     return b
 
 

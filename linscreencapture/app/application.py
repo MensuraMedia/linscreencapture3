@@ -5,14 +5,13 @@ from gi.repository import Adw, Gio, GLib, Gtk
 from .. import APP_ID
 from ..services import icon_loader
 
-APP_PLACEHOLDERS = {
-    "capture-region": 3, "capture-window": 3, "capture-screen": 3, "capture-scrolling": 6,
-    "capture-delayed": 6, "pin": 6, "preferences": 6,
-}
+APP_PLACEHOLDERS = {"capture-scrolling": 6, "pin": 6, "preferences": 6}
+CAPTURE_ACTIONS = {"capture": None, "capture-region": "region", "capture-window": "window",
+                   "capture-screen": "screen", "capture-delayed": "delayed"}
 ACCELS = {
     "app.quit": ["<Control>q"],
     "app.preferences": ["<Control>comma"],
-    "app.capture-region": ["<Control>n"],
+    "app.capture": ["<Control>n"],
     "app.capture-screen": ["<Control><Shift>n"],
     "win.save": ["<Control>s"],
     "win.copy": ["<Control>c"],
@@ -38,6 +37,7 @@ class Application(Adw.Application):
                              "Capture a region immediately", None)
         self._capture_on_start = False
         self.settings = None  # a Settings instance to use instead of Settings.load() (tests, snapshots)
+        self.capture_controller = None
         self.connect("handle-local-options", self._local_options)
 
     # -- lifecycle ---------------------------------------------------------
@@ -55,6 +55,11 @@ class Application(Adw.Application):
         icon_loader.install()
         icon_loader.install_css()
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+        if self.settings is None:
+            from ..model.settings import Settings
+            self.settings = Settings.load()
+        from .capture_controller import CaptureController
+        self.capture_controller = CaptureController(self)
         self._install_actions()
         for action, accels in ACCELS.items():
             self.set_accels_for_action(action, accels)
@@ -62,10 +67,11 @@ class Application(Adw.Application):
     def do_activate(self) -> None:
         from ..ui.studio_window import StudioWindow
         win = self.props.active_window or StudioWindow(self, self.settings)
-        win.present()
         if self._capture_on_start:
             self._capture_on_start = False
-            self.activate_action("capture-region", None)
+            self.capture_controller.capture("region")   # the window appears with the result
+        else:
+            win.present()
 
     # -- actions -----------------------------------------------------------
     def _install_actions(self) -> None:
@@ -75,6 +81,10 @@ class Application(Adw.Application):
         for name, phase in APP_PLACEHOLDERS.items():
             a = Gio.SimpleAction.new(name, None)
             a.connect("activate", lambda *_, n=name, p=phase: self._placeholder(n, p))
+            self.add_action(a)
+        for name, mode in CAPTURE_ACTIONS.items():
+            a = Gio.SimpleAction.new(name, None)
+            a.connect("activate", lambda *_, m=mode: self.capture_controller.capture(m))
             self.add_action(a)
 
     def _placeholder(self, name: str, phase: int) -> None:

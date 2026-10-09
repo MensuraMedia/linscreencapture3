@@ -65,6 +65,14 @@ def main() -> int:
 
         def step4():
             render(win, OUT / "shell_text_tool.png")
+            win.state.tool = "arrow"
+            from linscreencapture.model.document import Document
+            win.load_document(Document.open("screenshots/01_studio_editor.png"))
+            GLib.timeout_add(900, step5)
+            return False
+
+        def step5():
+            render(win, OUT / "shell_document.png")
             a.quit()
             return False
         GLib.timeout_add(900, step1)

@@ -9,6 +9,8 @@ from .stage import Stage
 from ..app.view_state import ViewState, TOOLS
 from ..model.settings import Settings
 from ..model.captures_index import CapturesIndex
+from ..model.document import Document
+from ..services import clipboard
 
 MIN_WIDTH, MIN_HEIGHT = 960, 600
 AUTO_COLLAPSE_BELOW = 1100
@@ -16,8 +18,8 @@ CAPTURE_MODES = ("region", "window", "screen", "scrolling", "delayed")
 
 # action -> phase that implements it (placeholders show a toast until then)
 PLACEHOLDERS = {
-    "save": 5, "copy": 5, "discard": 5, "flatten": 5, "resize": 5, "rotate": 5, "adjust": 5,
-    "duplicate-file": 5, "library-open": 5, "library-delete": 5, "undo": 4, "redo": 4, "eyedropper": 4,
+    "save": 5, "flatten": 5, "resize": 5, "rotate": 5, "adjust": 5,
+    "duplicate-file": 5, "library-delete": 5, "undo": 4, "redo": 4, "eyedropper": 4,
     "custom-colour": 4,
 }
 
@@ -31,6 +33,7 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.state.left_collapsed = self.settings.left_collapsed
         self.state.right_collapsed = self.settings.right_collapsed
         self.captures = CapturesIndex(self.settings.screenshot_path)
+        self.document: Document | None = None
 
         self.set_default_size(max(self.settings.window_width, MIN_WIDTH), max(self.settings.window_height, MIN_HEIGHT))
         self.set_size_request(MIN_WIDTH, MIN_HEIGHT)
@@ -73,9 +76,12 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._simple("toggle-right-rail", lambda: self.state.toggle_rail("right"))
         self._simple("zoom-in", lambda: self.state.zoom_step(+1))
         self._simple("zoom-out", lambda: self.state.zoom_step(-1))
-        self._simple("zoom-fit", lambda: setattr(self.state, "zoom", 1.0))
+        self._simple("zoom-fit", lambda: setattr(self.state, "zoom", self.stage.fit_zoom()))
         self._simple("zoom-actual", lambda: setattr(self.state, "zoom", 1.0))
         self._simple("library-refresh", self.captures.scan)
+        self._simple("library-open", self._library_open)
+        self._simple("copy", self._copy)
+        self._simple("discard", self._discard)
         lib = Gio.SimpleAction.new_stateful("library", None, GLib.Variant("b", False))
         lib.connect("change-state", self._library_change)
         lib.connect("activate", lambda a, _p: a.change_state(GLib.Variant("b", not a.get_state().get_boolean())))
@@ -109,6 +115,61 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.state.title = "Library" if show else "LinScreenCapture"
         if show:
             self.captures.scan()
+
+    # -- document ----------------------------------------------------------
+    def load_document(self, doc: Document) -> None:
+        self.document = doc
+        self.stage.set_document(doc)
+        self.panel_rail.set_document(doc)
+        self.state.title = doc.name
+        self.state.subtitle = doc.summary()
+        if self.state.library:
+            self.state.library = False
+            self.lookup_action("library").set_state(GLib.Variant("b", False))
+            self.state.title = doc.name
+        GLib.idle_add(lambda: (setattr(self.state, "zoom", self.stage.fit_zoom()), False)[1])
+
+    def clear_document(self) -> None:
+        self.document = None
+        self.stage.set_document(None)
+        self.panel_rail.set_document(None)
+        self.state.title = "LinScreenCapture"
+        self.state.subtitle = ""
+        self.state.zoom = 1.0
+
+    def refresh_document(self) -> None:
+        """After an edit: re-composite the stage and refresh the subtitle (Phase 4 uses this)."""
+        self.stage.refresh()
+        if self.document is not None:
+            self.state.subtitle = self.document.summary()
+
+    def _library_open(self) -> None:
+        entry = self.stage.library.selected
+        if entry is None:
+            self.toast("Select a screenshot first")
+            return
+        try:
+            doc = Document.open(entry.path)
+        except Exception as exc:  # noqa: BLE001
+            self.toast(f"Could not open {entry.name}: {exc}", timeout=5)
+            return
+        self.load_document(doc)
+
+    def _copy(self) -> None:
+        if self.document is None or self.document.empty:
+            self.toast("Nothing to copy yet")
+            return
+        if clipboard.copy_surface(self.document.flatten()):
+            self.toast(f"Copied {self.document.name} to clipboard")
+        else:
+            self.toast("Clipboard not available", timeout=5)
+
+    def _discard(self) -> None:
+        if self.document is None:
+            return
+        # Phase 5 adds the unsaved-changes prompt; captures are saved on disk already
+        self.clear_document()
+        self.toast("Stage cleared")
 
     # -- responsive rails --------------------------------------------------
     def _bp_apply(self, *_a) -> None:

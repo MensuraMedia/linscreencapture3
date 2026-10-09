@@ -562,3 +562,9 @@ Tool placement (2026-10-09, `docs/TOOL-PLACEMENT.md`): Capture moved to the top 
 properties moved from the right-rail Props tab to a contextual strip in the header centre (`ui/tool_props.py`);
 zoom and fit moved to a `VIEW` group in the right rail; Copy and Flatten moved to an `EDIT` group in the right
 rail; the right rail has no tabs (Layers is its first group); rail carets are single chevrons.
+
+Phase 3 (2026-10-09): capture implemented as specified in sections 6 and 9 with these clarifications: the Capture
+button and the capture-mode buttons share `app.capture` (current mode) while `app.capture-region/window/screen/
+delayed` remain explicit; the overlay is one window per monitor and a selection cannot span monitors; the studio
+window is hidden 300 ms before the screen is frozen so it never appears in its own capture; in window mode the
+overlay highlights windows from `_NET_CLIENT_LIST_STACKING` and falls back to region when no list is available.

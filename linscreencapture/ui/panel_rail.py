@@ -136,13 +136,36 @@ class PanelRail(Gtk.Stack):
         self.layers = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.layers.add_css_class("layer-list")
         self.layers.set_accessible_role(Gtk.AccessibleRole.LIST)
-        r1 = LayerRow("Arrow", "anno", "#8fb7e8")
-        r2 = LayerRow("Base capture", "img", "#c6cedb")
-        self.layers.append(r1)
-        self.layers.append(r2)
-        self.layers.select_row(r1)
+        self.layers_empty = Gtk.Label(label="No layers yet", halign=Gtk.Align.CENTER)
+        self.layers_empty.add_css_class("empty-box")
+        self.layers_empty.set_size_request(-1, 60)
         box.append(self.layers)
+        box.append(self.layers_empty)
+        self.set_document(None)
         return box
+
+    def set_document(self, doc) -> None:
+        """Rebuild the layer list: annotation layers top-first, then the base image."""
+        child = self.layers.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            self.layers.remove(child)
+            child = nxt
+        has = doc is not None and not doc.empty
+        self.layers.set_visible(has)
+        self.layers_empty.set_visible(not has)
+        if not has:
+            return
+        first = None
+        for layer in reversed(doc.layers):
+            row = LayerRow(layer.name, layer.badge, "#5b6572")
+            row.layer_id = layer.id
+            self.layers.append(row)
+            first = first or row
+        base = LayerRow("Base capture", "img", "#c6cedb")
+        base.layer_id = 0
+        self.layers.append(base)
+        self.layers.select_row(first or base)
 
     # -- collapsed page ----------------------------------------------------
     def _build_collapsed(self) -> Gtk.Box:

@@ -166,3 +166,9 @@ toast { background: @surface; border: 1px solid @border; border-radius: 8px; col
 toast label { color: @text; }
 scrollbar { background: transparent; }
 scrollbar slider { background: alpha(@muted, 0.4); border-radius: 4px; min-width: 6px; }
+
+/* ---- capture overlay ---- */
+window.capture-overlay { background: black; }
+.overlay-bar { padding: 0 8px; min-height: 36px; box-shadow: 0 8px 24px alpha(black, 0.4); }
+.overlay-bar .rail-btn { margin: 3px 0; }
+.overlay-bar separator.hairline { min-width: 1px; min-height: 18px; margin: 9px 2px; }

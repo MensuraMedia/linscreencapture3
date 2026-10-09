@@ -27,7 +27,7 @@ def test_rail_buttons_are_30px_with_tooltip_and_action(window):
     assert len(btns) > 40
     for b in btns:
         if b.get_mapped():
-            if b.get_action_name() == "app.capture-region" and b.get_width() > 30:
+            if b.get_action_name() == "app.capture" and b.get_width() > 30:
                 assert b.get_height() == 30  # the full-width Capture button at the top of the left rail
             else:
                 assert (b.get_width(), b.get_height()) in ((30, 30), (26, 26)), (b.get_tooltip_text(), b.get_width(), b.get_height())
@@ -53,7 +53,7 @@ def test_header_pieces(window):
 
 def test_capture_button_tops_the_left_rail(window):
     cap = window.tool_rail.capture
-    assert cap.get_action_name() == "app.capture-region" and cap.get_width() > 120 and cap.get_height() == 30
+    assert cap.get_action_name() == "app.capture" and cap.get_width() > 120 and cap.get_height() == 30
     assert cap.get_parent().get_prev_sibling() is None  # first row of the open rail
 
 
@@ -148,3 +148,32 @@ def test_close_saves_settings(window):
     from linscreencapture.model.settings import Settings
     s = Settings.load(root=window.settings.root)
     assert s.left_collapsed is True and s.window_width == 1360
+
+
+
+def test_document_shows_on_stage_and_in_layers(window, tmp_path):
+    from PIL import Image
+    from linscreencapture.model.document import Document
+    Image.new("RGBA", (400, 300), (40, 120, 200, 255)).save(tmp_path / "cap.png")
+    window.load_document(Document.open(str(tmp_path / "cap.png")))
+    pump(150)
+    assert window.stage.pages.get_visible_child_name() == "canvas"
+    assert window.header.title.get_label() == "cap.png"
+    assert window.header.subtitle.get_visible() and "400×300 · PNG · 1 layer · saved" in window.header.subtitle.get_label()
+    rows = [r for r in _walk(window.panel_rail.layers) if isinstance(r, Gtk.ListBoxRow)]
+    assert len(rows) == 1 and rows[0].name.get_label() == "Base capture"
+    assert window.stage.hud.get_label().endswith("%")
+    window.activate_action("win.zoom-fit", None)
+    assert 0.1 <= window.state.zoom <= 1.0
+    window.activate_action("win.discard", None)
+    pump(50)
+    assert window.stage.pages.get_visible_child_name() == "empty" and window.header.title.get_label() == "LinScreenCapture"
+    assert window.panel_rail.layers_empty.get_visible()
+
+
+def test_capture_actions_exist(app, window):
+    for name in ("capture", "capture-region", "capture-window", "capture-screen", "capture-delayed"):
+        assert app.lookup_action(name) is None  # the plain test app has no capture actions
+    from linscreencapture.app.application import CAPTURE_ACTIONS, ACCELS
+    assert set(CAPTURE_ACTIONS) == {"capture", "capture-region", "capture-window", "capture-screen", "capture-delayed"}
+    assert ACCELS["app.capture"] == ["<Control>n"]
