@@ -17,7 +17,7 @@ def test_defaults_when_missing(tmp_path):
     from linscreencapture.model.settings import Settings
     t = Settings.load(root=str(tmp_path))
     assert (t.window_width, t.window_height) == (1360, 840)
-    assert not t.left_collapsed and not t.right_collapsed
+    assert t.left_collapsed and t.right_collapsed  # collapsed rails are the default
 
 
 def test_legacy_screenshot_path_is_read(tmp_path):

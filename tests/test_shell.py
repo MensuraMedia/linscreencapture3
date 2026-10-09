@@ -51,10 +51,61 @@ def test_header_pieces(window):
     window.state.tool = "arrow"
 
 
-def test_capture_button_tops_the_left_rail(window):
+def test_capture_button_tops_the_left_rail_as_an_icon(window):
     cap = window.tool_rail.capture
-    assert cap.get_action_name() == "app.capture" and cap.get_width() > 120 and cap.get_height() == 30
+    assert cap.get_action_name() == "app.capture" and (cap.get_width(), cap.get_height()) == (30, 30)
+    assert "primary" in cap.get_css_classes()
     assert cap.get_parent().get_prev_sibling() is None  # first row of the open rail
+
+
+def test_defaults_are_collapsed_and_breakpoint_restores_them(tmp_path, app):
+    from linscreencapture.model.settings import Settings
+    from linscreencapture.ui.studio_window import StudioWindow
+    s = Settings(root=str(tmp_path), screenshot_path=str(tmp_path / "pics"))
+    assert s.left_collapsed and s.right_collapsed
+    app.register(None)
+    win = StudioWindow(app, s)
+    assert win.state.left_collapsed and win.state.right_collapsed
+    win._bp_apply(); win._bp_unapply()
+    assert win.state.left_collapsed and win.state.right_collapsed   # restored, not forced open
+    win.state.left_collapsed = False
+    win._bp_apply(); assert win.state.left_collapsed
+    win._bp_unapply(); assert not win.state.left_collapsed and win.state.right_collapsed
+    win.destroy()
+
+
+def test_library_is_always_visible_above_the_actions_line(window):
+    for page in ("open", "collapsed"):
+        btns = _buttons(window.tool_rail.get_child_by_name(page))
+        lib = [b for b in btns if b.get_action_name() == "win.library"]
+        assert len(lib) == 1, page
+        assert isinstance(lib[0].get_next_sibling(), Gtk.Separator), page   # the hairline right below it
+
+
+def test_layers_sit_above_the_navigator_and_navigator_tracks_the_view(window, tmp_path):
+    from PIL import Image
+    from linscreencapture.model.document import Document
+    pr = window.panel_rail
+    page = pr.get_child_by_name("open").get_child().get_child()  # scrolled window -> viewport -> box
+    kids = []
+    c = page.get_first_child()
+    while c is not None:
+        kids.append(c); c = c.get_next_sibling()
+    assert kids.index(pr.layers.get_parent().get_parent().get_parent()) < kids.index(pr.navigator)
+    assert all(not (isinstance(k, Gtk.Label) and k.get_label() == "NAVIGATOR") for k in kids)
+    Image.new("RGBA", (2000, 1200), (90, 60, 30, 255)).save(tmp_path / "big.png")
+    window.load_document(Document.open(str(tmp_path / "big.png")))
+    pump(200)
+    full = pr.navigator.visible_image_rect()
+    assert full is not None and full[2] == 2000 and full[3] == 1200       # fit: everything visible
+    window.state.zoom = 2.0
+    pump(200)
+    part = pr.navigator.visible_image_rect()
+    assert part[2] < 2000 and part[3] < 1200                                 # zoomed: a sub-rectangle
+    pr.navigator._go(pr.navigator.get_width() * 0.9, pr.navigator.get_height() * 0.9)
+    pump(100)
+    moved = pr.navigator.visible_image_rect()
+    assert moved[0] > part[0] and moved[1] > part[1]                         # dragging scrolled the stage
 
 
 def test_right_rail_holds_view_and_edit(window):
@@ -177,3 +228,35 @@ def test_capture_actions_exist(app, window):
     from linscreencapture.app.application import CAPTURE_ACTIONS, ACCELS
     assert set(CAPTURE_ACTIONS) == {"capture", "capture-region", "capture-window", "capture-screen", "capture-delayed"}
     assert ACCELS["app.capture"] == ["<Control>n"]
+
+
+
+def test_simple_selection_captures_on_release(gtk):
+    import cairo
+    from linscreencapture.ui.capture_overlay import OverlaySession
+    from linscreencapture.services.selection import Selection
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 300, 200)
+    done = []
+    s = OverlaySession(surf, "region", [], done.append, simple=True)
+    ow = type("OW", (), {})()  # a stand-in for the window: only _drag_end's inputs are needed
+    s.selection = Selection(10, 10, 110, 60)
+    from linscreencapture.ui.capture_overlay import OverlayWindow
+    OverlayWindow._drag_end(type("W", (), {"session": s, "_drag_mode": "new"})())
+    assert done == [(10, 10, 100, 50)]
+    s2 = OverlaySession(surf, "region", [], done.append, simple=False)
+    s2.selection = Selection(10, 10, 110, 60)
+    OverlayWindow._drag_end(type("W", (), {"session": s2, "_drag_mode": "new"})())
+    assert len(done) == 1  # handles mode waits for Enter
+
+
+def test_preferences_dialog_builds_and_saves(window):
+    from linscreencapture.ui.preferences import PreferencesDialog
+    changes = []
+    dlg = PreferencesDialog(window.settings, on_change=lambda f, v: changes.append((f, v)))
+    dlg.present(window)
+    pump(200)
+    dlg._set("selection_style", "simple")
+    assert changes == [("selection_style", "simple")] and window.settings.path.is_file()
+    assert "selection_style=simple" in window.settings.path.read_text()
+    dlg.close()
+    pump(50)

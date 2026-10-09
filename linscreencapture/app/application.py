@@ -11,7 +11,7 @@ from . import logging_setup
 
 LOG = logging.getLogger("linscreencapture.app")
 
-APP_PLACEHOLDERS = {"capture-scrolling": 6, "pin": 6, "preferences": 6}
+APP_PLACEHOLDERS = {"capture-scrolling": 6, "pin": 6}
 CAPTURE_ACTIONS = {"capture": None, "capture-region": "region", "capture-window": "window",
                    "capture-screen": "screen", "capture-delayed": "delayed"}
 ACCELS = {
@@ -120,10 +120,22 @@ class Application(Adw.Application):
             a = Gio.SimpleAction.new(name, None)
             a.connect("activate", lambda *_, n=name, p=phase: self._placeholder(n, p))
             self.add_action(a)
+        prefs = Gio.SimpleAction.new("preferences", None)
+        prefs.connect("activate", lambda *_: self._open_preferences())
+        self.add_action(prefs)
         for name, mode in CAPTURE_ACTIONS.items():
             a = Gio.SimpleAction.new(name, None)
             a.connect("activate", lambda *_, m=mode: self.capture_controller.capture(m))
             self.add_action(a)
+
+    def _open_preferences(self) -> None:
+        from ..ui.preferences import PreferencesDialog
+        win = self.props.active_window
+        if win is None:
+            return
+        dialog = PreferencesDialog(self.settings, on_change=win.settings_changed)
+        self.preferences_dialog = dialog
+        dialog.present(win)
 
     def _placeholder(self, name: str, phase: int) -> None:
         win = self.props.active_window

@@ -107,3 +107,12 @@ def test_parse_colour():
     assert parse_colour("#ABC") == "#aabbcc"
     assert parse_colour("rgba(0,0,0,0.5)") == "#000000"
     assert parse_colour("blue") is None
+
+
+def test_selection_style_round_trip(tmp_path):
+    s = Settings(root=str(tmp_path))
+    assert s.selection_style == "handles"
+    s.selection_style = "simple"; s.save()
+    assert Settings.load(root=str(tmp_path)).selection_style == "simple"
+    s.path.write_text(s.path.read_text().replace("selection_style=simple", "selection_style=weird"))
+    assert Settings.load(root=str(tmp_path)).selection_style == "handles"

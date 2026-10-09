@@ -26,6 +26,7 @@ PREFIXES = ("LinScreenCapture_", "Screenshot_")
 NUMBERING = ("sequence", "timestamp")
 FORMATS = ("png", "jpeg", "webp")
 BACKENDS = ("auto", "portal", "x11", "cli")
+SELECTION_STYLES = ("handles", "simple")   # handles: adjust then Enter · simple: captures on release
 HOTKEYS = ("none", "Print", "<Control>Print", "<Shift>Print", "<Control><Shift>s", "<Control><Alt>s")
 
 # 1.4 defaults (main_window.c) so a migrated profile looks exactly as it did
@@ -78,8 +79,8 @@ class Settings:
     window_width: int = 1360
     window_height: int = 840
     window_maximized: bool = False
-    left_collapsed: bool = False
-    right_collapsed: bool = False
+    left_collapsed: bool = True   # the collapsed rails are the default on first run
+    right_collapsed: bool = True
     # [Capture]
     screenshot_path: str = field(default_factory=_default_pictures)
     prefix: str = "LinScreenCapture_"
@@ -92,6 +93,7 @@ class Settings:
     pin_opacity: int = 90
     backend: str = "auto"
     reopen_last: bool = True
+    selection_style: str = "handles"
     # [System]
     autostart: bool = False
     hotkey: str = "Print"
@@ -182,6 +184,7 @@ class Settings:
         self.pin_opacity = max(10, min(100, g.int("Capture", "pin_opacity", self.pin_opacity)))
         self.backend = g.choice("Capture", "backend", BACKENDS, self.backend)
         self.reopen_last = g.bool("Capture", "reopen_last", self.reopen_last)
+        self.selection_style = g.choice("Capture", "selection_style", SELECTION_STYLES, self.selection_style)
         self.autostart = g.bool("System", "autostart", self.autostart)
         self.hotkey = g.choice("System", "hotkey", HOTKEYS, self.hotkey)
         self.register_hotkey = g.bool("System", "register_hotkey", self.register_hotkey)
@@ -248,6 +251,7 @@ class Settings:
         kf.set_integer("Capture", "pin_opacity", int(self.pin_opacity))
         kf.set_string("Capture", "backend", self.backend)
         kf.set_boolean("Capture", "reopen_last", bool(self.reopen_last))
+        kf.set_string("Capture", "selection_style", self.selection_style)
         kf.set_boolean("System", "autostart", bool(self.autostart))
         kf.set_string("System", "hotkey", self.hotkey)
         kf.set_boolean("System", "register_hotkey", bool(self.register_hotkey))

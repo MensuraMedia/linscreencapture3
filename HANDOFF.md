@@ -18,8 +18,8 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | Repo | `/home/user/projects/linscreencapture3`, remote `origin` = `github.com/MensuraMedia/linscreencapture3` (branch `main`); `upstream` = the 1.4 repo `MensuraMedia/linscreencapture` |
 | Last pushed commit | see `git log --oneline -1`; everything is committed and pushed at the time of writing |
 | Run | `make resources && python3 -m linscreencapture` (add `--debug` or `LSC_DEBUG=1` for timestamped start-up, toolkit and capture logging via `app/logging_setup.py`) (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
-| Test | `make test` → 63 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
-| Renders | `make snapshot` → `screenshots/dev/shell_*.png` (open, collapsed, library, text tool, document); `tools/snapshot_overlay.py` renders the live capture overlay to `screenshots/dev/overlay.png` (git-ignored: it contains the real screen) for comparison with `screenshots/01_*.png` and `02_*.png` |
+| Test | `make test` → 69 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
+| Renders | `make snapshot` → `screenshots/dev/shell_*.png` (default, open, collapsed, library, text tool, document, document zoomed, settings); `tools/snapshot_overlay.py` renders the live capture overlay to `screenshots/dev/overlay.png` (git-ignored: it contains the real screen) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |
 | Spec | `docs/GUI_SPEC.md` (repo copy) and the living doc https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732 |
 | Local changelog | `changelog.md` (git-ignored by the family convention; keep it updated every session) |
@@ -62,6 +62,14 @@ The full phase table with gate criteria is in `docs/GUI_SPEC.md` section 10 and 
 9. Tool placement (2026-10-09, `docs/TOOL-PLACEMENT.md`): Capture tops the left rail; tool properties are a
    contextual header strip (`ui/tool_props.py`); zoom/fit and Copy/Flatten live in the right rail; no Props tab;
    single-chevron carets.
+10. Review round 2026-10-09 (after Phase 3): both rails **collapsed by default** (auto-collapse restores the prior
+    state when the window widens again); Capture is a 30 px accent icon in both rail states, never full width;
+    the stage paints the capture pixel-exact with square corners (shadow outside only); the navigator is live
+    (thumbnail + viewport rectangle, click/drag scrolls) and has no title; Library sits just above the Actions
+    hairline in both rail states; right rail order is Colour, View, Edit, Layers, navigator, Settings.
+11. Settings dialog (`ui/preferences.py`, Capture page only until Phase 6): save folder, prefix, numbering, format,
+    **Selection box** (free-form with resize handles then Enter, or simple: captures on release),
+    copy to clipboard, delay, start-collapsed switches. `Settings.selection_style` drives `OverlaySession.simple`.
 
 ## 5. Code map (Phase 1)
 

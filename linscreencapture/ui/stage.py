@@ -27,6 +27,7 @@ class Stage(Gtk.Overlay):
         # canvas page: the document, scaled by ViewState.zoom, centred in a scrolled viewport
         self.document = None
         self._composite = None
+        self.on_change: list = []   # callbacks when the composite or document changes (navigator)
         self.canvas = Gtk.DrawingArea(halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
         self.canvas.set_draw_func(self._draw_canvas)
         self.scroller = Gtk.ScrolledWindow(hexpand=True, vexpand=True, child=self.canvas)
@@ -97,12 +98,30 @@ class Stage(Gtk.Overlay):
             self.pages.set_visible_child_name(self._editor_page)
         self._resize_canvas()
         self._update_hud()
+        self._notify()
 
     def refresh(self) -> None:
         """Re-composite after the document changed (Phase 4 calls this on every edit)."""
         if self.document is not None and not self.document.empty:
             self._composite = self.document.flatten()
         self.canvas.queue_draw()
+        self._notify()
+
+    def _notify(self) -> None:
+        for cb in list(self.on_change):
+            cb()
+
+    @property
+    def composite(self):
+        return self._composite
+
+    def image_origin(self) -> tuple[float, float]:
+        """Where the image's top-left sits inside the canvas widget (it is centred with a margin)."""
+        if self._composite is None:
+            return 0.0, 0.0
+        z = self.state.zoom
+        return ((self.canvas.get_width() - self._composite.get_width() * z) / 2,
+                (self.canvas.get_height() - self._composite.get_height() * z) / 2)
 
     def fit_zoom(self) -> float:
         """Zoom that fits the document in the viewport (never above 1:1)."""
@@ -126,13 +145,13 @@ class Stage(Gtk.Overlay):
         z = self.state.zoom
         iw, ih = self._composite.get_width() * z, self._composite.get_height() * z
         x, y = (w - iw) / 2, (h - ih) / 2
-        # soft drop shadow, then the image with 8 px rounded corners
+        # soft drop shadow outside the image; the image itself is painted pixel-exact, square-cornered
         for i, a in ((12, 0.10), (6, 0.14), (2, 0.18)):
             cr.set_source_rgba(0, 0, 0, a)
-            self._rounded(cr, x - i / 2, y + 4 + i / 2, iw + i, ih + i, 8 + i / 2)
+            cr.rectangle(x - i / 2, y + 4 + i / 2, iw + i, ih + i)
             cr.fill()
         cr.save()
-        self._rounded(cr, x, y, iw, ih, 8)
+        cr.rectangle(x, y, iw, ih)
         cr.clip()
         cr.translate(x, y)
         cr.scale(z, z)

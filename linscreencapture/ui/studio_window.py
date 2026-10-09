@@ -54,6 +54,7 @@ class StudioWindow(Gtk.ApplicationWindow):
         body.append(self.stage)
         body.append(self.panel_rail)
         self.breakpoint_bin.set_child(body)
+        self.panel_rail.attach_stage(self.stage)
         self.toasts.set_child(self.breakpoint_bin)
         self.set_child(self.toasts)
 
@@ -137,6 +138,15 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.state.subtitle = ""
         self.state.zoom = 1.0
 
+    def settings_changed(self, field: str, value) -> None:
+        """Live reactions to the Settings dialog (the dialog already saved the file)."""
+        if field == "screenshot_path":
+            self.captures.folder = value
+            self.captures.scan()
+        elif field in ("left_collapsed", "right_collapsed"):
+            self.state.set_property(field, bool(value))
+            self.state.set_property(field.replace("collapsed", "manual"), True)
+
     def refresh_document(self) -> None:
         """After an edit: re-composite the stage and refresh the subtitle (Phase 4 uses this)."""
         self.stage.refresh()
@@ -173,16 +183,19 @@ class StudioWindow(Gtk.ApplicationWindow):
 
     # -- responsive rails --------------------------------------------------
     def _bp_apply(self, *_a) -> None:
+        """Narrow window: collapse both rails, remembering what to restore when it widens again."""
+        self._before_breakpoint = (self.state.left_collapsed, self.state.right_collapsed)
         if not self.state.left_manual:
             self.state.left_collapsed = True
         if not self.state.right_manual:
             self.state.right_collapsed = True
 
     def _bp_unapply(self, *_a) -> None:
+        left, right = getattr(self, "_before_breakpoint", (self.state.left_collapsed, self.state.right_collapsed))
         if not self.state.left_manual:
-            self.state.left_collapsed = False
+            self.state.left_collapsed = left
         if not self.state.right_manual:
-            self.state.right_collapsed = False
+            self.state.right_collapsed = right
 
     # -- helpers -----------------------------------------------------------
     def toast(self, text: str, timeout: int = 3) -> None:

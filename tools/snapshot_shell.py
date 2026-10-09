@@ -41,6 +41,13 @@ def main() -> int:
         win = a.props.active_window
         win.set_default_size(1360, 840)
 
+        def step0():
+            render(win, OUT / "shell_default.png")      # first run: both rails collapsed
+            win.state.left_collapsed = False
+            win.state.right_collapsed = False
+            GLib.timeout_add(700, step1)
+            return False
+
         def step1():
             render(win, OUT / "shell_open.png")
             win.state.left_collapsed = True
@@ -73,9 +80,26 @@ def main() -> int:
 
         def step5():
             render(win, OUT / "shell_document.png")
+            win.state.zoom = 2.0
+            GLib.timeout_add(700, step6)
+            return False
+
+        def step6():
+            render(win, OUT / "shell_document_zoomed.png")
+            a.activate_action("preferences", None)
+            GLib.timeout_add(900, step7)
+            return False
+
+        def step7():
+            # libadwaita presents the dialog as its own window when the parent is a plain GtkApplicationWindow
+            dlg = getattr(a, "preferences_dialog", None)
+            root = dlg.get_root() if dlg is not None else None
+            target = root if isinstance(root, Gtk.Window) and root is not win else win
+            print("settings dialog root:", type(root).__name__ if root else None)
+            render(target, OUT / "shell_settings.png")
             a.quit()
             return False
-        GLib.timeout_add(900, step1)
+        GLib.timeout_add(900, step0)
 
     app.connect_after("activate", on_activate)
     return app.run([])

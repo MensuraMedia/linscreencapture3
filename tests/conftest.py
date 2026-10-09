@@ -36,7 +36,8 @@ def app(gtk):
 @pytest.fixture
 def settings(tmp_path):
     from linscreencapture.model.settings import Settings
-    return Settings(root=str(tmp_path), screenshot_path=str(tmp_path / "pics"))
+    # the shell tests measure the open rails; the product default is collapsed (test_defaults_are_collapsed)
+    return Settings(root=str(tmp_path), screenshot_path=str(tmp_path / "pics"), left_collapsed=False, right_collapsed=False)
 
 
 @pytest.fixture

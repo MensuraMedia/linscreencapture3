@@ -1,5 +1,6 @@
 """Right rail: layers, colour palette, view (zoom), edit (copy, flatten), navigator, Settings."""
 from __future__ import annotations
+import cairo
 from gi.repository import Gtk
 
 from .widgets import (rail_button, group_label, hairline, SwatchGrid, LayerRow, PALETTE,
@@ -59,23 +60,111 @@ class ColourPalette(Gtk.Box):
 
 
 class Navigator(Gtk.DrawingArea):
+    """Thumbnail of the document with the visible viewport; click or drag to scroll the stage."""
+
+    PAD = 8
+
     def __init__(self):
         super().__init__(content_height=116, hexpand=True)
         self.add_css_class("navigator")
+        self.set_tooltip_text("Navigator · drag to move the view")
+        self.stage = None
+        self._thumb = None
+        self._thumb_key = None
         self.set_draw_func(self._draw)
+        drag = Gtk.GestureDrag()
+        drag.connect("drag-begin", lambda g, x, y: self._go(x, y))
+        drag.connect("drag-update", lambda g, dx, dy: self._go(g.get_start_point()[1] + dx, g.get_start_point()[2] + dy))
+        self.add_controller(drag)
+
+    def attach(self, stage) -> None:
+        self.stage = stage
+        stage.on_change.append(self.queue_draw)
+        stage.state.connect("notify::zoom", lambda *_: self.queue_draw())
+        for adj in (stage.scroller.get_hadjustment(), stage.scroller.get_vadjustment()):
+            adj.connect("value-changed", lambda *_: self.queue_draw())
+            adj.connect("changed", lambda *_: self.queue_draw())
+        stage.canvas.connect("resize", lambda *_: self.queue_draw())
+
+    # -- geometry -------------------------------------------------------------
+    def _frame(self):
+        """(scale, tx, ty, tw, th) of the thumbnail inside the widget, or None without a document."""
+        comp = self.stage.composite if self.stage else None
+        if comp is None:
+            return None
+        w, h = self.get_width(), self.get_height()
+        cw, ch = comp.get_width(), comp.get_height()
+        scale = min((w - 2 * self.PAD) / cw, (h - 2 * self.PAD) / ch)
+        tw, th = cw * scale, ch * scale
+        return scale, (w - tw) / 2, (h - th) / 2, tw, th
+
+    def visible_image_rect(self) -> tuple[float, float, float, float] | None:
+        """The part of the image (in image px) currently inside the stage viewport."""
+        st = self.stage
+        comp = st.composite if st else None
+        if comp is None:
+            return None
+        z = st.state.zoom
+        ox, oy = st.image_origin()
+        h, v = st.scroller.get_hadjustment(), st.scroller.get_vadjustment()
+        vx0, vy0 = h.get_value(), v.get_value()
+        vx1, vy1 = vx0 + h.get_page_size(), vy0 + v.get_page_size()
+        x0, y0 = max(0.0, (vx0 - ox) / z), max(0.0, (vy0 - oy) / z)
+        x1, y1 = min(float(comp.get_width()), (vx1 - ox) / z), min(float(comp.get_height()), (vy1 - oy) / z)
+        if x1 <= x0 or y1 <= y0:      # not laid out yet: show everything
+            return 0.0, 0.0, float(comp.get_width()), float(comp.get_height())
+        return x0, y0, x1 - x0, y1 - y0
+
+    # -- drawing --------------------------------------------------------------
+    def _thumbnail(self, comp, tw: int, th: int):
+        key = (id(comp), tw, th)
+        if self._thumb_key != key:
+            surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, max(1, tw), max(1, th))
+            cr = cairo.Context(surf)
+            cr.scale(tw / comp.get_width(), th / comp.get_height())
+            cr.set_source_surface(comp, 0, 0)
+            cr.get_source().set_filter(cairo.FILTER_GOOD)
+            cr.paint()
+            self._thumb, self._thumb_key = surf, key
+        return self._thumb
 
     def _draw(self, _area, cr, w, h) -> None:
-        # Phase 1: static document thumbnail + viewport rectangle (live in Phase 7)
-        tw, th = 150, 96
-        x, y = (w - tw) / 2, (h - th) / 2
-        cr.set_source_rgb(0xdf / 255, 0xe4 / 255, 0xea / 255)
-        cr.rectangle(x, y, tw, th)
+        frame = self._frame()
+        if frame is None:
+            return
+        scale, tx, ty, tw, th = frame
+        thumb = self._thumbnail(self.stage.composite, int(tw), int(th))
+        cr.set_source_surface(thumb, tx, ty)
+        cr.paint()
+        vis = self.visible_image_rect()
+        if vis is None:
+            return
+        x, y, vw, vh = vis
+        cr.set_source_rgba(0, 0, 0, 0.35)                      # dim what is outside the viewport
+        cr.rectangle(tx, ty, tw, th)
+        cr.rectangle(tx + x * scale, ty + y * scale, vw * scale, vh * scale)
+        cr.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
         cr.fill()
-        vw, vh = 92, 58
+        cr.set_fill_rule(cairo.FILL_RULE_WINDING)
         cr.set_source_rgb(0x4c / 255, 0x9d / 255, 1.0)
         cr.set_line_width(1.5)
-        cr.rectangle((w - vw) / 2 + 0.75, (h - vh) / 2 + 0.75, vw, vh)
+        cr.rectangle(tx + x * scale + 0.75, ty + y * scale + 0.75, max(2, vw * scale - 1.5), max(2, vh * scale - 1.5))
         cr.stroke()
+
+    # -- navigation -----------------------------------------------------------
+    def _go(self, px: float, py: float) -> None:
+        """Centre the stage viewport on the image point under the pointer."""
+        frame = self._frame()
+        if frame is None:
+            return
+        scale, tx, ty, _tw, _th = frame
+        st = self.stage
+        z = st.state.zoom
+        ox, oy = st.image_origin()
+        ix, iy = (px - tx) / scale, (py - ty) / scale
+        for adj, origin, coord in ((st.scroller.get_hadjustment(), ox, ix), (st.scroller.get_vadjustment(), oy, iy)):
+            target = origin + coord * z - adj.get_page_size() / 2
+            adj.set_value(max(adj.get_lower(), min(target, adj.get_upper() - adj.get_page_size())))
 
 
 class PanelRail(Gtk.Stack):
@@ -99,11 +188,7 @@ class PanelRail(Gtk.Stack):
         top = Gtk.Box(halign=Gtk.Align.START, margin_bottom=6)
         top.append(rail_button("caret-right", "Collapse panels", "win.toggle-right-rail"))
         box.append(top)
-        box.append(group_label("Layers"))
-        box.append(self._build_layers())
-        box.append(hairline())
         self.palette = ColourPalette(self.state)
-        self.palette.set_margin_top(10)
         self.palette.set_margin_bottom(10)
         box.append(self.palette)
         box.append(hairline())
@@ -117,30 +202,42 @@ class PanelRail(Gtk.Stack):
         lbl = group_label("Edit")
         lbl.set_margin_top(10)
         box.append(lbl)
-        edit = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_top=4)
+        edit = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_top=4, margin_bottom=10)
         self.edit_buttons = [rail_button(icon, label, action) for icon, label, action in EDIT_ITEMS]
         for b in self.edit_buttons:
             edit.append(b)
         box.append(edit)
-        box.append(Gtk.Box(vexpand=True))
-        box.append(group_label("Navigator"))
-        box.append(Navigator())
+        box.append(hairline())
+        lbl = group_label("Layers")
+        lbl.set_margin_top(10)
+        box.append(lbl)
+        box.append(self._build_layers())             # grows to fill; sits directly above the navigator
+        self.navigator = Navigator()
+        self.navigator.set_margin_top(6)
+        box.append(self.navigator)
         self.settings_btn = _settings_button()
         self.settings_btn.set_margin_top(6)
         box.append(self.settings_btn)
         self.state.connect("notify::zoom", lambda s, _p: self.zoom.set_zoom(s.zoom))
         return box
 
+    def attach_stage(self, stage) -> None:
+        self.navigator.attach(stage)
+
     def _build_layers(self) -> Gtk.Box:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_top=6, margin_bottom=10)
         self.layers = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.layers.add_css_class("layer-list")
         self.layers.set_accessible_role(Gtk.AccessibleRole.LIST)
-        self.layers_empty = Gtk.Label(label="No layers yet", halign=Gtk.Align.CENTER)
+        self.layers_empty = Gtk.Label(label="No layers yet", halign=Gtk.Align.FILL, valign=Gtk.Align.START, hexpand=True)
         self.layers_empty.add_css_class("empty-box")
         self.layers_empty.set_size_request(-1, 60)
-        box.append(self.layers)
+        scroller = Gtk.ScrolledWindow(child=self.layers, hscrollbar_policy=Gtk.PolicyType.NEVER,
+                                      vscrollbar_policy=Gtk.PolicyType.AUTOMATIC, vexpand=True, propagate_natural_height=True)
+        scroller.add_css_class("rail-pin")
+        box.append(scroller)
         box.append(self.layers_empty)
+        box.set_vexpand(True)
         self.set_document(None)
         return box
 
@@ -152,7 +249,7 @@ class PanelRail(Gtk.Stack):
             self.layers.remove(child)
             child = nxt
         has = doc is not None and not doc.empty
-        self.layers.set_visible(has)
+        self.layers.get_parent().get_parent().set_visible(has)  # the scrolled window
         self.layers_empty.set_visible(not has)
         if not has:
             return

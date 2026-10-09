@@ -75,7 +75,8 @@ class CaptureController:
             LOG.info("no window list from the backend; falling back to region mode")
             self._mode = "region"
         LOG.debug("overlay: mode %s, %d windows listed", self._mode, len(windows))
-        session = OverlaySession(surface, self._mode, windows, lambda rect: self._finish(surface, rect))
+        session = OverlaySession(surface, self._mode, windows, lambda rect: self._finish(surface, rect),
+                                 simple=(self.app.settings.selection_style == "simple"))
         session.show()
 
     def _finish(self, surface: cairo.ImageSurface, rect: tuple[int, int, int, int] | None) -> None:

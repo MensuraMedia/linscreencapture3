@@ -69,6 +69,7 @@ One 30 × 30 control, one 18 px glyph, 6 px corners, an accent-soft active state
 - Region, window and full-screen capture; delayed capture with a visible countdown; pin a capture to the screen as a floating window.
 - Scrolling capture (stitches successive segments while you scroll), scheduled for milestone 7.
 - Every capture is saved to the configured folder **and** copied to the clipboard before the editor opens. Esc leaves no file behind.
+- Selection box styles (Settings → Capture): a free-form box with resize handles that you confirm with Enter, or a simple box that captures the moment you release.
 - Backends chosen at start-up: XDG desktop portal (Wayland and X11), python-xlib on X11, `gnome-screenshot` / `grim` as a last resort.
 - One resident instance; the system PrintScreen binding and `linscreencapture --capture` activate it over D-Bus in under 300 ms.
 

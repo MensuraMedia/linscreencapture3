@@ -568,3 +568,8 @@ button and the capture-mode buttons share `app.capture` (current mode) while `ap
 delayed` remain explicit; the overlay is one window per monitor and a selection cannot span monitors; the studio
 window is hidden 300 ms before the screen is frozen so it never appears in its own capture; in window mode the
 overlay highlights windows from `_NET_CLIENT_LIST_STACKING` and falls back to region when no list is available.
+
+Review round after Phase 3 (2026-10-09): rails collapsed by default; Capture is an icon button in both rail
+states; the stage image is square-cornered and pixel-exact; the navigator is live and untitled with the layer list
+directly above it; Library sits above the Actions hairline in both states; a Settings dialog (Capture page) exists
+with a "Selection box" option: handles (adjust, Enter) or simple (capture on release).

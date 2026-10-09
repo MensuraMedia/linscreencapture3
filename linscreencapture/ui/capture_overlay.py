@@ -20,8 +20,9 @@ MODES = (("selection", "Region", "region"), ("app-window", "Window", "window"), 
 
 class OverlaySession:
     def __init__(self, surface: cairo.ImageSurface, mode: str, windows: list[WindowInfo],
-                 on_done: Callable[[tuple[int, int, int, int] | None], None]):
+                 on_done: Callable[[tuple[int, int, int, int] | None], None], simple: bool = False):
         self.surface = surface
+        self.simple = simple          # True: capture on release, no handles; False: adjust, then Enter
         self.mode = mode if mode in ("region", "window") else "region"
         self.windows = windows
         self.on_done = on_done
@@ -159,7 +160,9 @@ class OverlayWindow(Gtk.Window):
         sep.add_css_class("hairline")
         sep.set_margin_start(6); sep.set_margin_end(6)
         bar.append(sep)
-        for key, what in (("Enter", "capture"), ("Esc", "cancel"), ("Space", "move"), ("Shift", "square")):
+        hints = (("Esc", "cancel"), ("Space", "move"), ("Shift", "square")) if self.session.simple else \
+            (("Enter", "capture"), ("Esc", "cancel"), ("Space", "move"), ("Shift", "square"))
+        for key, what in hints:
             k = Gtk.Label(label=key); k.add_css_class("kind"); bar.append(k)
             w = Gtk.Label(label=what); w.add_css_class("sublabel"); w.set_margin_end(6); bar.append(w)
         return bar
@@ -168,7 +171,7 @@ class OverlayWindow(Gtk.Window):
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, halign=Gtk.Align.END, valign=Gtk.Align.END,
                       margin_end=16, margin_bottom=16)
         bar.add_css_class("chip")
-        lbl = Gtk.Label(label="Arrows nudge 1 px · Shift+Arrows 10 px · double-click captures")
+        lbl = Gtk.Label(label="Release to capture" if self.session.simple else "Arrows nudge 1 px · Shift+Arrows 10 px · double-click captures")
         lbl.add_css_class("sublabel")
         bar.append(lbl)
         return bar
@@ -210,7 +213,7 @@ class OverlayWindow(Gtk.Window):
             cr.set_line_width(1)
             cr.rectangle(int(lx) + 0.5, int(ly) + 0.5, lw, lh)
             cr.stroke()
-            if s.selection and s.mode == "region":
+            if s.selection and s.mode == "region" and not s.simple:
                 for hx, hy in s.selection.normalised().handle_positions().values():
                     cx, cy = self.to_local(hx, hy)
                     cr.rectangle(cx - HANDLE / 2, cy - HANDLE / 2, HANDLE, HANDLE)
@@ -277,7 +280,7 @@ class OverlayWindow(Gtk.Window):
         s = self.session
         if s.mode != "region":
             return
-        hit = s.selection.hit(rx, ry) if s.selection else None
+        hit = s.selection.hit(rx, ry) if (s.selection and not s.simple) else None
         self._anchor = (rx, ry)
         self._last = (rx, ry)
         if hit == "inside":
@@ -319,6 +322,8 @@ class OverlayWindow(Gtk.Window):
             s.selection = s.selection.normalised()
         self._drag_mode = None
         s.redraw()
+        if s.simple and s.selection is not None:
+            s.confirm()
 
     def _click(self, gesture: Gtk.GestureClick, n_press: int, lx: float, ly: float) -> None:
         s = self.session
