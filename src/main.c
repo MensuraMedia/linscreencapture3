@@ -7,8 +7,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define LOCK_FILE "/tmp/linshot.lock"
-#define SIGNAL_FILE "/tmp/linshot.capture"
+#define LOCK_FILE "/tmp/linscreencapture.lock"
+#define SIGNAL_FILE "/tmp/linscreencapture.capture"
 
 static MainWindow win = {0};
 static volatile sig_atomic_t capture_requested = 0;

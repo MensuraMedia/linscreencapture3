@@ -1,4 +1,4 @@
-linshot (1.0.0-1) unstable; urgency=medium
+linscreencapture (1.0.0-1) unstable; urgency=medium
 
   * Initial release
   * Area screenshot capture with visual overlay

@@ -127,15 +127,15 @@ callout = '''<div style="position:absolute;left:330px;top:100px;background:#e548
 <div style="position:absolute;left:170px;top:52px;width:112px;height:28px;border:1px dashed var(--accent);border-radius:2px"></div>
 <div style="position:absolute;left:166px;top:48px;width:8px;height:8px;background:#fff;border:1px solid var(--accent)"></div><div style="position:absolute;left:278px;top:48px;width:8px;height:8px;background:#fff;border:1px solid var(--accent)"></div><div style="position:absolute;left:166px;top:76px;width:8px;height:8px;background:#fff;border:1px solid var(--accent)"></div><div style="position:absolute;left:278px;top:76px;width:8px;height:8px;background:#fff;border:1px solid var(--accent)"></div>'''
 grads = ["linear-gradient(135deg,#8fb7e8,#eef1f4)","linear-gradient(160deg,#2a3b55,#c98b6b)","linear-gradient(135deg,#1f2e3f,#5b6572)","linear-gradient(135deg,#eef1f4,#c6cedb)","linear-gradient(135deg,#3f5f74,#0f1115)","linear-gradient(135deg,#d6409f,#6e56cf)","linear-gradient(135deg,#46a758,#eef1f4)","linear-gradient(135deg,#ffb224,#f76b15)"]
-names = ["LinShot_24.png","LinShot_23.png","LinShot_22.png","Screenshot_2026-10-08.png","LinShot_21.png","LinShot_20.png","invoice-crop.png","LinShot_19.png"]
-cells = ''.join(f'<div><div class="cap-thumb{" sel" if i==0 else ""}" style="background:{g}"></div><div class="cap-name">{n}</div></div>' for i,(g,n) in enumerate(zip(grads,names)))
+names = ["LinScreenCapture_24.png","LinScreenCapture_23.png","LinScreenCapture_22.png","Screenshot_2026-10-08.png","LinScreenCapture_21.png","LinScreenCapture_20.png","invoice-crop.png","LinScreenCapture_19.png"]
+cells = ''.join(f'<div style="min-width:0"><div class="cap-thumb{" sel" if i==0 else ""}" style="background:{g}"></div><div class="cap-name">{n}</div></div>' for i,(g,n) in enumerate(zip(grads,names)))
 captures_panel = f'''{panel_switch("Captures")}
       <div class="row" style="justify-content:space-between;margin:4px 2px 8px"><span class="cap" style="margin:0">24 captures</span><div class="row" style="gap:2px"><button class="btn" aria-label="Refresh" style="width:26px;height:26px">{icon("arrows-clockwise")}</button><button class="btn danger" aria-label="Delete selected" style="width:26px;height:26px">{icon("trash")}</button></div></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 6px;margin-bottom:10px">{cells}</div>
       <div class="lab" style="margin:0 2px 8px">Double-click opens · Delete removes</div>
       {colour_card}<div style="flex:1"></div>
       {navigator}'''
-build("Captures", stage(fake_window(badges + callout)), captures_panel, ["Step number"], "LinShot_24.png", "Edit · 1440×900 · PNG · 5 layers · unsaved", "Captured")
+build("Captures", stage(fake_window(badges + callout)), captures_panel, ["Step number"], "LinScreenCapture_24.png", "Edit · 1440×900 · PNG · 5 layers · unsaved", "Captured")
 
 # =========================== 2. Props panel + redaction ========================
 pix = '''<div style="position:absolute;left:176px;top:150px;width:240px;height:30px;border-radius:6px;background:repeating-conic-gradient(#9aa3ad 0 25%,#c7ced6 0 50%) 0 0/10px 10px;filter:saturate(.6)"></div>
@@ -161,7 +161,7 @@ props_panel = f'''{panel_switch("Props")}
       </div>
       <div style="flex:1"></div>
       <button class="btn" style="width:100%;justify-content:flex-start;gap:8px;padding:0 8px;font-size:12px;color:var(--text)">{icon("gear")} Preferences…</button>'''
-build("Props", stage(fake_window(pix)), props_panel, ["Blur"], "LinShot_24.png", "Edit · 1440×900 · PNG · 3 layers · unsaved", "Captured")
+build("Props", stage(fake_window(pix)), props_panel, ["Blur"], "LinScreenCapture_24.png", "Edit · 1440×900 · PNG · 3 layers · unsaved", "Captured")
 
 # =========================== 3. Empty state + delayed countdown ===============
 empty = f'''<div style="display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--muted)">
@@ -174,7 +174,7 @@ empty_right = f'''{panel_switch("Layers")}
       <div style="margin:4px 0 10px;height:80px;border:1px dashed var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)">No layers yet</div>
       {colour_card}<div style="flex:1"></div>
       {navigator}'''
-toast = '<div class="toast">Copied <b>LinShot_23.png</b> to clipboard<span class="kind" style="margin-left:4px">Undo</span></div>'
+toast = '<div class="toast">Copied <b>LinScreenCapture_23.png</b> to clipboard<span class="kind" style="margin-left:4px">Undo</span></div>'
 build("Empty", stage(empty, "—", toast), empty_right, ["Delayed 3 s"], "No capture", "Delayed · 3 s · region · ~/Pictures", "Capturing in 2 s", " attention")
 
 # =========================== 4. Preferences dialog ============================
@@ -186,7 +186,7 @@ dialog = f'''<div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"><
       <div class="ptitle">Saving</div>
       <div class="pgroup">
         <div class="prow"><div class="t">Save folder<span class="s">Every capture is written here immediately</span></div><span class="val">~/Pictures/Screenshots</span><button class="btn" aria-label="Choose folder">{folder}</button></div>
-        <div class="prow"><div class="t">File name prefix</div><div class="dd" style="flex:none;width:150px">LinShot_ {caret}</div></div>
+        <div class="prow"><div class="t">File name prefix</div><div class="dd" style="flex:none;width:150px">LinScreenCapture_ {caret}</div></div>
         <div class="prow"><div class="t">Numbering</div><div class="seg"><span class="on">Sequence</span><span>Timestamp</span></div></div>
         <div class="prow"><div class="t">Format</div><div class="seg"><span class="on">PNG</span><span>JPEG 92</span><span>WebP</span></div></div>
       </div>
@@ -206,7 +206,7 @@ dialog = f'''<div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"><
     </div>
   </div>
 '''
-build("Preferences", stage(fake_window(), "100%"), right_orig.split("\n  </div>\n</div>")[0].replace("<!-- RIGHT RAIL -->\n    ",""), ["Arrow"], "LinShot_24.png", "Edit · 1440×900 · PNG · 2 layers · saved", "Ready", overlay=dialog)
+build("Preferences", stage(fake_window(), "100%"), right_orig.split("\n  </div>\n</div>")[0].replace("<!-- RIGHT RAIL -->\n    ",""), ["Arrow"], "LinScreenCapture_24.png", "Edit · 1440×900 · PNG · 2 layers · saved", "Ready", overlay=dialog)
 
 # =========================== 5. Capture overlay (region picker) ===============
 kb = icon("keyboard"); sel_x, sel_y, sel_w, sel_h = 300, 180, 760, 470

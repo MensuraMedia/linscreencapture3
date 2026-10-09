@@ -1,6 +1,6 @@
-# LinShot Installation Guide
+# LinScreenCapture Installation Guide
 
-> Complete guide for installing LinShot on Debian-based Linux systems.
+> Complete guide for installing LinScreenCapture on Debian-based Linux systems.
 > Covers Linux Mint, Ubuntu, Pop!_OS, Debian, Xubuntu, MX Linux, and derivatives.
 
 **Version:** 1.4.0 Beta
@@ -42,7 +42,7 @@ Choose the method that fits your needs:
 
 ## Option 1: .deb Package (Recommended)
 
-The simplest way to install LinShot. Handles dependencies, icons, desktop integration, and menu entries automatically.
+The simplest way to install LinScreenCapture. Handles dependencies, icons, desktop integration, and menu entries automatically.
 
 ### Step 1: Install build dependencies
 
@@ -62,7 +62,7 @@ bash packaging/build-deb.sh
 ### Step 3: Install
 
 ```bash
-sudo dpkg -i linshot_1.0.0_amd64.deb
+sudo dpkg -i linscreencapture_1.0.0_amd64.deb
 ```
 
 If there are missing dependencies:
@@ -72,21 +72,21 @@ sudo apt --fix-broken install
 
 ### Step 4: Launch
 
-LinShot appears in your application menu under **Graphics** or **Utilities**. You can also run:
+LinScreenCapture appears in your application menu under **Graphics** or **Utilities**. You can also run:
 ```bash
-linshot
+linscreencapture
 ```
 
 ### Uninstall
 
 ```bash
-sudo apt remove linshot
+sudo apt remove linscreencapture
 ```
 
 To also remove configuration files:
 ```bash
-sudo apt purge linshot
-rm -rf ~/.config/linshot
+sudo apt purge linscreencapture
+rm -rf ~/.config/linscreencapture
 ```
 
 ---
@@ -123,7 +123,7 @@ make -j$(nproc)
 ### Step 3: Run
 
 ```bash
-./linshot
+./linscreencapture
 ```
 
 The binary is self-contained — it only needs the `resources/` folder in the same directory for icons.
@@ -145,7 +145,7 @@ The binary is self-contained — it only needs the `resources/` folder in the sa
 |---|---|---|
 | Screenshot pastes into GIMP/Firefox but not into a terminal, CLI tool, or Electron app | `xclip` missing — non-GTK apps read the X11 clipboard through it | `sudo apt install xclip` |
 
-`xclip` is the bridge non-GTK programs use to read `image/png` off the X11 clipboard. LinShot
+`xclip` is the bridge non-GTK programs use to read `image/png` off the X11 clipboard. LinScreenCapture
 publishes the image correctly without it, but those consumers cannot see it. See
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the full write-up.
 
@@ -153,7 +153,7 @@ publishes the image correctly without it, but those consumers cannot see it. See
 
 ## Option 3: CMake System Install
 
-Installs LinShot system-wide to `/usr/local/` with proper icon and desktop file integration.
+Installs LinScreenCapture system-wide to `/usr/local/` with proper icon and desktop file integration.
 
 ### Steps 1-2: Same as Build from Source above
 
@@ -165,8 +165,8 @@ sudo make install
 ```
 
 This installs:
-- Binary to `/usr/local/bin/linshot`
-- Desktop file to `/usr/local/share/applications/linshot.desktop`
+- Binary to `/usr/local/bin/linscreencapture`
+- Desktop file to `/usr/local/share/applications/linscreencapture.desktop`
 - Icons to `/usr/local/share/icons/hicolor/` (16px through 256px)
 
 ### Step 4: Update system caches
@@ -185,17 +185,17 @@ sudo make uninstall     # If supported
 
 Or manually:
 ```bash
-sudo rm /usr/local/bin/linshot
-sudo rm /usr/local/share/applications/linshot.desktop
-sudo rm /usr/local/share/icons/hicolor/*/apps/linshot.png
-rm -rf ~/.config/linshot
+sudo rm /usr/local/bin/linscreencapture
+sudo rm /usr/local/share/applications/linscreencapture.desktop
+sudo rm /usr/local/share/icons/hicolor/*/apps/linscreencapture.png
+rm -rf ~/.config/linscreencapture
 ```
 
 ---
 
 ## Option 4: Portable Build (No Install)
 
-Run LinShot directly from the source tree without installing anything system-wide. No root access needed.
+Run LinScreenCapture directly from the source tree without installing anything system-wide. No root access needed.
 
 ```bash
 # Install dependencies (one-time, requires sudo)
@@ -208,13 +208,13 @@ mkdir -p build && cd build
 cmake .. && make -j$(nproc)
 
 # Run directly
-./linshot
+./linscreencapture
 ```
 
 The build directory contains everything needed:
 ```
 build/
-  linshot          # The binary
+  linscreencapture          # The binary
   resources/       # Icons and assets (copied automatically)
 ```
 
@@ -226,11 +226,11 @@ You can move the `build/` folder anywhere. To create a desktop shortcut manually
 
 ### Keybinding Setup
 
-LinShot can register a system-wide keybinding (default: PrintScreen) to capture screenshots instantly.
+LinScreenCapture can register a system-wide keybinding (default: PrintScreen) to capture screenshots instantly.
 
 #### Linux Mint (Cinnamon) — Automatic
 
-1. Open LinShot → **Settings** tab
+1. Open LinScreenCapture → **Settings** tab
 2. Check **"Set as default screenshot app"**
 3. Select your preferred shortcut key
 4. PrintScreen is immediately active — no restart needed
@@ -242,8 +242,8 @@ Automatic registration has a known issue on GNOME (see [KNOWN_ISSUES.md](KNOWN_I
 1. Open **Settings → Keyboard → Keyboard Shortcuts → Custom Shortcuts**
 2. Click **+** to add a new shortcut
 3. Set:
-   - **Name:** LinShot
-   - **Command:** `linshot --capture` (or full path: `/usr/local/bin/linshot --capture`)
+   - **Name:** LinScreenCapture
+   - **Command:** `linscreencapture --capture` (or full path: `/usr/local/bin/linscreencapture --capture`)
    - **Shortcut:** Press PrintScreen (or your preferred key)
 4. If PrintScreen is already bound, first disable it:
    ```bash
@@ -258,14 +258,14 @@ Automatic registration has a known issue on GNOME (see [KNOWN_ISSUES.md](KNOWN_I
 
 1. Open **Settings → Keyboard → Application Shortcuts**
 2. Find and remove the existing PrintScreen entry (usually `xfce4-screenshooter`)
-3. Click **Add**, enter `linshot --capture`, then press PrintScreen when prompted
+3. Click **Add**, enter `linscreencapture --capture`, then press PrintScreen when prompted
 
 #### Ubuntu MATE — Manual Recommended
 
 1. Open **Control Center → Keyboard Shortcuts**
 2. Find **Take a screenshot** and disable or change it
 3. Add a custom shortcut:
-   - **Command:** `linshot --capture`
+   - **Command:** `linscreencapture --capture`
    - **Key:** PrintScreen
 
 #### KDE Plasma — Manual Required
@@ -273,27 +273,27 @@ Automatic registration has a known issue on GNOME (see [KNOWN_ISSUES.md](KNOWN_I
 1. Open **System Settings → Shortcuts → Spectacle**
 2. Disable PrintScreen bindings for Spectacle
 3. Go to **Custom Shortcuts → Edit → New → Global Shortcut → Command/URL**
-4. Set the command to `linshot --capture` and bind to PrintScreen
+4. Set the command to `linscreencapture --capture` and bind to PrintScreen
 
-> **Note:** LinShot requires X11. On KDE Wayland sessions, the keybinding may work but screen capture functionality is limited.
+> **Note:** LinScreenCapture requires X11. On KDE Wayland sessions, the keybinding may work but screen capture functionality is limited.
 
 ### Auto-Start at Login (Optional)
 
-To launch LinShot automatically when you log in:
+To launch LinScreenCapture automatically when you log in:
 
 ```bash
 mkdir -p ~/.config/autostart
-cp /usr/share/applications/linshot.desktop ~/.config/autostart/
+cp /usr/share/applications/linscreencapture.desktop ~/.config/autostart/
 ```
 
 Or if running from source:
 ```bash
 mkdir -p ~/.config/autostart
-cat > ~/.config/autostart/linshot.desktop << EOF
+cat > ~/.config/autostart/linscreencapture.desktop << EOF
 [Desktop Entry]
 Type=Application
-Name=LinShot
-Exec=/path/to/your/linshot
+Name=LinScreenCapture
+Exec=/path/to/your/linscreencapture
 Hidden=false
 X-GNOME-Autostart-enabled=true
 EOF
@@ -305,15 +305,15 @@ If you used the portable build and want a menu entry:
 
 ```bash
 # Create desktop file
-cat > ~/.local/share/applications/linshot.desktop << EOF
+cat > ~/.local/share/applications/linscreencapture.desktop << EOF
 [Desktop Entry]
 Version=1.4
 Type=Application
-Name=LinShot
+Name=LinScreenCapture
 GenericName=Screenshot Tool
 Comment=Capture, annotate, and share screenshots
-Exec=/full/path/to/linshot
-Icon=/full/path/to/linscreencapture/resources/icons/linshot-128.png
+Exec=/full/path/to/linscreencapture
+Icon=/full/path/to/linscreencapture/resources/icons/linscreencapture-128.png
 Terminal=false
 Categories=Utility;Graphics;GTK;
 Keywords=screenshot;capture;screen;annotation;
@@ -321,34 +321,34 @@ StartupNotify=true
 
 [Desktop Action capture]
 Name=Capture Screenshot
-Exec=/full/path/to/linshot --capture
+Exec=/full/path/to/linscreencapture --capture
 EOF
 
 # Update desktop database
 update-desktop-database ~/.local/share/applications/
 ```
 
-Replace `/full/path/to/` with the actual path to your LinShot binary and source directory.
+Replace `/full/path/to/` with the actual path to your LinScreenCapture binary and source directory.
 
 ---
 
 ## Command-Line Usage
 
 ```
-linshot                 Launch the LinShot GUI
-linshot --capture       Capture a screenshot immediately (area selection)
-linshot -c              Short form of --capture
+linscreencapture                 Launch the LinScreenCapture GUI
+linscreencapture --capture       Capture a screenshot immediately (area selection)
+linscreencapture -c              Short form of --capture
 ```
 
-When LinShot is already running, `linshot --capture` signals the existing instance to start a capture instead of launching a second window.
+When LinScreenCapture is already running, `linscreencapture --capture` signals the existing instance to start a capture instead of launching a second window.
 
 ---
 
 ## Configuration
 
-LinShot stores settings in:
+LinScreenCapture stores settings in:
 ```
-~/.config/linshot/settings.conf
+~/.config/linscreencapture/settings.conf
 ```
 
 Settings include:
@@ -363,7 +363,7 @@ All settings are configurable through the **Settings** and **Tools** tabs in the
 
 To reset all settings to defaults:
 ```bash
-rm ~/.config/linshot/settings.conf
+rm ~/.config/linscreencapture/settings.conf
 ```
 
 ---
@@ -374,18 +374,18 @@ After installation, verify everything is working:
 
 ```bash
 # Check the binary runs
-linshot --help 2>&1 || linshot &
+linscreencapture --help 2>&1 || linscreencapture &
 
-# Check desktop integration (should show linshot.desktop)
-ls ~/.local/share/applications/linshot.desktop 2>/dev/null || \
-ls /usr/share/applications/linshot.desktop 2>/dev/null || \
-ls /usr/local/share/applications/linshot.desktop 2>/dev/null
+# Check desktop integration (should show linscreencapture.desktop)
+ls ~/.local/share/applications/linscreencapture.desktop 2>/dev/null || \
+ls /usr/share/applications/linscreencapture.desktop 2>/dev/null || \
+ls /usr/local/share/applications/linscreencapture.desktop 2>/dev/null
 
 # Check your desktop environment (helps with keybinding setup)
 echo $XDG_CURRENT_DESKTOP
 
 # Test capture mode
-linshot --capture
+linscreencapture --capture
 ```
 
 ---
@@ -397,7 +397,7 @@ linshot --capture
 cd linscreencapture
 git pull
 bash packaging/build-deb.sh
-sudo dpkg -i linshot_1.0.0_amd64.deb
+sudo dpkg -i linscreencapture_1.0.0_amd64.deb
 ```
 
 ### From source build

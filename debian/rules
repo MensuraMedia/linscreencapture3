@@ -11,6 +11,6 @@ override_dh_auto_configure:
 override_dh_auto_install:
 	dh_auto_install
 	# Update icon cache after install
-	if [ -d debian/linshot/usr/share/icons ]; then \
-		gtk-update-icon-cache -f -t debian/linshot/usr/share/icons/hicolor 2>/dev/null || true; \
+	if [ -d debian/linscreencapture/usr/share/icons ]; then \
+		gtk-update-icon-cache -f -t debian/linscreencapture/usr/share/icons/hicolor 2>/dev/null || true; \
 	fi

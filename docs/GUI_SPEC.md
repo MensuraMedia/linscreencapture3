@@ -34,14 +34,14 @@ The repository is a 6,672-line C program on GTK 3, Cairo and raw Xlib (version 1
 | `src/keybinding_manager.c` | 325 | DE detection, PrintScreen registration via gsettings/dconf/xfconf/XGrabKey | Ported; Cinnamon-only hardening caveat kept |
 | `src/screenshot_history.c` | 140 | Scan folder, pixbuf thumbnails newest first | Becomes `model/captures_index.py` |
 | `src/sidebar_icons.c` | 358 | 17 hand-drawn Cairo icons | Dropped; Phosphor SVGs |
-| `src/main.c` | 118 | `/tmp/linshot.lock`, SIGUSR1, `--capture`, 200 ms poll | Replaced by `Gtk.Application` activation and a `capture-region` action |
+| `src/main.c` | 118 | `/tmp/linscreencapture.lock`, SIGUSR1, `--capture`, 200 ms poll | Replaced by `Gtk.Application` activation and a `capture-region` action |
 
-**Settings schema to preserve** (`~/.config/linshot/settings.conf`, group `[Settings]`; migrated on first run to `~/.config/linscreencapture/settings.conf` with the same keys):
+**Settings schema to preserve** (`~/.config/linscreencapture/settings.conf`, group `[Settings]`; migrated on first run from the legacy 1.x file `~/.config/linshot/settings.conf` to `~/.config/linscreencapture/settings.conf` with the same keys):
 
 | Key | Type | Meaning |
 | --- | --- | --- |
 | `screenshot_path` | string | Save folder, default `~/Pictures` |
-| `filename_format` | int | 0 = `LinShot_`, 1 = `Screenshot_` prefix |
+| `filename_format` | int | 0 = `LinScreenCapture_` prefix (was `LinShot_` in 1.x), 1 = `Screenshot_` prefix |
 | `auto_number` | int | 0 = sequence number, 1 = timestamp |
 | `start_with_os` | bool | Autostart entry |
 | `shortcut_key` | int | 0 none, 1 Print, 2 Ctrl+Print, 3 Shift+Print, 4 Ctrl+Shift+S, 5 Ctrl+Alt+S |
@@ -92,7 +92,7 @@ Pure Python 3.12 on PyGObject with GTK 4.14 and libadwaita 1.5. libadwaita provi
 | Capture, portal | `org.freedesktop.portal.Screenshot` via `Gio.DBusProxy` (`interactive=false`) | `xdg-desktop-portal`, `xdg-desktop-portal-gtk` |
 | Capture, fallback | `gnome-screenshot -f` / `grim -g` subprocess | optional |
 | Clipboard | `Gdk.Clipboard.set_texture()` | `xclip` / `wl-clipboard` recommended |
-| Settings | `GLib.KeyFile` at `~/.config/linscreencapture/settings.conf`, migrated from linshot | — |
+| Settings | `GLib.KeyFile` at `~/.config/linscreencapture/settings.conf`, migrated from the legacy 1.x config | — |
 | Hotkey | Port of `keybinding_manager.c` via `Gio.Settings` + gsettings/xfconf-query | — |
 | Icons | Phosphor regular compiled into `linscreencapture.gresource` under `/com/mensuramedia/linscreencapture/icons/scalable/actions/` | `libglib2.0-dev-bin` |
 | Fonts | Ubuntu / Ubuntu Mono, fallback Cantarell / monospace | `fonts-ubuntu` |
@@ -149,7 +149,7 @@ linscreencapture/
     document.py          # base image + ordered layers + dirty flag + file name
     annotations.py       # Annotation dataclasses and Cairo draw functions
     undo.py              # 20-deep stack of reversible commands
-    settings.py          # KeyFile-backed dataclass, migration from linshot
+    settings.py          # KeyFile-backed dataclass, migration from the legacy 1.x config
     captures_index.py    # Gio.ListStore of CaptureEntry, newest first
   services/
     capture_service.py   # picks a backend, returns a GdkPixbuf and the region
@@ -525,7 +525,7 @@ Clipboard and file are written before the editor appears; ESC leaves no trace.
 | --- | --- | --- | --- |
 | 1 | Skeleton and icons | `pyproject.toml`, `__main__.py`, `Adw.Application`, `tools/sync_icons.py`, GResource (46 icons + CSS), `.desktop` | App opens an empty dark window; sync fails on an unknown icon; resources compile from `pip install -e .` |
 | 2 | Studio shell | Header, both rails open/collapsed, stage placeholder, all buttons wired to no-op actions with tooltips | 1360×840 screenshot matches Main and Collapsed artboards within 2 px; Ctrl+[ / Ctrl+] crossfade; focus ring on every button |
-| 3 | Model and settings | `Document`, `Annotation` + Cairo draw (ported from `editor_tools.c`), `UndoStack`, `Settings` with linshot migration | `pytest tests/model` green without a display; old settings file yields identical values; undo depth exactly 20 |
+| 3 | Model and settings | `Document`, `Annotation` + Cairo draw (ported from `editor_tools.c`), `UndoStack`, `Settings` with legacy 1.x settings migration | `pytest tests/model` green without a display; old settings file yields identical values; undo depth exactly 20 |
 | 4 | Capture | Backend protocol, Portal/X11/CLI, `CaptureService`, overlay, clipboard, `FileStore` | PrintScreen opens the overlay < 300 ms on Cinnamon X11; region/window/screen captures land in `~/Pictures` and on the clipboard; same on a Wayland GNOME VM via portal; ESC leaves no file |
 | 5 | Annotation tools | Select, Move, Arrow, Line, Box, Circle, Text, Pen, Marker, Step, Callout, Fill; Layers; Colour card; Props | Each tool draws with active colour/width, is a layer, selectable, movable, undoable; modifiers as specified; swatch ring and hex in sync |
 | 6 | Image operations | Crop, Resize, Rotate, Brightness; Blur/Pixelate layers; Flatten; Save/Save As/Copy/Discard; Captures panel | Every op one undo step; saved PNG equals flattened stage; Captures refreshes within 1 s |

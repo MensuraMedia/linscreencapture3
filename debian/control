@@ -1,4 +1,4 @@
-Source: linshot
+Source: linscreencapture
 Section: graphics
 Priority: optional
 Maintainer: MensuraMedia <mensuramedia@gmail.com>
@@ -7,12 +7,12 @@ Standards-Version: 4.6.2
 Homepage: https://github.com/MensuraMedia/linscreencapture
 Rules-Requires-Root: no
 
-Package: linshot
+Package: linscreencapture
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libgtk-3-0, libx11-6, libcairo2
 Recommends: xdg-utils, xclip
 Description: Modern screenshot tool for Linux with annotation support
- LinShot is a lightweight screenshot tool for Linux desktops that provides
+ LinScreenCapture is a lightweight screenshot tool for Linux desktops that provides
  area capture with real-time visual feedback, annotation tools (arrows,
  rectangles, circles, text, freehand drawing), screenshot history,
  automatic clipboard copy, and system tray integration.

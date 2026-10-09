@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(linshot VERSION 1.4.0 LANGUAGES C)
+project(linscreencapture VERSION 1.4.0 LANGUAGES C)
 
 # Find required packages
 find_package(PkgConfig REQUIRED)
@@ -45,24 +45,24 @@ set(HEADERS
 )
 
 # Create executable
-add_executable(linshot ${SOURCES} ${HEADERS})
+add_executable(linscreencapture ${SOURCES} ${HEADERS})
 
 # Link libraries
-target_link_libraries(linshot
+target_link_libraries(linscreencapture
     ${GTK3_LIBRARIES}
     ${X11_LIBRARIES}
     m
 )
 
 # Set compiler flags
-target_compile_options(linshot PRIVATE
+target_compile_options(linscreencapture PRIVATE
     -Wall
     -Wextra
     -Werror
 )
 
 # Copy resources to build directory (for development)
-add_custom_command(TARGET linshot POST_BUILD
+add_custom_command(TARGET linscreencapture POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_SOURCE_DIR}/resources
     ${CMAKE_BINARY_DIR}/resources
@@ -70,12 +70,12 @@ add_custom_command(TARGET linshot POST_BUILD
 
 # Install rules
 include(GNUInstallDirs)
-install(TARGETS linshot DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES packaging/linshot.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES resources/icons/linshot-16.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/16x16/apps RENAME linshot.png)
-install(FILES resources/icons/linshot-24.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/24x24/apps RENAME linshot.png)
-install(FILES resources/icons/linshot-32.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/32x32/apps RENAME linshot.png)
-install(FILES resources/icons/linshot-48.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/48x48/apps RENAME linshot.png)
-install(FILES resources/icons/linshot-64.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/64x64/apps RENAME linshot.png)
-install(FILES resources/icons/linshot-128.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps RENAME linshot.png)
-install(FILES resources/icons/linshot-256.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps RENAME linshot.png)
+install(TARGETS linscreencapture DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES packaging/linscreencapture.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES resources/icons/linscreencapture-16.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/16x16/apps RENAME linscreencapture.png)
+install(FILES resources/icons/linscreencapture-24.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/24x24/apps RENAME linscreencapture.png)
+install(FILES resources/icons/linscreencapture-32.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/32x32/apps RENAME linscreencapture.png)
+install(FILES resources/icons/linscreencapture-48.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/48x48/apps RENAME linscreencapture.png)
+install(FILES resources/icons/linscreencapture-64.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/64x64/apps RENAME linscreencapture.png)
+install(FILES resources/icons/linscreencapture-128.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps RENAME linscreencapture.png)
+install(FILES resources/icons/linscreencapture-256.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps RENAME linscreencapture.png)

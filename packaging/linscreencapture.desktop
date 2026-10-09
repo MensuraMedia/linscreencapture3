@@ -4,8 +4,8 @@ Type=Application
 Name=LinScreenCapture
 GenericName=Screenshot Tool
 Comment=Capture, annotate, and share screenshots
-Exec=linshot
-Icon=linshot
+Exec=linscreencapture
+Icon=linscreencapture
 Terminal=false
 Categories=Utility;Graphics;GTK;
 Keywords=screenshot;capture;screen;snip;annotation;
@@ -15,4 +15,4 @@ Actions=capture;
 
 [Desktop Action capture]
 Name=Capture Screenshot
-Exec=linshot --capture
+Exec=linscreencapture --capture

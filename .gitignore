@@ -46,7 +46,7 @@ generate_icon.c
 *.deb
 
 # Runtime data
-linshot_recent_history/
+linscreencapture_recent_history/
 
 # Claude Code instruction sets (private)
 .claude/
@@ -55,7 +55,7 @@ CLAUDE.md
 changelog.md
 
 # Other
-linshot
+linscreencapture
 screenshot_app
 # Python 2.x rewrite
 .venv/

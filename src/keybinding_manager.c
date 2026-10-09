@@ -111,14 +111,14 @@ static bool cinnamon_unregister(void) {
     run_cmd("dbus-send --session --dest=org.Cinnamon --type=method_call "
             "/org/Cinnamon org.Cinnamon.Eval "
             "string:'Main.keybindingManager.remove_custom_keybindings();"
-            " Main.keybindingManager.removeHotKey(\"linshot\");"
+            " Main.keybindingManager.removeHotKey(\"linscreencapture\");"
             " Main.keybindingManager.removeHotKey(\"custom0\"); \"ok\";' "
             "2>/dev/null");
     // Remove dconf entries
     run_cmd("dconf reset -f /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/");
     run_cmd("gsettings set org.cinnamon.desktop.keybindings custom-list '[]'");
     // Also purge any stale GNOME-path entries (csd-media-keys reads both schemas)
-    run_cmd("dconf reset -f /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linshot/ 2>/dev/null");
+    run_cmd("dconf reset -f /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linscreencapture/ 2>/dev/null");
     run_cmd("gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings \"[]\" 2>/dev/null");
     // Restore Cinnamon's built-in screenshot keys
     run_cmd("gsettings reset org.cinnamon.desktop.keybindings.media-keys screenshot");
@@ -132,7 +132,7 @@ static bool cinnamon_register(KeyBinding key, const char* exec_path) {
     char cmd[512];
 
     // Purge any stale GNOME-path entries first (csd-media-keys reads both schemas)
-    run_cmd("dconf reset -f /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linshot/ 2>/dev/null");
+    run_cmd("dconf reset -f /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linscreencapture/ 2>/dev/null");
     run_cmd("gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings \"[]\" 2>/dev/null");
 
     // Cinnamon expects custom-list entries as 'customN' (not arbitrary names)
@@ -169,7 +169,7 @@ static bool cinnamon_register(KeyBinding key, const char* exec_path) {
     run_cmd("dbus-send --session --dest=org.Cinnamon --type=method_call "
             "/org/Cinnamon org.Cinnamon.Eval "
             "string:'Main.keybindingManager.remove_custom_keybindings();"
-            " Main.keybindingManager.removeHotKey(\"linshot\");"
+            " Main.keybindingManager.removeHotKey(\"linscreencapture\");"
             " Main.keybindingManager.setup_custom_keybindings(); \"ok\";' "
             "2>/dev/null");
 
@@ -181,34 +181,34 @@ static bool cinnamon_register(KeyBinding key, const char* exec_path) {
 // ---------------------------------------------------------------------------
 
 static bool gnome_unregister(void) {
-    // Clear the custom keybinding list and wipe the entire linshot subtree
+    // Clear the custom keybinding list and wipe the entire linscreencapture subtree
     run_cmd("gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings \"[]\" 2>/dev/null");
-    run_cmd("dconf reset -f /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linshot/ 2>/dev/null");
+    run_cmd("dconf reset -f /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linscreencapture/ 2>/dev/null");
     return true;
 }
 
 static bool gnome_register(KeyBinding key, const char* exec_path) {
     char cmd[512];
 
-    // Add linshot to custom keybindings list
+    // Add linscreencapture to custom keybindings list
     run_cmd("gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "
-            "\"['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linshot/']\" 2>/dev/null");
+            "\"['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linscreencapture/']\" 2>/dev/null");
 
     // Set binding
     const char* binding = keybinding_to_string(key);
     snprintf(cmd, sizeof(cmd),
-        "dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linshot/binding \"'%s'\"",
+        "dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linscreencapture/binding \"'%s'\"",
         binding);
     run_cmd(cmd);
 
     // Set command
     snprintf(cmd, sizeof(cmd),
-        "dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linshot/command \"'%s --capture'\"",
+        "dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linscreencapture/command \"'%s --capture'\"",
         exec_path);
     run_cmd(cmd);
 
     // Set name
-    run_cmd("dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linshot/name \"'LinScreenCapture Screenshot'\"");
+    run_cmd("dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linscreencapture/name \"'LinScreenCapture Screenshot'\"");
 
     // Disable GNOME's built-in screenshot for the key
     if (key == KB_PRINTSCREEN) {
@@ -224,7 +224,7 @@ static bool gnome_register(KeyBinding key, const char* exec_path) {
 // ---------------------------------------------------------------------------
 
 static bool xfce_unregister(void) {
-    // Remove LinShot command from XFCE shortcuts
+    // Remove LinScreenCapture command from XFCE shortcuts
     run_cmd("xfconf-query -c xfce4-keyboard-shortcuts -p '/commands/custom/Print' -r 2>/dev/null");
     run_cmd("xfconf-query -c xfce4-keyboard-shortcuts -p '/commands/custom/<Control>Print' -r 2>/dev/null");
     run_cmd("xfconf-query -c xfce4-keyboard-shortcuts -p '/commands/custom/<Shift>Print' -r 2>/dev/null");

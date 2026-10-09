@@ -86,9 +86,9 @@ One 30 × 30 control, one 18 px glyph, 6 px corners, an accent-soft active state
 
 **Files**
 
-- Sequential or timestamped names with a configurable prefix (`LinShot_12.png`, `Screenshot_2026-10-08.png`); PNG, JPEG and WebP.
+- Sequential or timestamped names with a configurable prefix (`LinScreenCapture_12.png`, `Screenshot_2026-10-08.png`); PNG, JPEG and WebP.
 - Captures panel: thumbnails of the save folder, newest first, with open, refresh and delete.
-- Settings migrate automatically from LinScreenCapture 1.x (`~/.config/linshot/settings.conf`).
+- Settings migrate automatically from LinScreenCapture 1.x (legacy `~/.config/linshot/settings.conf`).
 
 **Interface**
 

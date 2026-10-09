@@ -29,12 +29,12 @@ DesktopEnv detect_desktop_environment(void);
 // Get human-readable name for a desktop environment
 const char* desktop_env_name(DesktopEnv de);
 
-// Register a system-wide keybinding for LinShot capture
-// exec_path: full path to the linshot binary
+// Register a system-wide keybinding for LinScreenCapture capture
+// exec_path: full path to the linscreencapture binary
 // Returns true on success
 bool keybinding_register(DesktopEnv de, KeyBinding key, const char* exec_path);
 
-// Unregister any existing LinShot keybinding
+// Unregister any existing LinScreenCapture keybinding
 bool keybinding_unregister(DesktopEnv de);
 
 // Get the dconf/gsettings binding string for a key (e.g. "Print", "<Control>Print")

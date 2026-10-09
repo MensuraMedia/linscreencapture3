@@ -23,9 +23,9 @@ static inline void run_cmd(const char* cmd) {
 }
 
 typedef enum {
-    FILENAME_LINSHOT_NUMBER = 0,
+    FILENAME_LINSCREENCAPTURE_NUMBER = 0,
     FILENAME_SCREENSHOT_NUMBER,
-    FILENAME_LINSHOT_TIMESTAMP,
+    FILENAME_LINSCREENCAPTURE_TIMESTAMP,
     FILENAME_SCREENSHOT_TIMESTAMP
 } FilenameFormat;
 
@@ -137,17 +137,17 @@ static void safe_set_data_full(GtkWidget* widget, const char* key, gpointer data
 
 static char* get_config_file_path(void) {
     const char* config_dir = g_get_user_config_dir();
-    char* linshot_dir = g_build_filename(config_dir, "linshot", NULL);
-    g_mkdir_with_parents(linshot_dir, 0755);
-    char* config_file = g_build_filename(linshot_dir, "settings.conf", NULL);
-    g_free(linshot_dir);
+    char* linscreencapture_dir = g_build_filename(config_dir, "linscreencapture", NULL);
+    g_mkdir_with_parents(linscreencapture_dir, 0755);
+    char* config_file = g_build_filename(linscreencapture_dir, "settings.conf", NULL);
+    g_free(linscreencapture_dir);
     return config_file;
 }
 
 static void load_settings(Settings* settings) {
     // Set default values first
     settings->screenshot_path = g_strdup(g_get_user_special_dir(G_USER_DIRECTORY_PICTURES));
-    settings->filename_format = FILENAME_LINSHOT_TIMESTAMP;
+    settings->filename_format = FILENAME_LINSCREENCAPTURE_TIMESTAMP;
     settings->auto_number = 1;
     settings->start_with_os = false;
     settings->shortcut_key = SHORTCUT_PRINTSCREEN;
@@ -354,17 +354,17 @@ static char* generate_screenshot_filename(MainWindow* win) {
     static int number = 1;  // Static counter for auto-numbering
     
     switch (settings->filename_format) {
-        case FILENAME_LINSHOT_NUMBER:
-            filename = g_strdup_printf("%s/LinShot_%04d.png", settings->screenshot_path, number++);
+        case FILENAME_LINSCREENCAPTURE_NUMBER:
+            filename = g_strdup_printf("%s/LinScreenCapture_%04d.png", settings->screenshot_path, number++);
             break;
         case FILENAME_SCREENSHOT_NUMBER:
             filename = g_strdup_printf("%s/Screenshot_%04d.png", settings->screenshot_path, number++);
             break;
-        case FILENAME_LINSHOT_TIMESTAMP: {
+        case FILENAME_LINSCREENCAPTURE_TIMESTAMP: {
             time_t now = time(NULL);
             struct tm* tm_info = localtime(&now);
             strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", tm_info);
-            filename = g_strdup_printf("%s/LinShot_%s.png", settings->screenshot_path, timestamp);
+            filename = g_strdup_printf("%s/LinScreenCapture_%s.png", settings->screenshot_path, timestamp);
             break;
         }
         case FILENAME_SCREENSHOT_TIMESTAMP: {
@@ -2078,7 +2078,7 @@ static gboolean on_key_press(GtkWidget* widget, GdkEventKey* event, gpointer dat
 }
 
 // Generate a sequenced save filename from the original capture filename
-// e.g. /path/LinShot_20260328_120000.png -> /path/LinShot_20260328_120000_1.png
+// e.g. /path/LinScreenCapture_20260328_120000.png -> /path/LinScreenCapture_20260328_120000_1.png
 static char* generate_save_filename(MainWindowData* win_data, MainWindow* win) {
     Settings* settings = safe_get_data(win->window, "settings", "generate_save_filename");
     char* base = win_data->current_filename;
@@ -2623,9 +2623,9 @@ static void create_settings_page(MainWindow* win, GtkWidget* notebook) {
     
     const char* format_labels[] = {
         "Screenshot_%Y%m%d_%H%M%S",
-        "LinShot_%Y%m%d_%H%M%S",
+        "LinScreenCapture_%Y%m%d_%H%M%S",
         "Screenshot_%d_%H%M",
-        "LinShot_%d_%H%M"
+        "LinScreenCapture_%d_%H%M"
     };
     
     GtkWidget* format_radio = NULL;
@@ -3593,7 +3593,7 @@ static void on_settings_changed(GtkWidget* widget, gpointer data) {
 
 static void toggle_autostart(bool enable) {
     char* autostart_dir = g_build_filename(g_get_user_config_dir(), "autostart", NULL);
-    char* desktop_file = g_build_filename(autostart_dir, "linshot.desktop", NULL);
+    char* desktop_file = g_build_filename(autostart_dir, "linscreencapture.desktop", NULL);
     
     if (enable) {
         // Create autostart directory if it doesn't exist
@@ -3629,18 +3629,18 @@ static char* get_binary_path(void) {
         buf[len] = '\0';
         return g_strdup(buf);
     }
-    return g_strdup("linshot");
+    return g_strdup("linscreencapture");
 }
 
 static void toggle_default_screenshot_app(bool enable) {
     char* apps_dir = g_build_filename(g_get_user_data_dir(), "applications", NULL);
-    char* desktop_file = g_build_filename(apps_dir, "linshot.desktop", NULL);
+    char* desktop_file = g_build_filename(apps_dir, "linscreencapture.desktop", NULL);
     char* binary_path = get_binary_path();
 
     if (enable) {
         g_mkdir_with_parents(apps_dir, 0755);
 
-        // Create .desktop file for LinShot
+        // Create .desktop file for LinScreenCapture
         FILE* file = fopen(desktop_file, "w");
         if (file) {
             fprintf(file, "[Desktop Entry]\n");
@@ -3650,7 +3650,7 @@ static void toggle_default_screenshot_app(bool enable) {
             fprintf(file, "GenericName=Screenshot Tool\n");
             fprintf(file, "Comment=Capture, annotate, and share screenshots\n");
             fprintf(file, "Exec=%s\n", binary_path);
-            fprintf(file, "Icon=%s/resources/icons/linshot-128.png\n", g_path_get_dirname(binary_path));
+            fprintf(file, "Icon=%s/resources/icons/linscreencapture-128.png\n", g_path_get_dirname(binary_path));
             fprintf(file, "Terminal=false\n");
             fprintf(file, "Categories=Utility;Graphics;GTK;\n");
             fprintf(file, "Keywords=screenshot;capture;screen;snip;annotation;\n");
@@ -3875,7 +3875,7 @@ static void grab_printscreen_key(MainWindow* win, ShortcutKey key) {
     Display* dpy = GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
     Window root = DefaultRootWindow(dpy);
 
-    // Always ungrab any previous grabs by LinShot
+    // Always ungrab any previous grabs by LinScreenCapture
     XUngrabKey(dpy, XKeysymToKeycode(dpy, XK_Print), AnyModifier, root);
     XUngrabKey(dpy, XKeysymToKeycode(dpy, XK_s), AnyModifier, root);
     XFlush(dpy);
@@ -4122,7 +4122,7 @@ bool main_window_init(MainWindow* win, int argc, char* argv[]) {
     };
     typedef struct { char type; int id; } BtnDef;
     BtnDef button_defs[] = {
-        {'a', 0},               // 0: LinShot (capture)
+        {'a', 0},               // 0: LinScreenCapture (capture)
         {'t', TOOL_LINE},       // 1: Line
         {'t', TOOL_ARROW},      // 2: Arrow
         {'t', TOOL_RECTANGLE},  // 3: Box

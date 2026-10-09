@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <pwd.h>
 
-#define HISTORY_DIR "LinShot"
+#define HISTORY_DIR "LinScreenCapture"
 
 char* get_history_dir(void) {
     const char* home = getenv("HOME");

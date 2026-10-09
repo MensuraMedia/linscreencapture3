@@ -13,7 +13,7 @@ static double S(double val) {
 // Save icon uses SET 2 design (download arrow into tray)
 
 static void draw_shot(cairo_t* cr, double x, double y) {
-    // LinShot app icon: circle with inner dot
+    // LinScreenCapture app icon: circle with inner dot
     double lw = SIDEBAR_ICON_STROKE;
     cairo_set_line_width(cr, lw);
 

@@ -14,7 +14,7 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
 
     # Clean up user config (only on purge)
     if [ "$1" = "purge" ]; then
-        rm -f /tmp/linshot.lock /tmp/linshot.capture
+        rm -f /tmp/linscreencapture.lock /tmp/linscreencapture.capture
     fi
 fi
 
