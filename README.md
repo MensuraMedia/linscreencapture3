@@ -1,4 +1,4 @@
-# LinScreenCapture 2
+# LinScreenCapture 3
 
 A screenshot studio for Linux, rebuilt from the ground up on **GTK 4 + Python**. Capture a region, window or screen with one key, and land straight in an editor with arrows, boxes, text, step numbers, callouts, blur and crop, all on a dark "Graphite Night" interface with one control size, one glyph size and soft corners.
 
