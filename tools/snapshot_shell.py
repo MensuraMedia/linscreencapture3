@@ -33,7 +33,7 @@ def render(win: Gtk.Window, path: pathlib.Path) -> None:
 
 def main() -> int:
     app = Application()
-    settings = Settings(root=str(OUT / "_cfg"))  # isolated config: defaults, nothing persisted to ~
+    settings = Settings.load(root=str(OUT / "_cfg"))  # isolated config: read but nothing persisted to ~
 
     app.settings = settings
 
