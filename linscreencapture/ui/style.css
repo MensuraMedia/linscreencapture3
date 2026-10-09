@@ -172,3 +172,7 @@ window.capture-overlay { background: black; }
 .overlay-bar { padding: 0 8px; min-height: 36px; box-shadow: 0 8px 24px alpha(black, 0.4); }
 .overlay-bar .rail-btn { margin: 3px 0; }
 .overlay-bar separator.hairline { min-width: 1px; min-height: 18px; margin: 9px 2px; }
+
+/* inline text editor on the stage */
+entry.inline-text { background: alpha(@surface, 0.96); border: 1px solid @accent; border-radius: 6px; min-height: 30px; padding: 0 8px;
+  color: @text; font-family: "Ubuntu", sans-serif; font-size: 14px; box-shadow: 0 6px 18px alpha(black, 0.4); caret-color: @accent; }

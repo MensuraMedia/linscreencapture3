@@ -1,6 +1,6 @@
 # LinScreenCapture 2 — implemented features and functions
 
-As of 2026-10-09 (Phases 1–3 plus two review rounds). Everything listed here exists in the code and is covered by
+As of 2026-10-09 (Phases 1–4 plus two review rounds). Everything listed here exists in the code and is covered by
 `make test` (69 tests) or a render in `screenshots/dev/`. Planned work is in `HANDOFF.md` section 3.
 
 ## 1. Launching
@@ -38,19 +38,24 @@ As of 2026-10-09 (Phases 1–3 plus two review rounds). Everything listed here e
 
 ## 4. Header tool-properties strip (`ui/tool_props.py`)
 
-Follows the active tool. Arrow/Line: width, shadow, intensity. Box/Circle: + fill. Pen/Marker: width, shadow
-(marker paints at 4× width, 40 % opacity). Text/Callout: font, size, bold, italic, shadow. Step: badge size.
-Blur/Pixelate: mode (preselected to match the tool), block size. Fill, Crop, Select/Move: hints. Values are held
-in the widgets; Phase 4 binds them to `Settings.tools`.
+Follows the active tool, and under Select/Move the **selected layer** (title reads `BOX · SELECTED`). Arrow/Line:
+width, shadow, intensity. Box/Circle: + fill. Pen/Marker: width, shadow (marker paints at 4× width, 40 %
+opacity). Text/Callout: font, size, bold, italic, shadow. Step: badge size. Blur/Pixelate: mode (switches the
+tool), block size. Fill, Crop, Select/Move without a selection: hints.
+
+Every control reads from and writes to `Settings` (`tools[<tool>].width/shadow/shadow_intensity/fill`,
+`text_font_family/size/bold/italic`, `step_size`, `blur_block`; saved on change; the Universal switch in Settings
+makes a change apply to every tool). With a layer selected the change is also applied to that annotation as an
+undoable "Style" edit.
 
 ## 5. Right rail
 
 | Group | Controls | Actions |
 | --- | --- | --- |
-| COLOUR | 12 round swatches (accent ring = current), custom colour `+`, eyedropper | swatch click sets `ViewState.colour`; `win.custom-colour`, `win.eyedropper` (Phase 4) |
+| COLOUR | 12 round swatches (accent ring = current), custom colour `+` (`Gtk.ColorDialog`), eyedropper | sets the colour for new annotations, recolours the selected layer, persists to settings; `win.eyedropper` arrives with Phase 5 |
 | VIEW | zoom out · value · zoom in · fit | `win.zoom-out`, `win.zoom-in`, `win.zoom-fit` (fit never exceeds 1:1); `win.zoom-actual` = 1:1 |
 | EDIT | Copy · Flatten | `win.copy` (composition to clipboard), `win.flatten` (Phase 5) |
-| LAYERS | scrollable list: annotation layers top-first, then `Base capture · IMG`; "No layers yet" when empty | selection and visibility wiring in Phase 4 |
+| LAYERS | scrollable list: annotation layers top-first with a rendered 40×28 thumbnail, name, kind badge and eye; then `Base capture · IMG`; "No layers yet" when empty | row click selects the layer on the stage (and vice versa); eye = undoable show/hide |
 | navigator (untitled) | thumbnail of the composite, dimmed outside the viewport, accent viewport rectangle that follows zoom and scroll; click or drag scrolls the stage | `ui/panel_rail.py::Navigator` |
 | bottom-right | Settings | `app.preferences` |
 | collapsed | caret, six colour dots, eyedropper, −, +, fit, Copy, Flatten, gear | same actions |
@@ -63,6 +68,25 @@ in the widgets; Phase 4 binds them to `Settings.tools`.
 | Document | the capture painted pixel-exact with square corners (shadow outside), centred, scrollable when larger than the viewport; HUD shows the zoom |
 | Zoom | steps 25 · 50 · 75 · 100 · 150 · 200 · 300 · 400 · 800 · 1000 %; Ctrl+scroll; Ctrl+0 fit; Ctrl+1 1:1; a loaded document fits automatically |
 | Library page | covers the stage: head (count · folder, Refresh, Delete, Open, close), grid of 180×120 thumbnails with name and date, empty state; double-click or Open loads the file into the editor; Delete = Phase 5 |
+
+## 6a. Annotation editing (`app/editor_controller.py`, `app/tools.py`)
+
+| Tool | Gesture | Result |
+| --- | --- | --- |
+| Arrow, Line | drag (Shift snaps to 45°) | filled arrow / round-capped line layer |
+| Box, Circle | drag (Ctrl constrains to a square/circle); Fill switch in the strip | outlined or filled shape |
+| Fill | drag | filled rectangle in the current colour |
+| Pen, Marker | drag | stroke of the pointer path (sub-pixel jitter dropped); marker 4× width at 40 % |
+| Text | click, type in the inline editor, Enter (Esc cancels) | text layer; double-click a text/callout layer under Select to edit it |
+| Callout | drag from the bubble position to the target, type, Enter | bubble with tail |
+| Step number | click | numbered badge; numbers renumber on delete/reorder |
+| Blur, Pixelate | drag | redaction layer applied to the pixels beneath (dashed preview while dragging) |
+| Crop | drag | preview only; applies in Phase 5 |
+| Select / Move | click selects the topmost layer under the pointer; drag moves; handles resize (8 for shapes, 2 for arrows/lines/callouts; Ctrl keeps shapes square); Delete removes; Ctrl+D duplicates 12 px offset | undoable edits |
+
+Live preview at 60 % opacity while drawing; a dashed accent outline and white handles mark the selection; the
+cursor changes per handle. Every change is one `UndoStack` command: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) undo and
+redo (20 deep) and the Undo toast names the step; the subtitle's layer count and `unsaved` follow.
 
 ## 7. Capture (`app/capture_controller.py`)
 
@@ -133,7 +157,8 @@ naming rules.
 | Ctrl+Shift+N | full-screen capture |
 | V A L B C T P M · U X N K | tools (Select, Arrow, Line, Box, Circle, Text, Pen, Marker · Blur, Pixelate, Step, Crop) |
 | Ctrl+C | copy the composition |
-| Ctrl+S, Ctrl+Z, Ctrl+Shift+Z, Ctrl+D | Save, Undo, Redo, Duplicate (Phases 4–5) |
+| Ctrl+Z · Ctrl+Shift+Z / Ctrl+Y · Delete · Ctrl+D | undo · redo · delete layer · duplicate layer |
+| Ctrl+S | save (Phase 5) |
 | Ctrl+scroll · Ctrl+0 · Ctrl+1 | zoom · fit · 1:1 |
 | Ctrl+[ · Ctrl+] | collapse/expand left · right rail |
 | Ctrl+L | Library page |
@@ -148,6 +173,7 @@ naming rules.
 | `make icons` | re-sync the 53 Phosphor glyphs from `ICON_SRC` and regenerate the manifest |
 | `make test` | pytest (Xvfb if installed, else the live display) |
 | `make snapshot` | render default, open, collapsed, library, text-tool, document, zoomed and settings views to `screenshots/dev/` |
+| `make snapshot` also writes | `shell_annotated.png`: seven annotation kinds, a selected box with handles |
 | `tools/snapshot_overlay.py` | render the live capture overlay (output git-ignored: it contains the real screen) |
 | `make launcher` / `make unlauncher` | install/remove the **LinScreenCapture3** menu entry |
 | `bash ~/projects/Zai-ZCode/s009_backup_project.sh …` | family backup into `~/backups/linscreencapture3/` |

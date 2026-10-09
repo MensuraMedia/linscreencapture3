@@ -6,9 +6,9 @@ this file is authoritative for process and state.
 
 ## 0. Where things stand (2026-10-09)
 
-Phases 1–3 are done and pushed: shell, model + settings migration, capture (X11 verified live; portal and CLI
-backends written). Two operator review rounds reshaped the shell (see decisions 8–11). Next: Phase 4, annotation
-tools and live layers (checklist in section 8). The operator reviews renders and asks for layout tweaks between
+Phases 1–4 are done and pushed: shell, model + settings migration, capture (X11 verified live; portal and CLI
+backends written), annotation tools with live layers and undo. Two operator review rounds reshaped the shell (see
+decisions 8–11). Next: Phase 5, image operations and file flows (checklist in section 8). The operator reviews renders and asks for layout tweaks between
 phases; expect that and keep `docs/FEATURES.md`, this file and `changelog.md` current with every change.
 
 ## 1. Mission
@@ -25,7 +25,7 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | Repo | `/home/user/projects/linscreencapture3`, remote `origin` = `github.com/MensuraMedia/linscreencapture3` (branch `main`); `upstream` = the 1.4 repo `MensuraMedia/linscreencapture` |
 | Last pushed commit | see `git log --oneline -1`; everything is committed and pushed at the time of writing |
 | Run | `make resources && python3 -m linscreencapture` (add `--debug` or `LSC_DEBUG=1` for timestamped start-up, toolkit and capture logging via `app/logging_setup.py`) (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
-| Test | `make test` → 69 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
+| Test | `make test` → 76 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
 | Renders | `make snapshot` → `screenshots/dev/shell_*.png` (default, open, collapsed, library, text tool, document, document zoomed, settings); `tools/snapshot_overlay.py` renders the live capture overlay to `screenshots/dev/overlay.png` (git-ignored: it contains the real screen) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |
 | Spec | `docs/GUI_SPEC.md` (repo copy) and the living doc https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732 |
@@ -46,8 +46,8 @@ Each phase is gated on the operator's sign-off of the previous one.
 | 1 | Layout shell | window, CSD header, rails open/collapsed, auto-collapse, stage placeholder, static panels, icon pipeline, CSS, tests | **done** (commit "Phase 1: Studio layout shell") — awaiting on-screen sign-off |
 | 2 | Model and settings | `Document`, `Annotation` dataclasses + Cairo draw (port `src/editor_tools.c`), `UndoStack` (20), full `Settings` schema + 1.x migration | **done** (commit "Phase 2: model and settings") — awaiting sign-off |
 | 3 | Capture | backends (portal, X11 bulk copy, CLI), `CaptureService`, overlay window, `FileStore`, clipboard, `--capture` activation, live subtitle | **done** (commit "Phase 3: capture") — awaiting sign-off |
-| 4 | Annotation tools and layers | stage draws the document; all tools; handles; Layers panel live; colour and props wired | next |
-| 5 | Image operations and files | crop/resize/rotate/brightness, blur/pixelate layers, flatten, save/copy/discard/paste, captures actions; **then remove `src/`, `include/`, `CMakeLists.txt`, `debian/`, `install.sh`, `uninstall.sh`, `packaging/build-deb.sh`** | |
+| 4 | Annotation tools and layers | stage draws the document; all tools; handles; Layers panel live; colour and props wired | **done** (commit "Phase 4: annotation tools") — awaiting sign-off |
+| 5 | Image operations and files | crop/resize/rotate/brightness, flatten, save/save-as/paste, unsaved prompts, Library delete, eyedropper; **then remove `src/`, `include/`, `CMakeLists.txt`, `debian/`, `install.sh`, `uninstall.sh`, `packaging/build-deb.sh`** | next |
 | 6 | System integration | hotkey registrar (GNOME append fix), autostart, delayed, pin, scrolling capture, preferences dialog | |
 | 7 | Polish and release | navigator live, shortcuts window, about, toasts, golden-image tests, packaging, tag 2.0.0 | |
 
@@ -136,20 +136,31 @@ data/ icons, gresource.xml, .desktop files
 - Typing a letter in the hex entry: if it switches tools, scope the single-letter accelerators to the
   stage in Phase 4 (listed in `app/application.py`, `ACCELS`).
 
-## 8. Phase 4 start checklist (annotation tools and layers)
+## 8. Phase 5 start checklist (image operations and files)
 
-1. `app/editor_controller.py`: pointer gestures on `Stage.canvas` (drag → `Annotation` of the active tool with
-   `Settings.tool_style(tool)` and `ViewState.colour`; Shift = `snap45`/square, Ctrl = `constrain_square`;
-   Text = inline `Gtk.Text` editor; Step = next number; Callout = text at anchor, tail to the target),
-   live preview at 60 % while dragging, commit through `UndoStack.do(AddLayer(...))`, then `window.refresh_document()`.
-2. Select/Move: hit test via `Annotation.contains` top-down, 8 handles, drag = `EditAnnotation` with the moved
-   bounds, Delete = `RemoveLayer`, Ctrl+D = duplicate; `win.undo`/`win.redo` replace their placeholders.
-3. Layers panel live: rows from `Document.layers`, selection ↔ editor selection, eye = `SetVisible`, drag reorder =
-   `MoveLayer`, Delete key; thumbnails from a per-layer render.
-4. Bind the header strip (`ui/tool_props.py`) and the palette to `Settings.tools[tool]` (width, shadow, intensity,
-   fill), text and blur settings; `win.custom-colour` → `Gtk.ColorDialog`; eyedropper samples the composite.
-5. Zoom HUD/pill already follow `ViewState.zoom`; make `ReplaceBase` ops (crop etc.) wait for Phase 5.
-6. Tests: controller geometry headless (tool → annotation from drag points), shell tests for layer rows and undo.
+1. Crop: the Crop tool's dashed preview + Enter/HUD check → `ReplaceBase(crop(base))` and move every layer by
+   (−x, −y) in the same command (extend `ReplaceBase` with a layer transform). Esc cancels.
+2. Resize / Rotate / Brightness popovers (`win.resize`, `win.rotate`, `win.adjust`) anchored to their rail
+   buttons, live preview on the stage, Apply = one `ReplaceBase`; rotate/flip also transform layer coordinates.
+3. Flatten (`win.flatten`): `Adw.AlertDialog` then `ReplaceBase(doc.flatten(), layers_after=[])`.
+4. Save (`win.save`, Ctrl+S): in place when `doc.path`, else `Gtk.FileDialog` seeded with the folder and
+   `Settings.next_filename()`; Save As (Ctrl+Shift+S); Paste (Ctrl+V) an image from the clipboard as a new layer.
+5. Discard and Library Open prompt when `doc.dirty`; Library Delete moves to the trash (`Gio.File.trash`) after
+   confirmation; eyedropper samples the composite under the pointer.
+6. Parity reached → delete `src/`, `include/`, `CMakeLists.txt`, `debian/`, `install.sh`, `uninstall.sh`,
+   `packaging/build-deb.sh`; update README/INSTALL/KNOWN_ISSUES; docs/FEATURES.md; changelog; backup; commit; push.
+
+## 8a. Editor notes (Phase 4)
+
+- `app/tools.py` is pure (drag → annotation, handles, handle/move changes, duplicate); `app/editor_controller.py`
+  owns gestures on `Stage.canvas`, the live preview and selection overlay (`Stage.extra_draw`), the inline text
+  entry (`Stage.show_text_entry`) and all undoable commands via `window.undo`.
+- During a move/resize the original layer is hidden and a preview copy is drawn; the edit is one `EditAnnotation`.
+- The header strip (`ui/tool_props.py`) follows `ViewState.tool` or, under Select/Move, the selected layer; it
+  writes `Settings` and applies "Style" edits to the selection. The palette recolours the selection too and
+  persists the colour to every tool entry.
+- `PanelRail.set_document(doc, selected_id)` rebuilds the layer list after every command (rows carry `layer_id`,
+  a rendered thumbnail and an eye bound to `SetVisible`). Drag-reorder is not implemented yet (`MoveLayer` exists).
 
 ## 9. Capture notes (Phase 3)
 

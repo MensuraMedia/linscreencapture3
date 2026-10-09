@@ -2,7 +2,7 @@
 
 A screenshot studio for Linux, rebuilt from the ground up on **GTK 4 + Python**. Capture a region, window or screen with one key, and land straight in an editor with arrows, boxes, text, step numbers, callouts, blur and crop, all on a dark "Graphite Night" interface with one control size, one glyph size and soft corners.
 
-**Status:** version 2.0, Phases 1–3 of 7 are implemented: the Studio shell, the document/annotation/undo model with settings migration, and capture (region, window, full screen on X11; portal and CLI backends for other sessions) with save, clipboard and the editor showing the result. Annotation tools arrive in Phase 4. The screenshots below are high-fidelity mockups rendered from the design canvas; they are the contract the application is built against, and `screenshots/dev/` holds renders of the running shell for comparison. Version 1.4.0 (C / GTK 3) lives in the [original repository](https://github.com/MensuraMedia/linscreencapture).
+**Status:** version 2.0, Phases 1–4 of 7 are implemented: the Studio shell, the document/annotation/undo model with settings migration, capture (region, window, full screen on X11; portal and CLI backends for other sessions) with save and clipboard, and the annotation editor (every tool as an undoable layer with selection handles and a live Layers panel). Image operations and file flows arrive in Phase 5. The screenshots below are high-fidelity mockups rendered from the design canvas; they are the contract the application is built against, and `screenshots/dev/` holds renders of the running shell for comparison. Version 1.4.0 (C / GTK 3) lives in the [original repository](https://github.com/MensuraMedia/linscreencapture).
 
 | | |
 | --- | --- |
@@ -182,8 +182,8 @@ firefox --headless --profile /tmp/ffp --no-remote --window-size=1360,840 \
 | 1 | Layout shell | Window matches the Main and Collapsed artboards; every button has tooltip and action; rails toggle and auto-collapse; tests green | **done** |
 | 2 | Model and settings | Headless tests green; 1.x settings migrate | **done** |
 | 3 | Capture | Region, window, screen on X11 and Wayland; clipboard and file written before the editor opens | **done** (X11 verified; portal untested) |
-| 4 | Annotation tools and layers | Every tool is a layer: drawn, selected, moved, undone | next |
-| 5 | Image operations and files | Crop, resize, rotate, brightness, blur, pixelate, flatten, save, copy, captures panel; old C sources removed | |
+| 4 | Annotation tools and layers | Every tool is a layer: drawn, selected, moved, undone | **done** |
+| 5 | Image operations and files | Crop, resize, rotate, brightness, flatten, save, paste, library delete; old C sources removed | next |
 | 6 | System integration | Hotkey registrar (GNOME-safe), autostart, delayed, pin, scrolling capture, preferences | |
 | 7 | Polish and release | Navigator, shortcuts window, toasts, golden-image tests, packaging | |
 

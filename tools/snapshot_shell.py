@@ -80,6 +80,28 @@ def main() -> int:
 
         def step5():
             render(win, OUT / "shell_document.png")
+            # annotate programmatically: arrow, box, step numbers, text, pixelate; select the box
+            from linscreencapture.model.undo import AddLayer
+            from linscreencapture.model.annotations import Annotation
+            ed = win.editor
+            st = lambda t: ed.style_for(t)
+            ed._commit(AddLayer(Annotation("arrow", 560, 520, 800, 430, style=st("arrow"))))
+            win.state.colour = "#ffb224"
+            ed._commit(AddLayer(Annotation("box", 240, 180, 640, 320, style=st("box"))))
+            win.state.colour = "#0091ff"
+            ed._commit(AddLayer(Annotation("step", 275, 240, style=st("step"), number=1)))
+            ed._commit(AddLayer(Annotation("step", 275, 300, style=st("step"), number=2)))
+            win.state.colour = "#e5484d"
+            ed._commit(AddLayer(Annotation("text", 300, 120, style=st("text"), text="Studio editor")))
+            ed._commit(AddLayer(Annotation("pixelate", 980, 260, 1120, 300, style=st("pixelate"))))
+            ed._commit(AddLayer(Annotation("callout", 850, 560, 1040, 640, style=st("callout"), text="Settings live here")))
+            win.state.tool = "select"
+            ed.select(win.document.layers[1].id)
+            GLib.timeout_add(700, step5b)
+            return False
+
+        def step5b():
+            render(win, OUT / "shell_annotated.png")
             win.state.zoom = 2.0
             GLib.timeout_add(700, step6)
             return False

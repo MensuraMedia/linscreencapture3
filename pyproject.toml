@@ -9,6 +9,7 @@ description = "Screenshot studio for Linux on GTK 4 + Python"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "CC-BY-NC-4.0" }
+classifiers = ["License :: Other/Proprietary License", "Environment :: X11 Applications :: GTK", "Operating System :: POSIX :: Linux", "Programming Language :: Python :: 3"]
 dependencies = ["PyGObject>=3.46", "pycairo>=1.25", "Pillow>=10"]
 
 [project.optional-dependencies]

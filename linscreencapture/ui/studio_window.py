@@ -1,6 +1,6 @@
 """The Studio window: header (title bar), tool rail, stage, panel rail."""
 from __future__ import annotations
-from gi.repository import Adw, Gio, GLib, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from .header_bar import HeaderBar
 from .tool_rail import ToolRail
@@ -11,6 +11,8 @@ from ..model.settings import Settings
 from ..model.captures_index import CapturesIndex
 from ..model.document import Document
 from ..services import clipboard
+from ..model.undo import UndoStack
+from ..app.editor_controller import EditorController
 
 MIN_WIDTH, MIN_HEIGHT = 960, 600
 AUTO_COLLAPSE_BELOW = 1100
@@ -19,8 +21,7 @@ CAPTURE_MODES = ("region", "window", "screen", "scrolling", "delayed")
 # action -> phase that implements it (placeholders show a toast until then)
 PLACEHOLDERS = {
     "save": 5, "flatten": 5, "resize": 5, "rotate": 5, "adjust": 5,
-    "duplicate-file": 5, "library-delete": 5, "undo": 4, "redo": 4, "eyedropper": 4,
-    "custom-colour": 4,
+    "duplicate-file": 5, "library-delete": 5, "eyedropper": 4,
 }
 
 
@@ -55,6 +56,10 @@ class StudioWindow(Gtk.ApplicationWindow):
         body.append(self.panel_rail)
         self.breakpoint_bin.set_child(body)
         self.panel_rail.attach_stage(self.stage)
+        self.undo: UndoStack | None = None
+        self.editor = EditorController(self)
+        self.panel_rail.bind_editor(self.editor)
+        self.header.props.bind(self.settings, self.editor)
         self.toasts.set_child(self.breakpoint_bin)
         self.set_child(self.toasts)
 
@@ -66,6 +71,8 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._install_actions()
         self.connect("close-request", self._on_close)
         self.captures.scan()
+        self.state.colour = self.settings.tools["arrow"].colour
+        self.state.connect("notify::colour", self._persist_colour)
 
     # -- actions -----------------------------------------------------------
     def _install_actions(self) -> None:
@@ -83,6 +90,13 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._simple("library-open", self._library_open)
         self._simple("copy", self._copy)
         self._simple("discard", self._discard)
+        self._simple("undo", self._undo)
+        self._simple("redo", self._redo)
+        self._simple("delete-layer", lambda: self.editor.delete_selected() or self.toast("Select a layer first"))
+        self._simple("duplicate-layer", lambda: self.editor.duplicate_selected() or self.toast("Select a layer first"))
+        self._simple("custom-colour", self._custom_colour)
+        self.lookup_action("undo").set_enabled(False)
+        self.lookup_action("redo").set_enabled(False)
         lib = Gio.SimpleAction.new_stateful("library", None, GLib.Variant("b", False))
         lib.connect("change-state", self._library_change)
         lib.connect("activate", lambda a, _p: a.change_state(GLib.Variant("b", not a.get_state().get_boolean())))
@@ -120,8 +134,11 @@ class StudioWindow(Gtk.ApplicationWindow):
     # -- document ----------------------------------------------------------
     def load_document(self, doc: Document) -> None:
         self.document = doc
+        self.undo = UndoStack(doc, on_change=self._undo_changed)
+        self.editor.selected_id = None
         self.stage.set_document(doc)
         self.panel_rail.set_document(doc)
+        self._undo_changed()
         self.state.title = doc.name
         self.state.subtitle = doc.summary()
         if self.state.library:
@@ -132,6 +149,9 @@ class StudioWindow(Gtk.ApplicationWindow):
 
     def clear_document(self) -> None:
         self.document = None
+        self.undo = None
+        self.editor.selected_id = None
+        self._undo_changed()
         self.stage.set_document(None)
         self.panel_rail.set_document(None)
         self.state.title = "LinScreenCapture"
@@ -148,10 +168,43 @@ class StudioWindow(Gtk.ApplicationWindow):
             self.state.set_property(field.replace("collapsed", "manual"), True)
 
     def refresh_document(self) -> None:
-        """After an edit: re-composite the stage and refresh the subtitle (Phase 4 uses this)."""
+        """After an edit: re-composite the stage, refresh the subtitle and the layer list."""
         self.stage.refresh()
         if self.document is not None:
             self.state.subtitle = self.document.summary()
+            self.panel_rail.set_document(self.document, self.editor.selected_id)
+
+    def _undo_changed(self) -> None:
+        u = self.undo
+        self.lookup_action("undo").set_enabled(bool(u and u.can_undo))
+        self.lookup_action("redo").set_enabled(bool(u and u.can_redo))
+
+    def _undo(self) -> None:
+        if self.undo and self.undo.can_undo:
+            label = self.undo.undo_label
+            self.undo.undo()
+            if self.editor.selected_layer() is None:
+                self.editor.selected_id = None
+            self.refresh_document()
+            self.toast(f"Undo {label.lower()}", timeout=2)
+
+    def _redo(self) -> None:
+        if self.undo and self.undo.can_redo:
+            self.undo.redo()
+            self.refresh_document()
+
+    def _custom_colour(self) -> None:
+        dialog = Gtk.ColorDialog(title="Custom colour", with_alpha=False)
+        rgba = Gdk.RGBA()
+        rgba.parse(self.state.colour)
+        dialog.choose_rgba(self, rgba, None, self._custom_colour_done)
+
+    def _custom_colour_done(self, dialog: Gtk.ColorDialog, result) -> None:
+        try:
+            rgba = dialog.choose_rgba_finish(result)
+        except GLib.Error:
+            return
+        self.state.colour = "#%02x%02x%02x" % (round(rgba.red * 255), round(rgba.green * 255), round(rgba.blue * 255))
 
     def _library_open(self) -> None:
         entry = self.stage.library.selected
@@ -202,6 +255,14 @@ class StudioWindow(Gtk.ApplicationWindow):
         t = Adw.Toast.new(text)
         t.set_timeout(timeout)
         self.toasts.add_toast(t)
+
+    def _persist_colour(self, s, _p) -> None:
+        for ts in self.settings.tools.values():
+            ts.colour = s.colour
+        try:
+            self.settings.save()
+        except Exception:  # noqa: BLE001
+            pass
 
     def _on_close(self, *_a) -> bool:
         s = self.settings

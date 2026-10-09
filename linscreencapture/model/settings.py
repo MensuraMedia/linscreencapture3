@@ -67,6 +67,7 @@ class ToolStyle:
     width: float = 4.0
     shadow: bool = False
     shadow_intensity: float = 0.4
+    fill: bool = False            # box and circle only
 
 
 def _default_tools() -> dict[str, ToolStyle]:
@@ -107,6 +108,7 @@ class Settings:
     text_font_size: float = 18.0
     text_bold: bool = True
     text_italic: bool = False
+    step_size: float = 14.0        # step-number badge size (font pt; radius = max(10, 0.75 × size))
     # bookkeeping
     root: str | None = None          # config root override (tests)
     migrated_from: str | None = None  # set when this instance came from the 1.x file
@@ -120,8 +122,8 @@ class Settings:
         """A drawing ``Style`` for ``tool`` honouring the universal switch and text/blur options."""
         src = self.tools["arrow"] if self.universal else self.tools.get(tool, ToolStyle())
         return Style(colour=src.colour, width=src.width, shadow=src.shadow, shadow_intensity=src.shadow_intensity,
-                     fill=(tool == "fill"), blur_block=self.blur_block, blur_radius=self.blur_radius,
-                     font_family=self.text_font_family, font_size=self.text_font_size,
+                     fill=(tool == "fill") or getattr(src, "fill", False), blur_block=self.blur_block, blur_radius=self.blur_radius,
+                     font_family=self.text_font_family, font_size=self.step_size if tool == "step" else self.text_font_size,
                      bold=self.text_bold, italic=self.text_italic)
 
     def set_colour_for(self, tool: str, colour: str) -> None:
@@ -194,6 +196,7 @@ class Settings:
             ts.width = max(0.5, min(40.0, g.float("Tools", f"width_{t}", ts.width)))
             ts.shadow = g.bool("Tools", f"shadow_{t}", ts.shadow)
             ts.shadow_intensity = max(0.0, min(1.0, g.float("Tools", f"shadow_intensity_{t}", ts.shadow_intensity)))
+            ts.fill = g.bool("Tools", f"fill_{t}", ts.fill)
         self.universal = g.bool("Tools", "universal", self.universal)
         self.blur_block = max(2, min(64, g.int("Tools", "blur_block", self.blur_block)))
         self.blur_radius = max(0.5, min(40.0, g.float("Tools", "blur_radius", self.blur_radius)))
@@ -201,6 +204,7 @@ class Settings:
         self.text_font_size = max(4.0, min(200.0, g.float("Tools", "text_font_size", self.text_font_size)))
         self.text_bold = g.bool("Tools", "text_bold", self.text_bold)
         self.text_italic = g.bool("Tools", "text_italic", self.text_italic)
+        self.step_size = max(8.0, min(48.0, g.float("Tools", "step_size", self.step_size)))
         self.migrated_from = g.str("Meta", "migrated_from", None) or None
 
     def _read_legacy(self, kf: GLib.KeyFile) -> None:
@@ -261,6 +265,7 @@ class Settings:
             kf.set_double("Tools", f"width_{t}", float(ts.width))
             kf.set_boolean("Tools", f"shadow_{t}", bool(ts.shadow))
             kf.set_double("Tools", f"shadow_intensity_{t}", float(ts.shadow_intensity))
+            kf.set_boolean("Tools", f"fill_{t}", bool(ts.fill))
         kf.set_boolean("Tools", "universal", bool(self.universal))
         kf.set_integer("Tools", "blur_block", int(self.blur_block))
         kf.set_double("Tools", "blur_radius", float(self.blur_radius))
@@ -268,6 +273,7 @@ class Settings:
         kf.set_double("Tools", "text_font_size", float(self.text_font_size))
         kf.set_boolean("Tools", "text_bold", bool(self.text_bold))
         kf.set_boolean("Tools", "text_italic", bool(self.text_italic))
+        kf.set_double("Tools", "step_size", float(self.step_size))
         if self.migrated_from:
             kf.set_string("Meta", "migrated_from", self.migrated_from)
         self.path.parent.mkdir(parents=True, exist_ok=True)

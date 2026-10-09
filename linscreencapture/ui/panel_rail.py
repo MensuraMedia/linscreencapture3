@@ -26,6 +26,38 @@ def _settings_button() -> Gtk.Button:
     return b
 
 
+def _layer_thumbnail(doc, layer):
+    """A 40×28 texture: the annotation alone (or the base image) scaled to fit."""
+    from gi.repository import Gdk, GLib
+    from ..model.annotations import draw
+    w, h = max(1, doc.width), max(1, doc.height)
+    scale = min(40 / w, 28 / h)
+    tw, th = max(1, int(w * scale)), max(1, int(h * scale))
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 40, 28)
+    cr = cairo.Context(surf)
+    cr.set_source_rgb(0x2f / 255, 0x34 / 255, 0x3b / 255)
+    cr.paint()
+    cr.translate((40 - tw) / 2, (28 - th) / 2)
+    cr.scale(scale, scale)
+    if layer is None:
+        if doc.base is not None:
+            cr.set_source_surface(doc.base, 0, 0)
+            cr.get_source().set_filter(cairo.FILTER_GOOD)
+            cr.paint()
+    else:
+        a = layer.annotation
+        if a.kind in ("blur", "pixelate"):
+            x, y, bw, bh = a.rect
+            cr.set_source_rgba(1, 1, 1, 0.5)
+            cr.rectangle(x, y, bw, bh)
+            cr.fill()
+        else:
+            draw(a, cr, None)
+    surf.flush()
+    return Gdk.MemoryTexture.new(40, 28, Gdk.MemoryFormat.B8G8R8A8_PREMULTIPLIED,
+                                 GLib.Bytes.new(bytes(surf.get_data())), surf.get_stride())
+
+
 class ColourPalette(Gtk.Box):
     """Quiet label row (eyedropper, custom colour) over round swatches; no card, no well."""
 
@@ -241,28 +273,64 @@ class PanelRail(Gtk.Stack):
         self.set_document(None)
         return box
 
-    def set_document(self, doc) -> None:
+    def set_document(self, doc, selected_id: int | None = None) -> None:
         """Rebuild the layer list: annotation layers top-first, then the base image."""
-        child = self.layers.get_first_child()
-        while child is not None:
-            nxt = child.get_next_sibling()
-            self.layers.remove(child)
-            child = nxt
-        has = doc is not None and not doc.empty
-        self.layers.get_parent().get_parent().set_visible(has)  # the scrolled window
-        self.layers_empty.set_visible(not has)
-        if not has:
+        self._rebuilding = True
+        try:
+            child = self.layers.get_first_child()
+            while child is not None:
+                nxt = child.get_next_sibling()
+                self.layers.remove(child)
+                child = nxt
+            has = doc is not None and not doc.empty
+            self.layers.get_parent().get_parent().set_visible(has)  # the scrolled window
+            self.layers_empty.set_visible(not has)
+            if not has:
+                return
+            chosen = None
+            for layer in reversed(doc.layers):
+                row = LayerRow(layer.name, layer.badge, "#5b6572", thumbnail=_layer_thumbnail(doc, layer))
+                row.layer_id = layer.id
+                row.eye.set_active(layer.visible)
+                row.eye.connect("toggled", lambda b, lid=layer.id: self._eye(lid, b.get_active()))
+                self.layers.append(row)
+                if layer.id == selected_id:
+                    chosen = row
+            base = LayerRow("Base capture", "img", "#c6cedb", thumbnail=_layer_thumbnail(doc, None))
+            base.layer_id = 0
+            base.eye.set_sensitive(False)
+            self.layers.append(base)
+            self.layers.select_row(chosen if chosen is not None else base)
+        finally:
+            self._rebuilding = False
+
+    def bind_editor(self, editor) -> None:
+        self.editor = editor
+        editor.on_selection.append(self._editor_selected)
+        self.layers.connect("row-selected", self._row_selected)
+
+    def _row_selected(self, _lb, row) -> None:
+        if getattr(self, "_rebuilding", False) or self.editor is None or row is None:
             return
-        first = None
-        for layer in reversed(doc.layers):
-            row = LayerRow(layer.name, layer.badge, "#5b6572")
-            row.layer_id = layer.id
-            self.layers.append(row)
-            first = first or row
-        base = LayerRow("Base capture", "img", "#c6cedb")
-        base.layer_id = 0
-        self.layers.append(base)
-        self.layers.select_row(first or base)
+        self.editor.select(row.layer_id or None, notify=False)
+
+    def _editor_selected(self, layer_id) -> None:
+        if getattr(self, "_rebuilding", False):
+            return
+        self._rebuilding = True
+        try:
+            row = self.layers.get_first_child()
+            while row is not None:
+                if getattr(row, "layer_id", None) == (layer_id or 0):
+                    self.layers.select_row(row)
+                    break
+                row = row.get_next_sibling()
+        finally:
+            self._rebuilding = False
+
+    def _eye(self, layer_id: int, visible: bool) -> None:
+        if not getattr(self, "_rebuilding", False) and self.editor is not None:
+            self.editor.set_visible(layer_id, visible)
 
     # -- collapsed page ----------------------------------------------------
     def _build_collapsed(self) -> Gtk.Box:

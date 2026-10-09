@@ -1,7 +1,7 @@
 """Centre stage: empty-state placeholder now, the document canvas from Phase 4."""
 from __future__ import annotations
 import cairo
-from gi.repository import Gdk, Gtk
+from gi.repository import Gdk, Gtk, Graphene
 
 from ..services import icon_loader
 from ..app.view_state import ViewState
@@ -28,7 +28,7 @@ class Stage(Gtk.Overlay):
         self.document = None
         self._composite = None
         self.on_change: list = []   # callbacks when the composite or document changes (navigator)
-        self.canvas = Gtk.DrawingArea(halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        self.canvas = Gtk.DrawingArea(halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER, focusable=True, can_focus=True)
         self.canvas.set_draw_func(self._draw_canvas)
         self.scroller = Gtk.ScrolledWindow(hexpand=True, vexpand=True, child=self.canvas)
         self.pages.add_named(self.scroller, "canvas")
@@ -42,6 +42,18 @@ class Stage(Gtk.Overlay):
                              margin_start=16, margin_bottom=16)
         self.hud.add_css_class("hud")
         self.add_overlay(self.hud)
+        # inline text editor for the Text and Callout tools, positioned over the canvas
+        self.extra_draw = None
+        self._text_fixed = Gtk.Fixed(can_target=False)
+        self.add_overlay(self._text_fixed)
+        self.text_entry = Gtk.Entry(visible=False, width_chars=18)
+        self.text_entry.add_css_class("inline-text")
+        self._text_fixed.put(self.text_entry, 0, 0)
+        self._text_cb = (None, None)
+        self.text_entry.connect("activate", self._text_activate)
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self._text_key)
+        self.text_entry.add_controller(keys)
         state.connect("notify::zoom", self._update_hud)
         state.connect("notify::zoom", lambda *_: self._resize_canvas())
         state.connect("notify::library", self._library_changed)
@@ -159,6 +171,8 @@ class Stage(Gtk.Overlay):
         cr.get_source().set_filter(cairo.FILTER_GOOD if z < 1 else cairo.FILTER_NEAREST if z >= 4 else cairo.FILTER_BILINEAR)
         cr.paint()
         cr.restore()
+        if self.extra_draw is not None:
+            self.extra_draw(cr, x, y, z)
 
     @staticmethod
     def _rounded(cr, x, y, w, h, r) -> None:
@@ -174,5 +188,49 @@ class Stage(Gtk.Overlay):
     def _scroll(self, controller, _dx: float, dy: float) -> bool:
         if controller.get_current_event_state() & Gdk.ModifierType.CONTROL_MASK:
             self.state.zoom_step(-1 if dy > 0 else +1)
+            return True
+        return False
+
+    # -- inline text entry ---------------------------------------------------
+    def show_text_entry(self, ix: float, iy: float, initial: str, on_commit, on_cancel) -> None:
+        """Open the entry at image point (ix, iy); Enter commits, Escape cancels."""
+        ox, oy = self.image_origin()
+        z = self.state.zoom
+        ok, pt = self.canvas.compute_point(self, Graphene.Point().init(ox + ix * z, oy + iy * z))
+        px, py = (pt.x, pt.y) if ok else (ox + ix * z, oy + iy * z)
+        self._text_cb = (on_commit, on_cancel)
+        self._text_fixed.set_can_target(True)
+        self._text_fixed.move(self.text_entry, max(0, px), max(0, py - 4))
+        self.text_entry.set_text(initial)
+        self.text_entry.set_visible(True)
+        self.text_entry.grab_focus()
+        self.text_entry.set_position(-1)
+
+    def cancel_text_entry(self) -> None:
+        if self.text_entry.get_visible():
+            _c, cancel = self._text_cb
+            self._hide_text_entry()
+            if cancel:
+                cancel()
+
+    def commit_text_entry(self) -> None:
+        self._text_activate(self.text_entry)
+
+    def _hide_text_entry(self) -> None:
+        self.text_entry.set_visible(False)
+        self._text_fixed.set_can_target(False)
+        self._text_cb = (None, None)
+        self.canvas.grab_focus()
+
+    def _text_activate(self, entry: Gtk.Entry) -> None:
+        commit, _cancel = self._text_cb
+        text = entry.get_text()
+        self._hide_text_entry()
+        if commit:
+            commit(text)
+
+    def _text_key(self, _c, keyval, _code, _state) -> bool:
+        if keyval == Gdk.KEY_Escape:
+            self.cancel_text_entry()
             return True
         return False

@@ -260,3 +260,138 @@ def test_preferences_dialog_builds_and_saves(window):
     assert "selection_style=simple" in window.settings.path.read_text()
     dlg.close()
     pump(50)
+
+
+
+class _Gesture:
+    """Stand-in for a Gtk gesture: only the modifier state is read."""
+    def __init__(self, shift=False, ctrl=False):
+        from gi.repository import Gdk
+        self.state = (Gdk.ModifierType.SHIFT_MASK if shift else 0) | (Gdk.ModifierType.CONTROL_MASK if ctrl else 0)
+
+    def get_current_event_state(self):
+        return self.state
+
+
+def _drag(window, tool, x1, y1, x2, y2, shift=False, ctrl=False):
+    """Drag in image pixels: the stage is at zoom 1 with the image origin known."""
+    window.state.tool = tool
+    ed = window.editor
+    ox, oy = window.stage.image_origin()
+    g = _Gesture(shift, ctrl)
+    ed._drag_begin(g, ox + x1, oy + y1)
+    ed._drag_update(g, x2 - x1, y2 - y1)
+    ed._drag_end(g, x2 - x1, y2 - y1)
+
+
+def _load_blank(window, tmp_path, size=(500, 400)):
+    from PIL import Image
+    from linscreencapture.model.document import Document
+    Image.new("RGBA", size, (30, 40, 50, 255)).save(tmp_path / "blank.png")
+    window.load_document(Document.open(str(tmp_path / "blank.png")))
+    window.state.zoom = 1.0
+    pump(200)
+
+
+def test_drawing_tools_create_layers_with_undo(window, tmp_path):
+    _load_blank(window, tmp_path)
+    doc = window.document
+    _drag(window, "arrow", 20, 20, 200, 120)
+    _drag(window, "box", 40, 40, 140, 100, ctrl=True)
+    _drag(window, "pixelate", 60, 60, 160, 160)
+    pump(50)
+    assert [l.annotation.kind for l in doc.layers] == ["arrow", "box", "pixelate"]
+    assert doc.layers[1].annotation.rect == (40, 40, 100, 100)          # Ctrl made it square
+    assert doc.layers[0].annotation.style.colour == window.state.colour
+    assert window.editor.selected_id == doc.layers[-1].id                 # the new layer is selected
+    rows = [r for r in _walk(window.panel_rail.layers) if isinstance(r, Gtk.ListBoxRow)]
+    assert [r.name.get_label() for r in rows] == ["Pixelate", "Box", "Arrow", "Base capture"]
+    assert "4 layers · unsaved" in window.header.subtitle.get_label()
+    assert window.lookup_action("undo").get_enabled()
+    window.activate_action("win.undo", None); pump(30)
+    window.activate_action("win.undo", None); pump(30)
+    assert [l.annotation.kind for l in doc.layers] == ["arrow"]
+    window.activate_action("win.redo", None); pump(30)
+    assert [l.annotation.kind for l in doc.layers] == ["arrow", "box"]
+
+
+def test_strokes_steps_text_and_callout(window, tmp_path):
+    _load_blank(window, tmp_path)
+    doc = window.document
+    ed = window.editor
+    window.state.tool = "pen"
+    ox, oy = window.stage.image_origin()
+    g = _Gesture()
+    ed._drag_begin(g, ox + 10, oy + 10)
+    for d in (5, 10, 20, 30):
+        ed._drag_update(g, d, d)
+    ed._drag_end(g, 30, 30)
+    assert doc.layers[-1].annotation.kind == "pen" and len(doc.layers[-1].annotation.points) == 5
+    window.state.tool = "step"
+    ed._click(g, 1, ox + 50, oy + 50); ed._click(g, 1, ox + 90, oy + 50)
+    assert [l.annotation.number for l in doc.layers if l.annotation.kind == "step"] == [1, 2]
+    window.state.tool = "text"
+    ed._click(g, 1, ox + 100, oy + 100)
+    pump(50)
+    assert window.stage.text_entry.get_visible()
+    window.stage.text_entry.set_text("Login form")
+    window.stage.commit_text_entry()
+    assert doc.layers[-1].annotation.kind == "text" and doc.layers[-1].annotation.text == "Login form"
+    _drag(window, "callout", 120, 120, 200, 200)
+    assert window.stage.text_entry.get_visible()
+    window.stage.text_entry.set_text("Click here")
+    window.stage.commit_text_entry()
+    a = doc.layers[-1].annotation
+    assert a.kind == "callout" and a.text == "Click here" and (a.x2, a.y2) == (200, 200)
+    window.state.tool = "text"
+    ed._click(g, 1, ox + 10, oy + 10)
+    window.stage.cancel_text_entry()
+    assert doc.layers[-1].annotation.kind == "callout"      # cancelled entry adds nothing
+
+
+def test_select_move_resize_delete_duplicate(window, tmp_path):
+    _load_blank(window, tmp_path)
+    doc, ed = window.document, window.editor
+    _drag(window, "box", 100, 100, 200, 160)
+    box = doc.layers[0]
+    ed.select(None)
+    _drag(window, "select", 150, 130, 170, 150)                   # click inside → select, drag → move
+    assert ed.selected_id == box.id and box.annotation.rect == (120, 120, 100, 60)
+    _drag(window, "select", 220, 180, 260, 220)                   # the se handle → resize
+    assert box.annotation.rect == (120, 120, 140, 100)
+    assert window.undo.undo_label == "Resize"
+    window.activate_action("win.duplicate-layer", None); pump(30)
+    assert len(doc.layers) == 2 and doc.layers[1].annotation.rect == (132, 132, 140, 100)
+    window.activate_action("win.delete-layer", None); pump(30)
+    assert len(doc.layers) == 1 and ed.selected_id is None
+    window.state.colour = "#46a758"
+    ed.select(box.id)
+    window.state.colour = "#ffb224"
+    assert box.annotation.style.colour == "#ffb224"               # palette recolours the selection
+
+
+def test_strip_writes_settings_and_selected_layer(window, tmp_path):
+    _load_blank(window, tmp_path)
+    doc, ed, s = window.document, window.editor, window.settings
+    window.state.tool = "arrow"
+    pump(30)
+    props = window.header.props
+    props.width_spin.set_value(9)
+    props.shadow.set_active(True)
+    assert s.tools["arrow"].width == 9 and s.tools["arrow"].shadow is True
+    assert "width_arrow=9" in s.path.read_text()
+    _drag(window, "arrow", 10, 10, 100, 100)
+    a = doc.layers[0].annotation
+    assert a.style.width == 9 and a.style.shadow
+    window.state.tool = "select"
+    ed.select(doc.layers[0].id)
+    window.state.tool = "arrow"   # strip shows arrow settings; selection cleared by tool change
+    assert ed.selected_id is None
+    window.state.tool = "select"; ed.select(doc.layers[0].id)
+    props.width_spin.set_value(2)
+    assert s.tools["arrow"].width == 2 and a.style.width == 2
+    window.state.tool = "pixelate"
+    pump(30)
+    assert props.mode.get_first_child().get_active()
+    props.mode.get_last_child().set_active(True)
+    assert window.state.tool == "blur"

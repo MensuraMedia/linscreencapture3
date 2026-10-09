@@ -573,3 +573,8 @@ Review round after Phase 3 (2026-10-09): rails collapsed by default; Capture is 
 states; the stage image is square-cornered and pixel-exact; the navigator is live and untitled with the layer list
 directly above it; Library sits above the Actions hairline in both states; a Settings dialog (Capture page) exists
 with a "Selection box" option: handles (adjust, Enter) or simple (capture on release).
+
+Phase 4 (2026-10-09): annotation tools implemented per sections 6 and 9 with these clarifications: the header
+strip shows the selected layer's properties under Select/Move and edits them; the palette recolours the selected
+layer; blur and pixelate preview as a dashed rectangle; Crop previews only until Phase 5; layer drag-reorder is
+deferred (the `MoveLayer` command exists).
