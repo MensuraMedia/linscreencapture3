@@ -62,3 +62,7 @@ screenshot_app
 dist/
 screenshots/dev/_cfg/
 screenshots/dev/overlay.png
+
+# ZCode session plugin caches
+.v2c/
+.video_agent/

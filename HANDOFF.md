@@ -11,6 +11,12 @@ backends written), annotation tools with live layers and undo. Two operator revi
 decisions 8–11). Next: Phase 5, image operations and file flows (checklist in section 8). The operator reviews renders and asks for layout tweaks between
 phases; expect that and keep `docs/FEATURES.md`, this file and `changelog.md` current with every change.
 
+Update 2026-10-12: work continues on branch `feat/phase5` (cut from the docs/app-screenshots tip e9d017c; main itself
+untouched). The repo is now bootstrapped with the universal standards: `AGENTS.md` at the root (stack + project rules),
+`.zcode/memory/` seeds. Test state: 77 tests, 76 pass — the one failure is the uncommitted ShortcutRouter work
+(`tests/test_shell.py:438`, Escape handling in `app/shortcuts.py`), which predates this branch and travels uncommitted.
+Still unpushed/awaiting review: the three docs/app-screenshots commits and the s049 i18n doc on docs/i18n-strategy.
+
 ## 1. Mission
 
 Rebuild the 1.4 C/GTK3 screenshot tool as **LinScreenCapture 2: Python 3 + GTK 4 + libadwaita**,
