@@ -13,6 +13,7 @@ from ..model.document import Document
 from ..services import clipboard
 from ..model.undo import UndoStack
 from ..app.editor_controller import EditorController
+from ..app.shortcuts import ShortcutRouter
 
 MIN_WIDTH, MIN_HEIGHT = 960, 600
 AUTO_COLLAPSE_BELOW = 1100
@@ -20,8 +21,8 @@ CAPTURE_MODES = ("region", "window", "screen", "scrolling", "delayed")
 
 # action -> phase that implements it (placeholders show a toast until then)
 PLACEHOLDERS = {
-    "save": 5, "flatten": 5, "resize": 5, "rotate": 5, "adjust": 5,
-    "duplicate-file": 5, "library-delete": 5, "eyedropper": 4,
+    "save": 5, "paste": 5, "flatten": 5, "resize": 5, "rotate": 5, "adjust": 5,
+    "duplicate-file": 5, "library-delete": 5, "eyedropper": 5,
 }
 
 
@@ -60,6 +61,7 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.editor = EditorController(self)
         self.panel_rail.bind_editor(self.editor)
         self.header.props.bind(self.settings, self.editor)
+        self.shortcuts = ShortcutRouter(self)
         self.toasts.set_child(self.breakpoint_bin)
         self.set_child(self.toasts)
 

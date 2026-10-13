@@ -1,4 +1,4 @@
-# LinScreenCapture 2 — implemented features and functions
+# LinScreenCapture 3 — implemented features and functions
 
 As of 2026-10-09 (Phases 1–4 plus two review rounds). Everything listed here exists in the code and is covered by
 `make test` (69 tests) or a render in `screenshots/dev/`. Planned work is in `HANDOFF.md` section 3.
@@ -151,13 +151,20 @@ naming rules.
 
 ## 10. Keyboard shortcuts
 
+Two tiers, so a shortcut can never steal a keystroke from a text field. **Global chords** are GTK application
+accelerators (which GTK dispatches in the capture phase, before the focused widget). **Editing and tool keys**
+go through `app/shortcuts.py`, a bubble-phase router on the window that yields whenever the inline text editor,
+a spin button or any other editable widget has focus, swallows tool letters during a drag, and retargets Delete
+and Escape to the Library page while it is open.
+
+
 | Keys | Action |
 | --- | --- |
 | PrintScreen (system binding, Phase 6) · Ctrl+N | capture in the current mode |
 | Ctrl+Shift+N | full-screen capture |
-| V A L B C T P M · U X N K | tools (Select, Arrow, Line, Box, Circle, Text, Pen, Marker · Blur, Pixelate, Step, Crop) |
+| V A L B C T P M · U X N K | tools (Select, Arrow, Line, Box, Circle, Text, Pen, Marker · Blur, Pixelate, Step, Crop) — routed, never while typing or dragging |
 | Ctrl+C | copy the composition |
-| Ctrl+Z · Ctrl+Shift+Z / Ctrl+Y · Delete · Ctrl+D | undo · redo · delete layer · duplicate layer |
+| Ctrl+Z · Ctrl+Shift+Z / Ctrl+Y · Delete · Ctrl+D · Ctrl+C · Ctrl+V · Esc | undo · redo · delete layer (or Library item) · duplicate · copy · paste (Phase 5) · clear selection / close Library — routed, so inside a text field they edit the text |
 | Ctrl+S | save (Phase 5) |
 | Ctrl+scroll · Ctrl+0 · Ctrl+1 | zoom · fit · 1:1 |
 | Ctrl+[ · Ctrl+] | collapse/expand left · right rail |

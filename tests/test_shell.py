@@ -228,6 +228,11 @@ def test_capture_actions_exist(app, window):
     from linscreencapture.app.application import CAPTURE_ACTIONS, ACCELS
     assert set(CAPTURE_ACTIONS) == {"capture", "capture-region", "capture-window", "capture-screen", "capture-delayed"}
     assert ACCELS["app.capture"] == ["<Control>n"]
+    # no accelerator may be a bare letter or an editing chord: those are routed in the bubble phase
+    for accels in ACCELS.values():
+        for a in accels:
+            assert "<Control>" in a or "<Shift>" in a, a
+            assert a not in ("<Control>c", "<Control>v", "<Control>z", "<Control>d", "<Control>y"), a
 
 
 
@@ -395,3 +400,53 @@ def test_strip_writes_settings_and_selected_layer(window, tmp_path):
     assert props.mode.get_first_child().get_active()
     props.mode.get_last_child().set_active(True)
     assert window.state.tool == "blur"
+
+
+
+def test_shortcuts_never_interfere_with_typing(window, tmp_path):
+    from gi.repository import Gdk
+    from linscreencapture.app.shortcuts import TOOL_KEYS
+    _load_blank(window, tmp_path)
+    r, ed = window.shortcuts, window.editor
+    window.state.tool = "text"
+    ed._click(_Gesture(), 1, *[c + 50 for c in window.stage.image_origin()])
+    pump(50)
+    assert window.stage.text_entry.get_visible() and window.get_focus() is not None
+    for key in TOOL_KEYS:                                   # typing a, b, c … must not switch tools
+        assert r.handle(key, 0) is False
+    assert r.handle(Gdk.KEY_Delete, 0) is False and r.handle(Gdk.KEY_z, Gdk.ModifierType.CONTROL_MASK) is False
+    assert window.state.tool == "text"
+    window.stage.cancel_text_entry()
+    window.stage.canvas.grab_focus()
+    pump(30)
+    assert r.handle(Gdk.KEY_a, 0) is True and window.state.tool == "arrow"
+    assert r.handle(Gdk.KEY_A, Gdk.ModifierType.SHIFT_MASK) is False   # Shift+letter is not a tool key
+    # a focused spin button in the header strip also keeps its keys
+    window.header.props.width_spin.grab_focus()
+    pump(30)
+    assert r.handle(Gdk.KEY_b, 0) is False and window.state.tool == "arrow"
+    window.stage.canvas.grab_focus(); pump(30)
+    # editing chords route to window actions only when nothing editable has focus
+    _drag(window, "box", 10, 10, 80, 60)
+    assert len(window.document.layers) == 1 and ed.selected_id is not None
+    assert r.handle(Gdk.KEY_d, Gdk.ModifierType.CONTROL_MASK) is True
+    pump(30); assert len(window.document.layers) == 2
+    assert r.handle(Gdk.KEY_z, Gdk.ModifierType.CONTROL_MASK) is True
+    pump(30); assert len(window.document.layers) == 1
+    assert r.handle(Gdk.KEY_Z, Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK) is True
+    pump(30); assert len(window.document.layers) == 2
+    ed.select(window.document.layers[0].id)
+    assert r.handle(Gdk.KEY_Escape, 0) is True and ed.selected_id is None   # Escape clears the selection
+    assert r.handle(Gdk.KEY_Escape, 0) is False                            # nothing selected: not consumed
+    ed.select(window.document.layers[0].id)
+    assert r.handle(Gdk.KEY_Delete, 0) is True
+    pump(30); assert len(window.document.layers) == 1
+    # mid-drag, tool letters are swallowed rather than switching tools
+    ed._mode = "draw"
+    assert r.handle(Gdk.KEY_l, 0) is True and window.state.tool == "box"
+    ed._mode = None
+    # with the Library open, Delete targets the library and Escape closes it
+    window.activate_action("win.library", None); pump(50)
+    assert r.handle(Gdk.KEY_a, 0) is True and window.state.tool == "box"
+    assert r.handle(Gdk.KEY_Escape, 0) is True
+    pump(50); assert not window.state.library

@@ -1,11 +1,11 @@
-# LinScreenCapture 2 — GTK 4 GUI Technical Specification
+# LinScreenCapture 3 — GTK 4 GUI Technical Specification
 
 As of 2026-10-08. Living copy: https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732
-Design reference: https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (LinScreenCapture 2 — Studio Redesign Mockups); rendered artboards in `screenshots/`, sources in `docs/mockups/`
+Design reference: https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (LinScreenCapture 3 — Studio Redesign Mockups); rendered artboards in `screenshots/`, sources in `docs/mockups/`
 
 ## 1. Purpose and scope
 
-This document is the build specification for LinScreenCapture 2: a ground-up rewrite of the GTK 3 / C screenshot tool as a Python 3 + GTK 4 application whose GUI reproduces the Studio Editor design in the mockup canvas. An implementer with this repository and the Phosphor icon set at `~/projects/assets/icons/regular` should be able to produce the application from this text alone.
+This document is the build specification for LinScreenCapture 3: a ground-up rewrite of the GTK 3 / C screenshot tool as a Python 3 + GTK 4 application whose GUI reproduces the Studio Editor design in the mockup canvas. An implementer with this repository and the Phosphor icon set at `~/projects/assets/icons/regular` should be able to produce the application from this text alone.
 
 **Specified here**
 

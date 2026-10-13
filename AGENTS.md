@@ -1,4 +1,4 @@
-# LinScreenCapture 2 (linscreencapture3) — project instructions
+# LinScreenCapture 3 (linscreencapture3) — project instructions
 
 Workspace scope. Global standards load first from ~/.zcode/AGENTS.md; this file
 only adds what is specific to this project. Additive changes only — never modify

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "linscreencapture"
-version = "2.0.0.dev1"
+version = "3.0.0.dev1"
 description = "Screenshot studio for Linux on GTK 4 + Python"
 readme = "README.md"
 requires-python = ">=3.11"

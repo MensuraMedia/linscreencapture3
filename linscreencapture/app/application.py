@@ -15,16 +15,13 @@ APP_PLACEHOLDERS = {"capture-scrolling": 6, "pin": 6}
 CAPTURE_ACTIONS = {"capture": None, "capture-region": "region", "capture-window": "window",
                    "capture-screen": "screen", "capture-delayed": "delayed"}
 ACCELS = {
+    # Global chords only. Tool letters and editing keys (Ctrl+C/V/Z/Y/D, Delete, Escape) are routed by
+    # app/shortcuts.py in the bubble phase so they never steal keystrokes from a text field.
     "app.quit": ["<Control>q"],
     "app.preferences": ["<Control>comma"],
     "app.capture": ["<Control>n"],
     "app.capture-screen": ["<Control><Shift>n"],
     "win.save": ["<Control>s"],
-    "win.copy": ["<Control>c"],
-    "win.undo": ["<Control>z"],
-    "win.redo": ["<Control><Shift>z", "<Control>y"],
-    "win.delete-layer": ["Delete"],
-    "win.duplicate-layer": ["<Control>d"],
     "win.library": ["<Control>l"],
     "win.toggle-left-rail": ["<Control>bracketleft"],
     "win.toggle-right-rail": ["<Control>bracketright"],
@@ -32,9 +29,6 @@ ACCELS = {
     "win.zoom-out": ["<Control>minus"],
     "win.zoom-fit": ["<Control>0"],
     "win.zoom-actual": ["<Control>1"],
-    "win.tool::select": ["v"], "win.tool::arrow": ["a"], "win.tool::line": ["l"], "win.tool::box": ["b"],
-    "win.tool::circle": ["c"], "win.tool::text": ["t"], "win.tool::pen": ["p"], "win.tool::marker": ["m"],
-    "win.tool::blur": ["u"], "win.tool::pixelate": ["x"], "win.tool::step": ["n"], "win.tool::crop": ["k"],
 }
 
 

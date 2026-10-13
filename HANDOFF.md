@@ -1,4 +1,4 @@
-# HANDOFF — LinScreenCapture 2 (linscreencapture3)
+# HANDOFF — LinScreenCapture 3 (linscreencapture3)
 
 Written 2026-10-08 after Phase 1, kept current through Phase 3 and the review rounds of 2026-10-09. Read this first; it says where everything is, what was
 decided, and what to do next. The spec (`docs/GUI_SPEC.md`) is authoritative for the GUI;
@@ -19,7 +19,7 @@ Still unpushed/awaiting review: the three docs/app-screenshots commits and the s
 
 ## 1. Mission
 
-Rebuild the 1.4 C/GTK3 screenshot tool as **LinScreenCapture 2: Python 3 + GTK 4 + libadwaita**,
+Rebuild the 1.4 C/GTK3 screenshot tool as **LinScreenCapture 3: Python 3 + GTK 4 + libadwaita**,
 reproducing the Studio Editor design (header, two mirrored rails, stage, right-rail panels) in
 the Graphite Night look. Pure Python, no C extension (decided 2026-10-08; rationale and the
 performance budget are in the spec, section 5). Local-only tool; no cloud, no telemetry.
@@ -55,7 +55,7 @@ Each phase is gated on the operator's sign-off of the previous one.
 | 4 | Annotation tools and layers | stage draws the document; all tools; handles; Layers panel live; colour and props wired | **done** (commit "Phase 4: annotation tools") — awaiting sign-off |
 | 5 | Image operations and files | crop/resize/rotate/brightness, flatten, save/save-as/paste, unsaved prompts, Library delete, eyedropper; **then remove `src/`, `include/`, `CMakeLists.txt`, `debian/`, `install.sh`, `uninstall.sh`, `packaging/build-deb.sh`** | next |
 | 6 | System integration | hotkey registrar (GNOME append fix), autostart, delayed, pin, scrolling capture, preferences dialog | |
-| 7 | Polish and release | navigator live, shortcuts window, about, toasts, golden-image tests, packaging, tag 2.0.0 | |
+| 7 | Polish and release | navigator live, shortcuts window, about, toasts, golden-image tests, packaging, tag 3.0.0 | |
 
 The full phase table with gate criteria is in `docs/GUI_SPEC.md` section 10 and the README roadmap.
 
@@ -85,6 +85,8 @@ The full phase table with gate criteria is in `docs/GUI_SPEC.md` section 10 and 
 11. Settings dialog (`ui/preferences.py`, Capture page only until Phase 6): save folder, prefix, numbering, format,
     **Selection box** (free-form with resize handles then Enter, or simple: captures on release),
     copy to clipboard, delay, start-collapsed switches. `Settings.selection_style` drives `OverlaySession.simple`.
+12. Shortcut routing (2026-10-13): tool letters and editing chords are routed in the bubble phase by
+    `app/shortcuts.py`; accelerators are global chords only. Product name is **LinScreenCapture 3**, version 3.0.0.dev1.
 
 ## 5. Code map (Phase 1)
 
@@ -128,6 +130,10 @@ data/ icons, gresource.xml, .desktop files
 - `Gtk.FlowBox` reports all children on one line as its natural width; the rails use `Gtk.Grid`.
 - Never name a CSS class `toggle`: GTK adds that class to every `Gtk.ToggleButton`.
 - `Gdk.Clipboard.set_texture` is not in PyGObject; use `clipboard.set(texture)` (Phase 3).
+- GTK runs **application accelerators in the capture phase**, before the focused widget: a bare-letter accel
+  fires while the user types. Keys that compete with typing live in `app/shortcuts.py` (bubble phase); only
+  global chords go through `set_accels_for_action`. `tests/test_shell.py::test_shortcuts_never_interfere_with_typing`
+  guards this.
 - `Gtk.Widget.activate_action` needs the prefixed name (`win.tool`), and tests must pump a real
   main loop (`GLib.MainLoop` + timeout) before reading allocations.
 - `pkill -f "python3 -m linscreencapture"` from an agent shell kills the agent's own shell
