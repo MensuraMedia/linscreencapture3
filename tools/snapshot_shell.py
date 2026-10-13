@@ -32,7 +32,7 @@ def render(win: Gtk.Window, path: pathlib.Path) -> None:
 
 
 def main() -> int:
-    app = Application()
+    app = Application(non_unique=True)   # a running LinScreenCapture must not swallow the snapshot run
     settings = Settings.load(root=str(OUT / "_cfg"))  # isolated config: read but nothing persisted to ~
 
     app.settings = settings

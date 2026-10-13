@@ -34,8 +34,10 @@ ACCELS = {
 
 
 class Application(Adw.Application):
-    def __init__(self):
-        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
+    def __init__(self, non_unique: bool = False):
+        # non_unique: tools (snapshots, probes) must never activate a running instance instead of starting
+        flags = Gio.ApplicationFlags.NON_UNIQUE if non_unique else Gio.ApplicationFlags.DEFAULT_FLAGS
+        super().__init__(application_id=APP_ID, flags=flags)
         self.add_main_option("capture", ord("c"), GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
                              "Capture a region immediately", None)
         self.add_main_option("debug", ord("d"), GLib.OptionFlags.NONE, GLib.OptionArg.NONE,

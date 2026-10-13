@@ -582,3 +582,11 @@ deferred (the `MoveLayer` command exists).
 Phase 5 (2026-10-13): image operations and file flows per sections 6 and 9; Crop applies with Enter or the
 strip's Apply button; Resize/Rotate/Brightness are popovers on their rail buttons (Brightness previews live);
 pasted images are an `image` annotation kind; the 1.4 C sources are removed from the repository.
+
+Review round after Phase 5 (2026-10-13): annotation shadows are Gaussian (blurred silhouette) and the stage shadow
+is gradient-based — the 1.4 three-pass shadow is gone; the header strip has an Opacity control for every drawing
+tool (per tool, not universal; the marker defaults to 0.40); Delayed is a toggle modifier on the capture modes,
+not a mode; Ctrl+V pastes clipboard text as a text layer and Ctrl+C/Ctrl+V copy and paste a selected layer; a
+click on the empty stage returns to Select; layer rows are numbered by stack position and labelled with the tool
+name (`BLUR`, `PIXELATE`…) instead of the category badges of section 6; the shortcut router runs in the capture
+phase so editing keys work with focus in a header spin button.

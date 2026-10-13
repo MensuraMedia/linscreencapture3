@@ -18,6 +18,12 @@ untouched). The repo is now bootstrapped with the universal standards: `AGENTS.m
 (`tests/test_shell.py:438`, Escape handling in `app/shortcuts.py`), which predates this branch and travels uncommitted.
 Still unpushed/awaiting review: the three docs/app-screenshots commits and the s049 i18n doc on docs/i18n-strategy.
 
+Update 2026-10-13 (evening): Phase 5 review round applied on `feat/phase5` — Gaussian annotation shadows and a
+gradient stage shadow (the stacked-rectangle shadows banded), per-tool Opacity in the header strip, Delayed capture
+as a toggle (it could not be turned off before), Ctrl+V of clipboard text as a text layer and Ctrl+C/Ctrl+V of a
+selected layer, click on the empty stage drops the tool, numbered layers with tool-name labels, and the Ctrl+Z
+regression (focus stuck in a header spin button) fixed by a capture-phase shortcut router. 94 tests pass.
+
 ## 1. Mission
 
 Rebuild the 1.4 C/GTK3 screenshot tool as **LinScreenCapture 3: Python 3 + GTK 4 + libadwaita**,
@@ -32,7 +38,7 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | Repo | `/home/user/projects/linscreencapture3`, remote `origin` = `github.com/MensuraMedia/linscreencapture3` (branch `main`); `upstream` = the 1.4 repo `MensuraMedia/linscreencapture` |
 | Last pushed commit | see `git log --oneline -1`; everything is committed and pushed at the time of writing |
 | Run | `make resources && python3 -m linscreencapture` (add `--debug` or `LSC_DEBUG=1` for timestamped start-up, toolkit and capture logging via `app/logging_setup.py`) (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
-| Test | `make test` → 84 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
+| Test | `make test` → 94 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
 | Renders | `make snapshot` → `screenshots/dev/shell_*.png` (default, open, collapsed, library, text tool, document, document zoomed, settings); `tools/snapshot_overlay.py` renders the live capture overlay to `screenshots/dev/overlay.png` (git-ignored: it contains the real screen) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |
 | Spec | `docs/GUI_SPEC.md` (repo copy) and the living doc https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732 |
@@ -134,9 +140,21 @@ data/ icons, gresource.xml, .desktop files
 - Never name a CSS class `toggle`: GTK adds that class to every `Gtk.ToggleButton`.
 - `Gdk.Clipboard.set_texture` is not in PyGObject; use `clipboard.set(texture)` (Phase 3).
 - GTK runs **application accelerators in the capture phase**, before the focused widget: a bare-letter accel
-  fires while the user types. Keys that compete with typing live in `app/shortcuts.py` (bubble phase); only
+  fires while the user types. Keys that compete with typing live in `app/shortcuts.py`; only
   global chords go through `set_accels_for_action`. `tests/test_shell.py::test_shortcuts_never_interfere_with_typing`
   guards this.
+- A **spin button keeps keyboard focus** after a click on its text or its +/- buttons, and its `Gtk.Text` binds
+  Ctrl+Z itself, so a bubble-phase router never saw Ctrl+Z or tool letters once the user had touched the header's
+  Width spin ("Ctrl+Z does not work while a tool is active"). The router therefore runs in the CAPTURE phase,
+  yields only to real text fields and popovers, and hands focus back to the canvas; the strip's other controls have
+  `focus_on_click=False`. Guarded by `test_undo_works_with_focus_in_a_header_spin`.
+- `Gdk.ContentFormats.contain_gtype(Gdk.Texture)` is **false for a local copy**: the clipboard offers the concrete
+  subclass (`GdkMemoryTexture`). Walk `get_gtypes()` with `GType.is_a` (see `StudioWindow._holds_image`).
+- Stacked offset copies as a shadow (1.4 style, three passes) show as hard bands on dark captures. Annotation
+  shadows are a Pillow-blurred silhouette cached on the annotation; the stage shadow is four linear and four radial
+  gradients.
+- `make snapshot` (and any probe) must construct `Application(non_unique=True)`: with the default flags a running
+  LinScreenCapture instance is *activated* instead and the tool exits silently with stale renders on disk.
 - `Gtk.Widget.activate_action` needs the prefixed name (`win.tool`), and tests must pump a real
   main loop (`GLib.MainLoop` + timeout) before reading allocations.
 - `pkill -f "python3 -m linscreencapture"` from an agent shell kills the agent's own shell
@@ -159,7 +177,8 @@ data/ icons, gresource.xml, .desktop files
 2. Settings dialog **System** page: hotkey preset (`Settings.hotkey`), register switch (`register_hotkey`),
    autostart (`~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop`), backend choice, include pointer,
    pin opacity, reopen last; **Shortcuts** page listing both shortcut tiers.
-3. Delayed capture: countdown chip in the header (the `StatusChip` widget is ready) instead of a toast.
+3. Delayed capture: countdown chip in the header (the `StatusChip` widget is ready) instead of a toast. The
+   rail's Delayed button is already a boolean toggle (`win.capture-delayed`) that applies to any mode.
 4. Pin to screen (`app.pin`): borderless always-on-top window at `pin_opacity`, Esc/double-click closes.
 5. Scrolling capture (`app.capture-scrolling`): repeated region captures stitched by overlap matching (NumPy).
 6. Include pointer: draw the cursor from `Gdk` into the frozen screen when `include_pointer`.

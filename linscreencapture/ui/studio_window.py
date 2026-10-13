@@ -20,7 +20,7 @@ from ..app.shortcuts import ShortcutRouter
 
 MIN_WIDTH, MIN_HEIGHT = 960, 600
 AUTO_COLLAPSE_BELOW = 1100
-CAPTURE_MODES = ("region", "window", "screen", "scrolling", "delayed")
+CAPTURE_MODES = ("region", "window", "screen", "scrolling")
 
 # action -> phase that implements it (placeholders show a toast until then)
 PLACEHOLDERS = {"duplicate-file": 7}
@@ -62,6 +62,10 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.panel_rail.bind_editor(self.editor)
         self.header.props.bind(self.settings, self.editor)
         self.shortcuts = ShortcutRouter(self)
+        self._layer_clip = None                       # a copied layer, valid until the clipboard changes elsewhere
+        display = Gdk.Display.get_default()
+        if display is not None:
+            display.get_clipboard().connect("changed", lambda *_: setattr(self, "_layer_clip", None))
         self.toasts.set_child(self.breakpoint_bin)
         self.set_child(self.toasts)
 
@@ -111,6 +115,10 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._popovers: dict = {}
         self.lookup_action("undo").set_enabled(False)
         self.lookup_action("redo").set_enabled(False)
+        delayed = Gio.SimpleAction.new_stateful("capture-delayed", None, GLib.Variant("b", False))
+        delayed.connect("change-state", self._delayed_change)
+        delayed.connect("activate", lambda a, _p: a.change_state(GLib.Variant("b", not a.get_state().get_boolean())))
+        self.add_action(delayed)
         lib = Gio.SimpleAction.new_stateful("library", None, GLib.Variant("b", False))
         lib.connect("change-state", self._library_change)
         lib.connect("activate", lambda a, _p: a.change_state(GLib.Variant("b", not a.get_state().get_boolean())))
@@ -118,6 +126,13 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.state.connect("notify::library", lambda s, _p: lib.set_state(GLib.Variant("b", s.library)))
         for name, phase in PLACEHOLDERS.items():
             self._simple(name, lambda n=name, p=phase: self.toast(f"{n.replace('-', ' ').capitalize()} arrives in Phase {p}"))
+
+    def _delayed_change(self, action, value) -> None:
+        action.set_state(value)
+        if value.get_boolean():
+            self.toast(f"Delayed capture on · waits {self.settings.delay_seconds} s · click the timer again to turn it off")
+        else:
+            self.toast("Delayed capture off", timeout=2)
 
     def _simple(self, name: str, cb) -> Gio.SimpleAction:
         a = Gio.SimpleAction.new(name, None)
@@ -328,9 +343,30 @@ class StudioWindow(Gtk.ApplicationWindow):
         dialog.save(self, None, done)
 
     # -- paste ---------------------------------------------------------------
+    IMAGE_MIME = ("image/png", "image/jpeg", "image/bmp", "image/tiff", "image/webp", "image/gif")
+
     def _paste(self) -> None:
-        clip = Gdk.Display.get_default().get_clipboard()
-        clip.read_texture_async(None, self._pasted)
+        """Ctrl+V: a layer copied in the app, else a clipboard image, else clipboard text as a text layer."""
+        if self._layer_clip is not None and self.document is not None and not self.document.empty:
+            self.paste_layer(self._layer_clip)
+            return
+        display = Gdk.Display.get_default()
+        if display is None:
+            self.toast("Clipboard not available", timeout=5)
+            return
+        clip = display.get_clipboard()
+        if self._holds_image(clip.get_formats()):
+            clip.read_texture_async(None, self._pasted)
+        else:
+            clip.read_text_async(None, self._pasted_text)
+
+    @classmethod
+    def _holds_image(cls, formats: Gdk.ContentFormats) -> bool:
+        """Local textures are offered as a GType (a Gdk.Texture subclass); other apps offer image MIME types."""
+        texture = Gdk.Texture.__gtype__
+        if any(t.is_a(texture) for t in (formats.get_gtypes() or ())):
+            return True
+        return any(formats.contain_mime_type(m) for m in cls.IMAGE_MIME)
 
     def _pasted(self, clip, result) -> None:
         try:
@@ -338,9 +374,48 @@ class StudioWindow(Gtk.ApplicationWindow):
         except GLib.Error:
             texture = None
         if texture is None:
-            self.toast("The clipboard holds no image")
+            clip.read_text_async(None, self._pasted_text)
             return
         self.paste_texture(texture)
+
+    def _pasted_text(self, clip, result) -> None:
+        try:
+            text = clip.read_text_finish(result)
+        except GLib.Error:
+            text = None
+        if not text or not text.strip():
+            self.toast("The clipboard holds nothing to paste (image or text)")
+            return
+        self.paste_text(text)
+
+    MAX_PASTE_CHARS = 2000
+
+    def paste_text(self, text: str) -> None:
+        """Clipboard text (from a document, a web page…) becomes a Text layer centred on the image."""
+        from ..model.annotations import Annotation, measure_text
+        text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+        if len(text) > self.MAX_PASTE_CHARS:
+            text = text[:self.MAX_PASTE_CHARS] + "…"
+        doc = self.document
+        if doc is None or doc.empty:
+            self.toast("Capture or paste an image first · text pastes as a layer onto it", timeout=4)
+            return
+        style = self.editor.style_for("text")
+        w, h = measure_text(text, style)
+        x, y = max(0.0, (doc.width - w) / 2), max(0.0, (doc.height - h) / 2)
+        a = Annotation("text", x, y, x + w, y + h, style=style, text=text)
+        self.state.tool = "select"
+        self.editor._commit(AddLayer(a))
+        self.toast("Pasted text as a layer · drag to move, double-click to edit")
+
+    def paste_layer(self, annotation) -> None:
+        """Paste a copy of a layer copied with Ctrl+C, offset so it does not hide the original."""
+        a = annotation.copy()
+        a.move_by(12, 12)
+        self._layer_clip = a.copy()           # repeated pastes cascade
+        self.state.tool = "select"
+        self.editor._commit(AddLayer(a))
+        self.toast("Pasted layer", timeout=2)
 
     def paste_texture(self, texture: Gdk.Texture) -> None:
         # Gdk.Texture.download writes into a buffer PyGObject copies, so go through PNG bytes instead.
@@ -446,10 +521,17 @@ class StudioWindow(Gtk.ApplicationWindow):
         pop.popup()
 
     def _copy(self) -> None:
+        """Ctrl+C: the flattened image goes to the system clipboard; a selected layer is remembered for Ctrl+V."""
         if self.document is None or self.document.empty:
             self.toast("Nothing to copy yet")
             return
-        if clipboard.copy_surface(self.document.flatten()):
+        layer = self.editor.selected_layer()
+        ok = clipboard.copy_surface(self.document.flatten())
+        self._layer_clip = layer.annotation.copy() if layer is not None else None   # after the clipboard "changed"
+        if layer is not None:
+            number = self.document.layers.index(layer) + 1
+            self.toast(f"Copied layer {number} ({layer.badge.title()}) · Ctrl+V pastes a copy" + ("" if ok else " · clipboard not available"))
+        elif ok:
             self.toast(f"Copied {self.document.name} to clipboard")
         else:
             self.toast("Clipboard not available", timeout=5)

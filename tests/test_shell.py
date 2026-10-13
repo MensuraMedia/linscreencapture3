@@ -310,7 +310,8 @@ def test_drawing_tools_create_layers_with_undo(window, tmp_path):
     assert doc.layers[0].annotation.style.colour == window.state.colour
     assert window.editor.selected_id == doc.layers[-1].id                 # the new layer is selected
     rows = [r for r in _walk(window.panel_rail.layers) if isinstance(r, Gtk.ListBoxRow)]
-    assert [r.name.get_label() for r in rows] == ["Pixelate", "Box", "Arrow", "Base capture"]
+    assert [r.name.get_label() for r in rows] == ["3", "2", "1", "Base capture"]           # numbered by stack position
+    assert [r.kind.get_label() for r in rows] == ["PIXELATE", "BOX", "ARROW", "IMG"]       # the label names the tool
     assert "4 layers · unsaved" in window.header.subtitle.get_label()
     assert window.lookup_action("undo").get_enabled()
     window.activate_action("win.undo", None); pump(30)
@@ -421,10 +422,18 @@ def test_shortcuts_never_interfere_with_typing(window, tmp_path):
     pump(30)
     assert r.handle(Gdk.KEY_a, 0) is True and window.state.tool == "arrow"
     assert r.handle(Gdk.KEY_A, Gdk.ModifierType.SHIFT_MASK) is False   # Shift+letter is not a tool key
-    # a focused spin button in the header strip also keeps its keys
-    window.header.props.width_spin.grab_focus()
+    # a focused spin button in the header strip keeps digits and Enter, but tool letters and
+    # editing chords still work and hand the focus back to the canvas
+    spin = window.header.props.width_spin
+    spin.grab_focus()
     pump(30)
-    assert r.handle(Gdk.KEY_b, 0) is False and window.state.tool == "arrow"
+    assert r.handle(Gdk.KEY_5, 0) is False and r.handle(Gdk.KEY_Return, 0) is False
+    assert r.handle(Gdk.KEY_b, 0) is True and window.state.tool == "box"
+    pump(30)
+    assert window.get_focus() is window.stage.canvas
+    spin.grab_focus(); pump(30)
+    assert r.handle(Gdk.KEY_Escape, 0) is True and window.get_focus() is window.stage.canvas
+    window.state.tool = "arrow"
     window.stage.canvas.grab_focus(); pump(30)
     # editing chords route to window actions only when nothing editable has focus
     _drag(window, "box", 10, 10, 80, 60)
@@ -521,3 +530,82 @@ def test_discard_prompts_only_when_dirty(window, tmp_path):
     from gi.repository import Adw
     dlg = Adw.Dialog.get_visible_dialogs if hasattr(Adw.Dialog, "get_visible_dialogs") else None
     window.clear_document()
+
+
+def test_undo_works_with_focus_in_a_header_spin(window, tmp_path):
+    """Regression: after adjusting Width, Ctrl+Z used to be swallowed by the spin's text field."""
+    from gi.repository import Gdk
+    from linscreencapture.app.shortcuts import ShortcutRouter
+    _load_blank(window, tmp_path)
+    _drag(window, "box", 10, 10, 80, 60)
+    assert len(window.document.layers) == 1
+    window.header.props.width_spin.grab_focus(); pump(30)
+    r = ShortcutRouter(window)
+    assert r.handle(Gdk.KEY_z, Gdk.ModifierType.CONTROL_MASK) is True
+    pump(30)
+    assert len(window.document.layers) == 0 and window.get_focus() is window.stage.canvas
+
+
+def test_click_on_empty_stage_drops_the_tool(window, tmp_path):
+    _load_blank(window, tmp_path)
+    _drag(window, "box", 10, 10, 80, 60)
+    window.state.tool = "arrow"
+    window.editor.select(window.document.layers[0].id)
+    pump(30)                                     # lets the post-drag click suppression lapse
+    window.editor.clicked_outside()
+    assert window.state.tool == "select" and window.editor.selected_id is None
+    assert not window.stage.point_in_image(-5, -5)
+
+
+def test_paste_text_becomes_a_text_layer(window, tmp_path):
+    _load_blank(window, tmp_path)
+    window.paste_text("Pasted from a web page\r\nsecond line")
+    pump(30)
+    layer = window.document.layers[-1]
+    assert layer.annotation.kind == "text" and layer.annotation.text == "Pasted from a web page\nsecond line"
+    assert window.state.tool == "select" and window.editor.selected_id == layer.id
+    x, y, w, h = layer.annotation.rect
+    assert 0 <= x < window.document.width and 0 <= y < window.document.height
+
+
+def test_copy_then_paste_duplicates_a_layer(window, tmp_path):
+    _load_blank(window, tmp_path)
+    _drag(window, "box", 10, 10, 80, 60)
+    window.editor.select(window.document.layers[0].id)
+    window.activate_action("win.copy", None); pump(50)
+    assert window._layer_clip is not None
+    window.activate_action("win.paste", None); pump(50)
+    assert [l.annotation.kind for l in window.document.layers] == ["box", "box"]
+    assert window.document.layers[1].annotation.x1 == window.document.layers[0].annotation.x1 + 12
+
+
+def test_delayed_capture_is_a_toggle(window):
+    act = window.lookup_action("capture-delayed")
+    assert act is not None and act.get_state().get_boolean() is False
+    window.activate_action("win.capture-delayed", None)
+    assert act.get_state().get_boolean() is True
+    window.activate_action("win.capture-delayed", None)
+    assert act.get_state().get_boolean() is False
+    modes = window.lookup_action("capture-mode")
+    assert modes.get_state().get_string() == "region"        # the mode is untouched by the delay toggle
+
+
+def test_opacity_control_writes_per_tool_setting(window, settings):
+    props = window.header.props
+    window.state.tool = "box"; pump(30)
+    props.opacity_scales[0].set_value(0.5)
+    assert settings.tools["box"].opacity == 0.5 and settings.tools["arrow"].opacity == 1.0
+    assert settings.tool_style("box").opacity == 0.5 and settings.tool_style("marker").opacity == 0.4
+    window.state.tool = "marker"; pump(30)
+    assert all(abs(sc.get_value() - 0.4) < 1e-6 for sc in props.opacity_scales)
+
+
+def test_clipboard_image_detection_accepts_texture_subclasses(window, tmp_path):
+    """Local copies are offered as GdkMemoryTexture (a subclass), other apps as image/* MIME types."""
+    from gi.repository import Gdk
+    from linscreencapture.services.clipboard import texture_from_surface
+    import cairo
+    local = Gdk.ContentProvider.new_for_value(texture_from_surface(cairo.ImageSurface(cairo.FORMAT_ARGB32, 4, 4)))
+    assert window._holds_image(local.ref_formats()) is True
+    assert window._holds_image(Gdk.ContentFormats.new(["image/png"])) is True
+    assert window._holds_image(Gdk.ContentFormats.new(["text/plain"])) is False

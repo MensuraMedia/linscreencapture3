@@ -288,8 +288,9 @@ class PanelRail(Gtk.Stack):
             if not has:
                 return
             chosen = None
-            for layer in reversed(doc.layers):
-                row = LayerRow(layer.name, layer.badge, "#5b6572", thumbnail=_layer_thumbnail(doc, layer))
+            for number, layer in reversed(list(enumerate(doc.layers, start=1))):
+                # rows are numbered by stack position (1 = bottom); the label names the tool that made the layer
+                row = LayerRow(str(number), layer.badge, "#5b6572", thumbnail=_layer_thumbnail(doc, layer))
                 row.layer_id = layer.id
                 row.eye.set_active(layer.visible)
                 row.eye.connect("toggled", lambda b, lid=layer.id: self._eye(lid, b.get_active()))

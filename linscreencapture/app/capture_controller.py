@@ -33,6 +33,12 @@ class CaptureController:
         if self.service is None:
             self.service = CaptureService(settings.backend)
         self.service.preference = settings.backend
+        delayed = mode == "delayed"                 # app.capture-delayed: the current mode, delayed
+        if delayed:
+            mode = None
+        if win is not None:
+            toggle = win.lookup_action("capture-delayed")   # the rail's Delayed toggle (off again on click)
+            delayed = delayed or bool(toggle and toggle.get_state().get_boolean())
         if mode is None and win is not None:
             action = win.lookup_action("capture-mode")
             mode = action.get_state().get_string() if action else "region"
@@ -41,8 +47,8 @@ class CaptureController:
             if win:
                 win.toast(f"{mode.capitalize()} capture arrives in Phase 6")
             return
-        delay = settings.delay_seconds if mode == "delayed" else 0
-        self._mode = "region" if mode == "delayed" else mode
+        delay = settings.delay_seconds if delayed else 0
+        self._mode = mode
         self.busy = True
         self._t0 = time.monotonic()
         LOG.debug("capture requested: mode %s, delay %d s, backend preference %s", mode, delay, settings.backend)

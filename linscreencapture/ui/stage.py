@@ -35,6 +35,11 @@ class Stage(Gtk.Overlay):
         scroll = Gtk.EventControllerScroll(flags=Gtk.EventControllerScrollFlags.VERTICAL)
         scroll.connect("scroll", self._scroll)
         self.scroller.add_controller(scroll)
+        self.on_click_outside = None          # set by the editor: a click on the empty stage drops the tool
+        outside = Gtk.GestureClick()
+        outside.set_button(1)
+        outside.connect("released", self._stage_click)
+        self.scroller.add_controller(outside)
         self.pages.set_visible_child_name("empty")
         self.set_child(self.pages)
 
@@ -157,11 +162,7 @@ class Stage(Gtk.Overlay):
         z = self.state.zoom
         iw, ih = self._composite.get_width() * z, self._composite.get_height() * z
         x, y = (w - iw) / 2, (h - ih) / 2
-        # soft drop shadow outside the image; the image itself is painted pixel-exact, square-cornered
-        for i, a in ((12, 0.10), (6, 0.14), (2, 0.18)):
-            cr.set_source_rgba(0, 0, 0, a)
-            cr.rectangle(x - i / 2, y + 4 + i / 2, iw + i, ih + i)
-            cr.fill()
+        self._draw_drop_shadow(cr, x, y, iw, ih)
         cr.save()
         cr.rectangle(x, y, iw, ih)
         cr.clip()
@@ -173,6 +174,52 @@ class Stage(Gtk.Overlay):
         cr.restore()
         if self.extra_draw is not None:
             self.extra_draw(cr, x, y, z)
+
+    SHADOW_REACH = 18      # px the stage shadow extends beyond the image edge
+    SHADOW_ALPHA = 0.55    # darkest value, right at the edge
+
+    def _draw_drop_shadow(self, cr, x: float, y: float, w: float, h: float) -> None:
+        """A smooth shadow around the image: linear gradients on the sides, radial ones on the corners.
+
+        (The 1.4-style stacked rectangles produced visible bands on dark captures.) The image itself
+        is painted pixel-exact with square corners on top of it."""
+        r, a0 = self.SHADOW_REACH, self.SHADOW_ALPHA
+        dy = 3  # the shadow sits slightly below the image
+        y += dy
+
+        def stops(grad):
+            grad.add_color_stop_rgba(0, 0, 0, 0, a0)
+            grad.add_color_stop_rgba(0.35, 0, 0, 0, a0 * 0.35)
+            grad.add_color_stop_rgba(1, 0, 0, 0, 0)
+            return grad
+        sides = (
+            (cairo.LinearGradient(x, y, x - r, y), (x - r, y, r, h)),            # left
+            (cairo.LinearGradient(x + w, y, x + w + r, y), (x + w, y, r, h)),    # right
+            (cairo.LinearGradient(x, y, x, y - r), (x, y - r, w, r)),            # top
+            (cairo.LinearGradient(x, y + h, x, y + h + r), (x, y + h, w, r)),    # bottom
+        )
+        for grad, rect in sides:
+            cr.set_source(stops(grad)); cr.rectangle(*rect); cr.fill()
+        corners = ((x, y, x - r, y - r), (x + w, y, x + w, y - r), (x, y + h, x - r, y + h), (x + w, y + h, x + w, y + h))
+        for cx, cy, rx, ry in corners:
+            cr.set_source(stops(cairo.RadialGradient(cx, cy, 0, cx, cy, r))); cr.rectangle(rx, ry, r, r); cr.fill()
+
+    def point_in_image(self, cx: float, cy: float) -> bool:
+        """Is canvas point (cx, cy) over the image (not the margin around it)?"""
+        if self._composite is None:
+            return False
+        ox, oy = self.image_origin()
+        z = self.state.zoom
+        return ox <= cx <= ox + self._composite.get_width() * z and oy <= cy <= oy + self._composite.get_height() * z
+
+    def _stage_click(self, _g, _n: int, x: float, y: float) -> None:
+        """A click on the empty stage (outside the image) is reported to the editor to drop the tool."""
+        if self._composite is None or self.on_click_outside is None:
+            return
+        ok, pt = self.scroller.compute_point(self.canvas, Graphene.Point().init(x, y))
+        if ok and self.point_in_image(pt.x, pt.y):
+            return
+        self.on_click_outside()
 
     @staticmethod
     def _rounded(cr, x, y, w, h, r) -> None:

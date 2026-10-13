@@ -28,7 +28,8 @@ CAPTURE = (
     Item("app-window", "Window", "win.capture-mode", "window", False, True, (), "capture"),
     Item("monitor", "Full screen", "win.capture-mode", "screen", True, True, (), "capture"),
     Item("arrows-vertical", "Scrolling", "win.capture-mode", "scrolling", False, True, (), "capture"),
-    Item("timer", "Delayed 3 s", "win.capture-mode", "delayed", True, True, (), "capture"),
+    Item("timer", "Delay the capture (seconds set in Settings) · click again to turn the delay off",
+         "win.capture-delayed", None, True, True, (), "capture"),
     Item("push-pin", "Pin to screen", "app.pin", None, False, False, (), "capture"),
 )
 TOOLS_A = (

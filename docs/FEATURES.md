@@ -29,7 +29,7 @@ As of 2026-10-13 (Phases 1–5 plus two review rounds). Everything listed here e
 | Row | Controls | Actions |
 | --- | --- | --- |
 | Top | Capture (30 px accent icon) + collapse caret | `app.capture` (current mode) |
-| CAPTURE | Region · Window · Full screen · Scrolling · Delayed · Pin | `win.capture-mode` (stateful: region, window, screen, scrolling, delayed); Pin = `app.pin` (Phase 6) |
+| CAPTURE | Region · Window · Full screen · Scrolling · Delayed · Pin | `win.capture-mode` (stateful: region, window, screen, scrolling); **Delayed is a toggle** (`win.capture-delayed`, boolean): on, the next captures in any mode wait `delay_seconds`; click the timer again to turn it off (a toast confirms each state); Pin = `app.pin` (Phase 6) |
 | TOOLS | Select · Arrow · Line · Box · Circle · Text · Pen · Marker | `win.tool::<name>` (stateful) |
 | second row | Blur · Pixelate · Fill · Step number · Callout · Crop · Resize · Rotate · Brightness · Move · Duplicate | tools via `win.tool`; Resize/Rotate/Brightness/Duplicate = Phase 5 placeholders |
 | above the line | Library (toggle) | `win.library` |
@@ -39,11 +39,17 @@ As of 2026-10-13 (Phases 1–5 plus two review rounds). Everything listed here e
 ## 4. Header tool-properties strip (`ui/tool_props.py`)
 
 Follows the active tool, and under Select/Move the **selected layer** (title reads `BOX · SELECTED`). Arrow/Line:
-width, shadow, intensity. Box/Circle: + fill. Pen/Marker: width, shadow (marker paints at 4× width, 40 %
-opacity). Text/Callout: font, size, bold, italic, shadow. Step: badge size. Blur/Pixelate: mode (switches the
-tool), block size. Fill, Crop, Select/Move without a selection: hints.
+width, shadow, intensity, opacity. Box/Circle: + fill. Pen/Marker: width, shadow, opacity (marker paints at 4×
+width; its opacity defaults to 0.40). Text/Callout: font, size, bold, italic, shadow, opacity. Step: badge size,
+opacity. Fill: opacity. Blur/Pixelate: mode (switches the tool), block size. Crop, Select/Move without a
+selection: hints. **Opacity** (0.05–1.00) applies to the whole annotation as one group, so a translucent filled
+box shows no darker rim where stroke and fill overlap; it is per tool even when Universal is on.
 
-Every control reads from and writes to `Settings` (`tools[<tool>].width/shadow/shadow_intensity/fill`,
+Keyboard focus never stays in the strip: switches, toggles and scales do not take focus on click, a tool switch
+hands focus back to the canvas, and Enter in a spin does the same (otherwise the spin's text field would swallow
+Ctrl+Z and tool letters — see section 10).
+
+Every control reads from and writes to `Settings` (`tools[<tool>].width/shadow/shadow_intensity/opacity/fill`,
 `text_font_family/size/bold/italic`, `step_size`, `blur_block`; saved on change; the Universal switch in Settings
 makes a change apply to every tool). With a layer selected the change is also applied to that annotation as an
 undoable "Style" edit.
@@ -55,7 +61,7 @@ undoable "Style" edit.
 | COLOUR | 12 round swatches (accent ring = current), custom colour `+` (`Gtk.ColorDialog`), eyedropper | sets the colour for new annotations, recolours the selected layer, persists to settings; `win.eyedropper` arrives with Phase 5 |
 | VIEW | zoom out · value · zoom in · fit | `win.zoom-out`, `win.zoom-in`, `win.zoom-fit` (fit never exceeds 1:1); `win.zoom-actual` = 1:1 |
 | EDIT | Copy · Flatten | `win.copy` (composition to clipboard), `win.flatten` (Phase 5) |
-| LAYERS | scrollable list: annotation layers top-first with a rendered 40×28 thumbnail, name, kind badge and eye; then `Base capture · IMG`; "No layers yet" when empty | row click selects the layer on the stage (and vice versa); eye = undoable show/hide |
+| LAYERS | scrollable list: annotation layers top-first with a rendered 40×28 thumbnail, a **number** (stack position, 1 = bottom), a label naming the **tool that made it** (`ARROW`, `BOX`, `BLUR`, `PIXELATE`, `TEXT`, `STEP`, `CALLOUT`, `IMAGE`…) and an eye; then `Base capture · IMG`; "No layers yet" when empty | row click selects the layer on the stage (and vice versa); eye = undoable show/hide |
 | navigator (untitled) | thumbnail of the composite, dimmed outside the viewport, accent viewport rectangle that follows zoom and scroll; click or drag scrolls the stage | `ui/panel_rail.py::Navigator` |
 | bottom-right | Settings | `app.preferences` |
 | collapsed | caret, six colour dots, eyedropper, −, +, fit, Copy, Flatten, gear | same actions |
@@ -65,7 +71,7 @@ undoable "Style" edit.
 | State | Behaviour |
 | --- | --- |
 | Empty | camera glyph, "Press PrintScreen or click Capture", mode list, shortcut chips; HUD shows `—` |
-| Document | the capture painted pixel-exact with square corners (shadow outside), centred, scrollable when larger than the viewport; HUD shows the zoom |
+| Document | the capture painted pixel-exact with square corners, centred, scrollable when larger than the viewport; a smooth gradient drop shadow (linear on the sides, radial on the corners, 18 px) sits outside the image; HUD shows the zoom |
 | Zoom | steps 25 · 50 · 75 · 100 · 150 · 200 · 300 · 400 · 800 · 1000 %; Ctrl+scroll; Ctrl+0 fit; Ctrl+1 1:1; a loaded document fits automatically |
 | Library page | covers the stage: head (count · folder, Refresh, Delete, Open, close), grid of 180×120 thumbnails with name and date, empty state; double-click or Open loads the file into the editor; Delete = Phase 5 |
 
@@ -84,9 +90,11 @@ undoable "Style" edit.
 | Crop | drag, then Enter / Apply crop (Esc or Cancel abandons) | the base is cropped and every layer moves with it; a veil shows the pending crop |
 | Select / Move | click selects the topmost layer under the pointer; drag moves; handles resize (8 for shapes and pasted images, 2 for arrows/lines/callouts; Ctrl keeps shapes square); Delete removes; Ctrl+D duplicates 12 px offset | undoable edits |
 | Eyedropper (right rail) | click the image | the composite pixel under the pointer becomes the current colour |
-| Paste (Ctrl+V) | an image on the clipboard | with a document open: an `image` layer centred and selected (scaled down to fit); with none: a new Untitled document |
+| Copy (Ctrl+C) | — | the flattened composition goes to the system clipboard; if a layer is selected it is also remembered for Ctrl+V (until the clipboard changes elsewhere) |
+| Paste (Ctrl+V) | a layer copied in the app · an image on the clipboard · text on the clipboard | layer: a copy 12 px offset (repeated pastes cascade) · image: with a document open an `image` layer centred and selected (scaled down to fit), with none a new Untitled document · text (from a document, a web page…): a `text` layer in the Text tool's style centred on the image, Select tool active; clipboard images are detected by GType (local `Gdk.Texture` subclasses) or `image/*` MIME types |
+| Click on the empty stage | a click (not a drag) outside the image, in the canvas margin or beyond it | drops the active tool back to Select, clears the selection and any pending text entry; the zoom pill overlay is not "empty stage" |
 
-Live preview at 60 % opacity while drawing; a dashed accent outline and white handles mark the selection; the
+Live preview at 60 % opacity (or the tool's own opacity if lower) while drawing; a dashed accent outline and white handles mark the selection; the
 cursor changes per handle. Every change is one `UndoStack` command: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) undo and
 redo (20 deep) and the Undo toast names the step; the subtitle's layer count and `unsaved` follow.
 
@@ -158,7 +166,7 @@ naming rules.
 
 | Module | Provides |
 | --- | --- |
-| `annotations.py` | `Style`, `Annotation` (kinds arrow, line, box, circle, text, pen, marker, step, callout, fill, blur, pixelate, image), Cairo painters ported from 1.4, three-pass shadows, pixelate (numpy) and blur (Pillow) on the composite, `snap45`, `constrain_square`, bounding boxes, hit test, dict round-trip, `renumber_steps` |
+| `annotations.py` | `Style` (incl. `opacity`), `Annotation` (kinds arrow, line, box, circle, text, pen, marker, step, callout, fill, blur, pixelate, image), Cairo painters ported from 1.4, **Gaussian shadows** (a black silhouette blurred with Pillow, cached per annotation, offset and sigma grow with the line width; replaces the 1.4 three-pass shadow that banded), whole-annotation opacity via a cairo group, pixelate (numpy) and blur (Pillow) on the composite, `snap45`, `constrain_square`, bounding boxes, hit test, dict round-trip, `renumber_steps`; `BADGE[kind]` is the tool name in capitals |
 | `document.py` | `Document` (base surface, `Layer` list with ids/badges/visibility, dirty flag, `summary()`), `open()`/`save()` PNG/JPEG/WebP, `flatten()`, `flatten_into_base()`, exact PIL↔cairo conversion |
 | `undo.py` | `UndoStack` (20 deep, redo, labels, on_change) with `AddLayer`, `RemoveLayer`, `MoveLayer`, `EditAnnotation`, `SetVisible`, `ReplaceBase`, `TransformBase` |
 | `app/image_ops.py` | pure crop, scale, rotate, flip, adjust returning the new base and a coordinate mapper |
@@ -169,9 +177,11 @@ naming rules.
 
 Two tiers, so a shortcut can never steal a keystroke from a text field. **Global chords** are GTK application
 accelerators (which GTK dispatches in the capture phase, before the focused widget). **Editing and tool keys**
-go through `app/shortcuts.py`, a bubble-phase router on the window that yields whenever the inline text editor,
-a spin button or any other editable widget has focus, swallows tool letters during a drag, and retargets Delete
-and Escape to the Library page while it is open.
+go through `app/shortcuts.py`, a capture-phase router on the window that yields whenever the inline text editor,
+a text entry or anything inside a popover has focus, swallows tool letters during a drag, and retargets Delete
+and Escape to the Library page while it is open. With focus in a header **spin button** (after adjusting Width,
+say) the editing chords, tool letters and Escape still work and move the focus back to the canvas; digits, Enter,
+Delete and arrows keep editing the number. So Ctrl+Z works whatever tool is active and wherever the last click went.
 
 
 | Keys | Action |
@@ -179,8 +189,9 @@ and Escape to the Library page while it is open.
 | PrintScreen (system binding, Phase 6) · Ctrl+N | capture in the current mode |
 | Ctrl+Shift+N | full-screen capture |
 | V A L B C T P M · U X N K | tools (Select, Arrow, Line, Box, Circle, Text, Pen, Marker · Blur, Pixelate, Step, Crop) — routed, never while typing or dragging |
-| Ctrl+C | copy the composition |
-| Ctrl+Z · Ctrl+Shift+Z / Ctrl+Y · Delete · Ctrl+D · Ctrl+C · Ctrl+V · Esc | undo · redo · delete layer (or Library item) · duplicate · copy · paste (Phase 5) · clear selection / close Library — routed, so inside a text field they edit the text |
+| Ctrl+C | copy the composition to the clipboard (and remember the selected layer for Ctrl+V) |
+| Ctrl+V | paste: a copied layer, a clipboard image (image layer / new document) or clipboard text (text layer) |
+| Ctrl+Z · Ctrl+Shift+Z / Ctrl+Y · Delete · Ctrl+D · Esc | undo · redo · delete layer (or Library item) · duplicate · clear selection / close Library — routed, so inside a text field they edit the text |
 | Ctrl+S · Ctrl+Shift+S | save · save as |
 | Enter (Crop tool) | apply the pending crop |
 | Ctrl+scroll · Ctrl+0 · Ctrl+1 | zoom · fit · 1:1 |

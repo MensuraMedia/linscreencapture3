@@ -68,10 +68,11 @@ class ToolStyle:
     shadow: bool = False
     shadow_intensity: float = 0.4
     fill: bool = False            # box and circle only
+    opacity: float = 1.0          # whole-annotation alpha, 0.05..1
 
 
 def _default_tools() -> dict[str, ToolStyle]:
-    return {t: ToolStyle() for t in TOOLS}
+    return {t: ToolStyle(opacity=0.4 if t == "marker" else 1.0) for t in TOOLS}
 
 
 @dataclass
@@ -121,8 +122,10 @@ class Settings:
     def tool_style(self, tool: str) -> Style:
         """A drawing ``Style`` for ``tool`` honouring the universal switch and text/blur options."""
         src = self.tools["arrow"] if self.universal else self.tools.get(tool, ToolStyle())
+        own = self.tools.get(tool, ToolStyle())
         return Style(colour=src.colour, width=src.width, shadow=src.shadow, shadow_intensity=src.shadow_intensity,
                      fill=(tool == "fill") or getattr(src, "fill", False), blur_block=self.blur_block, blur_radius=self.blur_radius,
+                     opacity=own.opacity,   # opacity stays per tool even under "universal" (the marker is translucent by design)
                      font_family=self.text_font_family, font_size=self.step_size if tool == "step" else self.text_font_size,
                      bold=self.text_bold, italic=self.text_italic)
 
@@ -197,6 +200,7 @@ class Settings:
             ts.shadow = g.bool("Tools", f"shadow_{t}", ts.shadow)
             ts.shadow_intensity = max(0.0, min(1.0, g.float("Tools", f"shadow_intensity_{t}", ts.shadow_intensity)))
             ts.fill = g.bool("Tools", f"fill_{t}", ts.fill)
+            ts.opacity = max(0.05, min(1.0, g.float("Tools", f"opacity_{t}", ts.opacity)))
         self.universal = g.bool("Tools", "universal", self.universal)
         self.blur_block = max(2, min(64, g.int("Tools", "blur_block", self.blur_block)))
         self.blur_radius = max(0.5, min(40.0, g.float("Tools", "blur_radius", self.blur_radius)))
@@ -266,6 +270,7 @@ class Settings:
             kf.set_boolean("Tools", f"shadow_{t}", bool(ts.shadow))
             kf.set_double("Tools", f"shadow_intensity_{t}", float(ts.shadow_intensity))
             kf.set_boolean("Tools", f"fill_{t}", bool(ts.fill))
+            kf.set_double("Tools", f"opacity_{t}", float(ts.opacity))
         kf.set_boolean("Tools", "universal", bool(self.universal))
         kf.set_integer("Tools", "blur_block", int(self.blur_block))
         kf.set_double("Tools", "blur_radius", float(self.blur_radius))

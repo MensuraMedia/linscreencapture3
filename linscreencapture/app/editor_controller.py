@@ -4,7 +4,7 @@ import logging
 from typing import Callable
 
 import cairo
-from gi.repository import Gdk, Gtk
+from gi.repository import Gdk, GLib, Gtk
 
 from . import tools
 from ..model.annotations import Annotation, Style, draw
@@ -33,6 +33,7 @@ class EditorController:
         self._pending_callout: Annotation | None = None
         self.crop_rect: tuple[int, int, int, int] | None = None   # pending crop (image px)
         self.eyedropper = False                                    # next click samples a colour
+        self._suppress_click = False                               # a drag just ended: its release is not a click
 
         canvas = self.stage.canvas
         drag = Gtk.GestureDrag()
@@ -49,6 +50,7 @@ class EditorController:
         motion.connect("motion", self._motion)
         canvas.add_controller(motion)
         self.stage.extra_draw = self._draw_overlay
+        self.stage.on_click_outside = self.clicked_outside
         self.state.connect("notify::tool", lambda *_: self._tool_changed())
         self.state.connect("notify::colour", lambda *_: self._colour_changed())
 
@@ -162,6 +164,11 @@ class EditorController:
 
     def _drag_end(self, gesture, dx: float, dy: float) -> None:
         mode, self._mode = self._mode, None
+        if abs(dx) + abs(dy) > 2:
+            # the button release that ends a drag also reaches the click gestures (same event, same
+            # main-loop iteration); ignore it as a click, then forget the flag at the next idle
+            self._suppress_click = True
+            GLib.idle_add(self._clear_suppress)
         if mode is None:
             return
         tool = self.state.tool
@@ -196,10 +203,28 @@ class EditorController:
             self._orig = None
         self.stage.canvas.queue_draw()
 
+    def _clear_suppress(self) -> bool:
+        self._suppress_click = False
+        return False
+
+    def clicked_outside(self) -> None:
+        """A plain click on the empty stage: back to Select, nothing selected, pending text dropped."""
+        if self._suppress_click or self._mode is not None or not self._ready():
+            return
+        self.stage.cancel_text_entry()
+        self.eyedropper = False
+        if self.state.tool != "select":
+            self.state.tool = "select"          # _tool_changed also drops any pending crop
+        self.select(None)
+        self.stage.canvas.grab_focus()
+
     def _click(self, gesture, n_press: int, cx: float, cy: float) -> None:
         if not self._ready() or self._mode is not None:
             return
         x, y = self.to_image(cx, cy)
+        if not self.stage.point_in_image(cx, cy) and not self.eyedropper:
+            self.clicked_outside()              # the margin inside the canvas counts as empty stage too
+            return
         if self.eyedropper:
             self.eyedropper = False
             colour = self.sample(x, y)
@@ -364,7 +389,8 @@ class EditorController:
                 cr.stroke()
             else:
                 ghost = p.copy()
-                ghost.style.opacity = 0.6 if self._mode in ("draw", "stroke") else 1.0
+                if self._mode in ("draw", "stroke"):
+                    ghost.style.opacity = min(ghost.style.opacity, 0.6)
                 draw(ghost, cr, None)
             cr.restore()
         if self.crop_rect is not None and self._mode is None:

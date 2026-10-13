@@ -22,10 +22,11 @@ KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "step", "cal
 SHAPE_KINDS = ("arrow", "line", "box", "circle")          # share the "Shapes" settings
 REDACT_KINDS = ("blur", "pixelate")
 STROKE_KINDS = ("line", "pen", "marker")
-BADGE = {"arrow": "ANNO", "line": "ANNO", "box": "ANNO", "circle": "ANNO", "text": "TEXT", "pen": "INK",
-         "marker": "INK", "step": "STEP", "callout": "NOTE", "fill": "FILL", "blur": "REDACT", "pixelate": "REDACT", "image": "IMG"}
 NAMES = {"arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text", "pen": "Pen",
          "marker": "Marker", "step": "Step", "callout": "Callout", "fill": "Fill", "blur": "Blur", "pixelate": "Pixelate", "image": "Image"}
+# the layer label names the tool that made the layer ("BLUR", "PIXELATE"), never a category like "REDACT"
+BADGE = {k: v.upper() for k, v in NAMES.items()}
+SHADOW_KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker")
 
 
 # ---------------------------------------------------------------- colours
@@ -56,7 +57,7 @@ class Style:
     font_size: float = 18.0       # points
     bold: bool = True
     italic: bool = False
-    opacity: float = 1.0          # marker uses 0.4
+    opacity: float = 1.0          # whole-annotation alpha (the marker tool defaults to 0.4 in Settings)
 
     def copy(self) -> "Style":
         return replace(self)
@@ -112,7 +113,7 @@ class Annotation:
             x, y, w, h = self.rect
             pad = lw / 2 + 1
         if self.style.shadow:
-            pad += (1.0 + lw * 0.2) * 3 + 1.5
+            pad += shadow_extent(self.style)
         return x - pad, y - pad, w + 2 * pad, h + 2 * pad
 
     def contains(self, px: float, py: float) -> bool:
@@ -214,12 +215,20 @@ def draw(a: Annotation, cr: cairo.Context, target: cairo.ImageSurface | None = N
         if target is not None:
             _draw_redaction(a, cr, target)
         return
+    alpha = max(0.0, min(1.0, a.style.opacity))
+    if alpha <= 0.0:
+        return
+    cr.save()
+    if alpha < 1.0:
+        cr.push_group()          # shadow + shape composited once, so overlaps never double up
     _draw_shadow(a, cr)
     r, g, b = parse_hex(a.style.colour)
-    cr.save()
-    cr.set_source_rgba(r, g, b, a.style.opacity)
+    cr.set_source_rgb(r, g, b)
     cr.set_line_width(a.style.width)
     _PAINTERS[a.kind](a, cr)
+    if alpha < 1.0:
+        cr.pop_group_to_source()
+        cr.paint_with_alpha(alpha)
     cr.restore()
 
 
@@ -276,39 +285,82 @@ def _stroke_points(a: Annotation, cr: cairo.Context) -> None:
     cr.stroke()
 
 
+def shadow_sigma(style: Style) -> float:
+    return 1.5 + style.width * 0.35
+
+
+def shadow_offset(style: Style) -> float:
+    return 1.0 + style.width * 0.3
+
+
+def shadow_extent(style: Style) -> float:
+    """How far the shadow can reach beyond the shape (offset plus blur tail)."""
+    return shadow_offset(style) + shadow_sigma(style) * 3 + 1
+
+
+_MAX_SHADOW_PIXELS = 4096 * 4096
+
+
+def _shadow_key(a: Annotation) -> tuple:
+    st = a.style
+    return (a.kind, a.x1, a.y1, a.x2, a.y2, st.width, st.fill, a.text, st.font_family, st.font_size, st.bold,
+            st.italic, len(a.points), a.points[0] if a.points else None, a.points[-1] if a.points else None)
+
+
+def _shadow_surface(a: Annotation):
+    """A Gaussian-blurred black silhouette of ``a`` (cached on the annotation) and its top-left in image px."""
+    key = _shadow_key(a)
+    cached = getattr(a, "_shadow_cache", None)
+    if cached is not None and cached[0] == key:
+        return cached[1], cached[2], cached[3]
+    st = a.style
+    sigma = shadow_sigma(st)
+    pad = int(sigma * 3 + 2)
+    if a.kind == "text":
+        tw, th = measure_text(a.text, st)
+        bx, by, bw, bh = a.x1 - 2, a.y1 - 2, tw + 4, th + 4
+    else:
+        plain = replace(st, shadow=False)
+        bx, by, bw, bh = Annotation.bounding_box(replace(a, style=plain))
+    x0, y0 = int(math.floor(bx)) - pad, int(math.floor(by)) - pad
+    w, h = int(math.ceil(bw)) + 2 * pad + 1, int(math.ceil(bh)) + 2 * pad + 1
+    if w < 1 or h < 1 or w * h > _MAX_SHADOW_PIXELS:
+        return None, 0, 0
+    sil = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+    cr = cairo.Context(sil)
+    cr.translate(-x0, -y0)
+    cr.set_source_rgb(0, 0, 0)
+    cr.set_line_width(st.width)
+    ghost = replace(a, style=replace(st, colour="#000000", opacity=1.0, shadow=False), surface=None)
+    _PAINTERS[a.kind](ghost, cr)
+    sil.flush()
+    import numpy as np
+    from PIL import Image, ImageFilter
+    stride = sil.get_stride()
+    alpha = np.ndarray((h, stride // 4, 4), dtype=np.uint8, buffer=sil.get_data())[:, :w, 3].copy()
+    blurred = Image.fromarray(alpha, "L").filter(ImageFilter.GaussianBlur(sigma))
+    out = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+    buf = np.ndarray((h, out.get_stride() // 4, 4), dtype=np.uint8, buffer=out.get_data())
+    buf[:, :w, 3] = np.asarray(blurred, dtype=np.uint8)
+    out.mark_dirty()
+    a._shadow_cache = (key, out, x0, y0)   # type: ignore[attr-defined]
+    return out, x0, y0
+
+
 def _draw_shadow(a: Annotation, cr: cairo.Context) -> None:
-    """Three offset passes with decreasing opacity, as in 1.4."""
-    if not a.style.shadow or a.style.shadow_intensity <= 0 or a.kind in ("step", "callout", "fill", "image"):
+    """A soft Gaussian shadow under the shape (1.4 stacked three offset copies, which banded)."""
+    if not a.style.shadow or a.style.shadow_intensity <= 0 or a.kind not in SHADOW_KINDS:
         return
-    lw = a.style.width
-    for p in (3, 2, 1):
-        cr.save()
-        off = (1.0 + lw * 0.2) * p
-        cr.translate(off, off)
-        cr.set_source_rgba(0, 0, 0, a.style.shadow_intensity * 0.25 / p)
-        extra = 0.5 * p
-        cr.set_line_width(lw + extra)
-        k = a.kind
-        if k == "arrow":
-            if _arrow_path(a, cr, extra):
-                cr.fill()
-        elif k == "line":
-            cr.set_line_cap(cairo.LINE_CAP_ROUND)
-            cr.move_to(a.x1, a.y1); cr.line_to(a.x2, a.y2); cr.stroke()
-        elif k == "box":
-            cr.rectangle(*a.rect); cr.stroke()
-        elif k == "circle":
-            if _ellipse_path(a, cr):
-                cr.stroke()
-        elif k == "text" and a.text:
-            cr.move_to(a.x1, a.y1)
-            PangoCairo.show_layout(cr, _layout(cr, a.text, a.style))
-        elif k in ("pen", "marker") and a.points:
-            cr.set_line_cap(cairo.LINE_CAP_ROUND); cr.set_line_join(cairo.LINE_JOIN_ROUND)
-            if k == "marker":
-                cr.set_line_width(lw * 4 + extra)
-            _stroke_points(a, cr)
-        cr.restore()
+    if a.kind in ("pen", "marker") and not a.points or a.kind == "text" and not a.text:
+        return
+    surf, x0, y0 = _shadow_surface(a)
+    if surf is None:
+        return
+    off = shadow_offset(a.style)
+    cr.save()
+    cr.set_source_surface(surf, x0 + off, y0 + off)
+    cr.paint_with_alpha(min(1.0, a.style.shadow_intensity * 0.85))
+    cr.restore()
 
 
 def _paint_arrow(a: Annotation, cr: cairo.Context) -> None:
@@ -356,8 +408,6 @@ def _paint_pen(a: Annotation, cr: cairo.Context) -> None:
 def _paint_marker(a: Annotation, cr: cairo.Context) -> None:
     if not a.points:
         return
-    r, g, b = parse_hex(a.style.colour)
-    cr.set_source_rgba(r, g, b, 0.4 if a.style.opacity >= 1.0 else a.style.opacity)
     cr.set_line_width(a.style.width * 4)
     cr.set_line_cap(cairo.LINE_CAP_ROUND); cr.set_line_join(cairo.LINE_JOIN_ROUND)
     _stroke_points(a, cr)
@@ -430,7 +480,7 @@ def _paint_image(a: Annotation, cr: cairo.Context) -> None:
     cr.scale(w / sw, h / sh)
     cr.set_source_surface(a.surface, 0, 0)
     cr.get_source().set_filter(cairo.FILTER_GOOD)
-    cr.paint_with_alpha(a.style.opacity)
+    cr.paint()
     cr.restore()
 
 

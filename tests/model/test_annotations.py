@@ -31,7 +31,8 @@ def painted_bbox(before: cairo.ImageSurface, after: cairo.ImageSurface):
 
 
 def sample(kind: str) -> Annotation:
-    st = Style(colour="#e5484d", width=4, shadow=(kind in ("arrow", "box")), shadow_intensity=0.6)
+    st = Style(colour="#e5484d", width=4, shadow=(kind in ("arrow", "box")), shadow_intensity=0.6,
+               opacity=0.4 if kind == "marker" else 1.0)   # the marker tool's Settings default
     if kind in ("pen", "marker"):
         return Annotation(kind, style=st, points=[(30, 40), (60, 70), (90, 50), (120, 90)])
     if kind == "text":
@@ -129,3 +130,42 @@ def test_round_trip_dict_and_colours():
     assert to_hex(*parse_hex("#4c9dff")) == "#4c9dff"
     with pytest.raises(ValueError):
         Annotation("nope")
+
+
+def test_opacity_applies_to_shapes_as_one_group():
+    """A translucent filled box must not show a darker rim where stroke and fill overlap."""
+    s = surface()
+    a = Annotation("box", 20, 20, 120, 100, style=Style(colour="#e5484d", width=8, fill=True, opacity=0.5))
+    draw(a, cairo.Context(s), s)
+    s.flush()
+
+    def px(x, y):
+        i = y * s.get_stride() + x * 4
+        b, g, r, al = s.get_data()[i:i + 4]
+        return r, g, b
+    inside, on_stroke = px(70, 60), px(22, 60)
+    assert inside == on_stroke, (inside, on_stroke)
+    assert 100 < inside[0] < 200                     # blended, not solid
+
+
+def test_shadow_is_soft_and_blends():
+    """The shadow falls off smoothly (no bands) and is darkest next to the shape."""
+    s = surface()
+    a = Annotation("box", 40, 40, 100, 100, style=Style(colour="#ffffff", width=2, shadow=True, shadow_intensity=1.0))
+    cr = cairo.Context(s); cr.set_source_rgb(1, 1, 1); cr.paint()
+    draw(a, cairo.Context(s), s)
+    s.flush()
+    def lum(x, y):
+        i = y * s.get_stride() + x * 4
+        return s.get_data()[i + 2]
+    column = [lum(70, y) for y in range(102, 116)]    # below the bottom edge, through the shadow tail
+    assert column[0] < column[-1] == 255 or column[-1] >= 250
+    steps = [column[i + 1] - column[i] for i in range(len(column) - 1)]
+    assert all(st >= 0 for st in steps), column                     # monotonic: brighter away from the box
+    assert max(steps) < 60, column                                  # no hard band
+
+
+def test_layer_badges_name_the_tool():
+    from linscreencapture.model.annotations import BADGE, NAMES
+    assert BADGE["blur"] == "BLUR" and BADGE["pixelate"] == "PIXELATE" and BADGE["arrow"] == "ARROW"
+    assert set(BADGE) == set(NAMES)
