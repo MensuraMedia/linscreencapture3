@@ -31,6 +31,8 @@ class EditorController:
         self._orig: Annotation | None = None   # copy of the selected annotation when a move/handle drag began
         self._hidden_layer = None
         self._pending_callout: Annotation | None = None
+        self.crop_rect: tuple[int, int, int, int] | None = None   # pending crop (image px)
+        self.eyedropper = False                                    # next click samples a colour
 
         canvas = self.stage.canvas
         drag = Gtk.GestureDrag()
@@ -120,8 +122,8 @@ class EditorController:
                 self.select(layer.id if layer else None)
                 self._mode = "move" if layer else None
             if layer is not None and self._mode:
-                self._orig = Annotation.from_dict(layer.annotation.to_dict())
-                self.preview = Annotation.from_dict(layer.annotation.to_dict())
+                self._orig = layer.annotation.copy()
+                self.preview = layer.annotation.copy()
                 self._hidden_layer = layer
                 layer.visible = False
                 self.stage.refresh()
@@ -150,10 +152,10 @@ class EditorController:
         elif self._mode == "crop":
             self.preview = Annotation("box", self._start[0], self._start[1], x, y, style=Style(colour="#4c9dff", width=1))
         elif self._mode == "move" and self._orig is not None:
-            self.preview = Annotation.from_dict(self._orig.to_dict())
+            self.preview = self._orig.copy()
             self.preview.move_by(x - self._start[0], y - self._start[1])
         elif self._mode.startswith("handle:") and self._orig is not None:
-            self.preview = Annotation.from_dict(self._orig.to_dict())
+            self.preview = self._orig.copy()
             for k, v in tools.handle_changes(self._orig, self._mode[7:], x, y, ctrl).items():
                 setattr(self.preview, k, v)
         self.stage.canvas.queue_draw()
@@ -173,7 +175,12 @@ class EditorController:
                     self._commit(AddLayer(preview))
                     LOG.debug("added %s layer", preview.kind)
         elif mode == "crop":
-            self.win.toast("Crop applies in Phase 5")
+            if preview is not None and preview.rect[2] >= 2 and preview.rect[3] >= 2:
+                x, y, w, h = preview.rect
+                self.crop_rect = (int(x), int(y), int(w), int(h))
+                self.win.toast("Enter applies the crop · Esc cancels", timeout=2)
+            else:
+                self.crop_rect = None
         elif mode in ("move",) or mode.startswith("handle:"):
             layer = self._hidden_layer
             self._hidden_layer = None
@@ -193,6 +200,14 @@ class EditorController:
         if not self._ready() or self._mode is not None:
             return
         x, y = self.to_image(cx, cy)
+        if self.eyedropper:
+            self.eyedropper = False
+            colour = self.sample(x, y)
+            if colour:
+                self.state.colour = colour
+                self.win.toast(f"Picked {colour.upper()}", timeout=2)
+            self.stage.canvas.set_cursor(None)
+            return
         tool = self.state.tool
         if tool == "text":
             self.stage.cancel_text_entry()
@@ -251,6 +266,38 @@ class EditorController:
     def _text_cancelled(self) -> None:
         self._pending_callout = None
 
+    def sample(self, x: float, y: float) -> str | None:
+        comp = self.stage.composite
+        if comp is None:
+            return None
+        ix, iy = int(x), int(y)
+        if not (0 <= ix < comp.get_width() and 0 <= iy < comp.get_height()):
+            return None
+        comp.flush()
+        i = iy * comp.get_stride() + ix * 4
+        b, g, r = comp.get_data()[i:i + 3]
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    def start_eyedropper(self) -> None:
+        if self._ready():
+            self.eyedropper = True
+            self.stage.canvas.set_cursor(Gdk.Cursor.new_from_name("crosshair"))
+            self.win.toast("Click the image to pick a colour", timeout=2)
+
+    def apply_crop(self) -> bool:
+        if self.crop_rect is None or not self._ready():
+            return False
+        rect, self.crop_rect = self.crop_rect, None
+        self.win.image_op("crop", *rect)
+        return True
+
+    def cancel_crop(self) -> bool:
+        if self.crop_rect is None:
+            return False
+        self.crop_rect = None
+        self.stage.canvas.queue_draw()
+        return True
+
     # -- commands from the UI ---------------------------------------------
     def delete_selected(self) -> bool:
         layer = self.selected_layer()
@@ -289,6 +336,9 @@ class EditorController:
 
     def _tool_changed(self) -> None:
         self.stage.cancel_text_entry()
+        self.eyedropper = False
+        if self.state.tool != "crop":
+            self.cancel_crop()
         if self.state.tool not in ("select", "move"):
             self.select(None)
 
@@ -313,9 +363,24 @@ class EditorController:
                 cr.rectangle(x, y, w, h)
                 cr.stroke()
             else:
-                st = p.style.copy()
-                st.opacity = 0.6 if self._mode in ("draw", "stroke") else 1.0
-                draw(Annotation.from_dict({**p.to_dict(), "style": st.__dict__}), cr, None)
+                ghost = p.copy()
+                ghost.style.opacity = 0.6 if self._mode in ("draw", "stroke") else 1.0
+                draw(ghost, cr, None)
+            cr.restore()
+        if self.crop_rect is not None and self._mode is None:
+            x, y, w, h = self.crop_rect
+            cr.save()
+            cr.set_source_rgba(0, 0, 0, 0.45)                       # veil outside the pending crop
+            comp = self.stage.composite
+            cr.rectangle(ox, oy, comp.get_width() * z, comp.get_height() * z)
+            cr.rectangle(ox + x * z, oy + y * z, w * z, h * z)
+            cr.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+            cr.fill()
+            cr.set_fill_rule(cairo.FILL_RULE_WINDING)
+            cr.set_source_rgb(*ACCENT)
+            cr.set_line_width(1.5)
+            cr.rectangle(ox + x * z + 0.75, oy + y * z + 0.75, w * z, h * z)
+            cr.stroke()
             cr.restore()
         layer = self.selected_layer() if (self._mode is None and self._ready()) else None
         if layer is None:

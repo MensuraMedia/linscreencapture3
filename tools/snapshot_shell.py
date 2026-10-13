@@ -102,6 +102,34 @@ def main() -> int:
 
         def step5b():
             render(win, OUT / "shell_annotated.png")
+            # a pending crop rectangle (veil + accent frame) with the Crop strip in the header
+            win.editor.select(None)
+            win.state.tool = "crop"
+            win.editor.crop_rect = (200, 140, 900, 520)
+            win.stage.canvas.queue_draw()
+            GLib.timeout_add(700, step5c)
+            return False
+
+        def step5c():
+            render(win, OUT / "shell_crop.png")
+            win.editor.cancel_crop()
+            win.state.tool = "select"
+            win.activate_action("win.adjust", None)   # Brightness popover with its live preview
+            GLib.timeout_add(500, step5d)
+            return False
+
+        def step5d():
+            pop = win._popovers.get("adjust")
+            if pop is not None:
+                pop.brightness.set_value(35); pop.gray.set_active(True)
+            GLib.timeout_add(700, step5e)
+            return False
+
+        def step5e():
+            render(win, OUT / "shell_adjust.png")
+            pop = win._popovers.get("adjust")
+            if pop is not None:
+                pop._cancel()
             win.state.zoom = 2.0
             GLib.timeout_add(700, step6)
             return False

@@ -18,14 +18,14 @@ gi.require_version("Pango", "1.0")
 gi.require_version("PangoCairo", "1.0")
 from gi.repository import Pango, PangoCairo  # noqa: E402
 
-KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "step", "callout", "fill", "blur", "pixelate")
+KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "step", "callout", "fill", "blur", "pixelate", "image")
 SHAPE_KINDS = ("arrow", "line", "box", "circle")          # share the "Shapes" settings
 REDACT_KINDS = ("blur", "pixelate")
 STROKE_KINDS = ("line", "pen", "marker")
 BADGE = {"arrow": "ANNO", "line": "ANNO", "box": "ANNO", "circle": "ANNO", "text": "TEXT", "pen": "INK",
-         "marker": "INK", "step": "STEP", "callout": "NOTE", "fill": "FILL", "blur": "REDACT", "pixelate": "REDACT"}
+         "marker": "INK", "step": "STEP", "callout": "NOTE", "fill": "FILL", "blur": "REDACT", "pixelate": "REDACT", "image": "IMG"}
 NAMES = {"arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text", "pen": "Pen",
-         "marker": "Marker", "step": "Step", "callout": "Callout", "fill": "Fill", "blur": "Blur", "pixelate": "Pixelate"}
+         "marker": "Marker", "step": "Step", "callout": "Callout", "fill": "Fill", "blur": "Blur", "pixelate": "Pixelate", "image": "Image"}
 
 
 # ---------------------------------------------------------------- colours
@@ -73,6 +73,7 @@ class Annotation:
     text: str = ""
     points: list[tuple[float, float]] = field(default_factory=list)   # pen, marker
     number: int = 0                                                   # step
+    surface: object = field(default=None, repr=False, compare=False)  # image: a cairo surface drawn into the rect
 
     def __post_init__(self) -> None:
         if self.kind not in KINDS:
@@ -120,16 +121,30 @@ class Annotation:
 
     # -- (de)serialisation ------------------------------------------------
     def to_dict(self) -> dict:
-        d = asdict(self)
-        d["points"] = [list(p) for p in self.points]
-        return d
+        """Plain data (the image surface of an ``image`` kind is not included; pass it to ``from_dict``)."""
+        return {"kind": self.kind, "x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2,
+                "style": asdict(self.style), "text": self.text,
+                "points": [list(p) for p in self.points], "number": self.number}
+
+    def copy(self) -> "Annotation":
+        return Annotation.from_dict(self.to_dict(), surface=self.surface)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Annotation":
+    def from_dict(cls, d: dict, surface=None) -> "Annotation":
         d = dict(d)
+        d.pop("surface", None)
         style = Style(**d.pop("style", {}))
         d["points"] = [tuple(p) for p in d.get("points", [])]
-        return cls(style=style, **d)
+        return cls(style=style, surface=surface, **d)
+
+    def transformed(self, mapper) -> dict:
+        """Field changes that move this annotation through ``mapper(x, y) -> (x, y)``."""
+        x1, y1 = mapper(self.x1, self.y1)
+        x2, y2 = mapper(self.x2, self.y2)
+        ch = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+        if self.points:
+            ch["points"] = [tuple(mapper(x, y)) for x, y in self.points]
+        return ch
 
 
 # ---------------------------------------------------------------- geometry helpers
@@ -263,7 +278,7 @@ def _stroke_points(a: Annotation, cr: cairo.Context) -> None:
 
 def _draw_shadow(a: Annotation, cr: cairo.Context) -> None:
     """Three offset passes with decreasing opacity, as in 1.4."""
-    if not a.style.shadow or a.style.shadow_intensity <= 0 or a.kind in ("step", "callout", "fill"):
+    if not a.style.shadow or a.style.shadow_intensity <= 0 or a.kind in ("step", "callout", "fill", "image"):
         return
     lw = a.style.width
     for p in (3, 2, 1):
@@ -403,9 +418,25 @@ def _paint_fill(a: Annotation, cr: cairo.Context) -> None:
     cr.rectangle(*a.rect); cr.fill()
 
 
+def _paint_image(a: Annotation, cr: cairo.Context) -> None:
+    if a.surface is None:
+        return
+    x, y, w, h = a.rect
+    sw, sh = a.surface.get_width(), a.surface.get_height()
+    if w < 1 or h < 1 or sw < 1 or sh < 1:
+        return
+    cr.save()
+    cr.translate(x, y)
+    cr.scale(w / sw, h / sh)
+    cr.set_source_surface(a.surface, 0, 0)
+    cr.get_source().set_filter(cairo.FILTER_GOOD)
+    cr.paint_with_alpha(a.style.opacity)
+    cr.restore()
+
+
 _PAINTERS = {"arrow": _paint_arrow, "line": _paint_line, "box": _paint_box, "circle": _paint_circle,
              "text": _paint_text, "pen": _paint_pen, "marker": _paint_marker, "step": _paint_step,
-             "callout": _paint_callout, "fill": _paint_fill}
+             "callout": _paint_callout, "fill": _paint_fill, "image": _paint_image}
 
 
 # ---------------------------------------------------------------- redaction (pixel ops on the target)

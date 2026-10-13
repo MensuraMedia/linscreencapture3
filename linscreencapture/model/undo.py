@@ -126,6 +126,33 @@ class ReplaceBase:
         doc.dirty = True
 
 
+@dataclass
+class TransformBase:
+    """Crop / scale / rotate / flip / adjust: swap the base and move every layer through ``mapper``."""
+    new_base: cairo.ImageSurface
+    mapper: object = None                      # callable (x, y) -> (x, y); None = coordinates unchanged
+    label: str = "Image operation"
+    _old_base: cairo.ImageSurface | None = None
+    _before: list[tuple[Layer, dict]] | None = None
+
+    def apply(self, doc: Document) -> None:
+        self._old_base = doc.base
+        self._before = [(l, {k: getattr(l.annotation, k) for k in ("x1", "y1", "x2", "y2", "points")}) for l in doc.layers]
+        doc.base = self.new_base
+        if self.mapper is not None:
+            for layer in doc.layers:
+                for k, v in layer.annotation.transformed(self.mapper).items():
+                    setattr(layer.annotation, k, v)
+        doc.dirty = True
+
+    def revert(self, doc: Document) -> None:
+        doc.base = self._old_base
+        for layer, fields in self._before or []:
+            for k, v in fields.items():
+                setattr(layer.annotation, k, v)
+        doc.dirty = True
+
+
 class UndoStack:
     def __init__(self, doc: Document, limit: int = LIMIT, on_change: Callable[[], None] | None = None):
         self.doc = doc

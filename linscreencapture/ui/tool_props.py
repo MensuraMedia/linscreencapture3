@@ -43,7 +43,7 @@ class ToolProps(Gtk.Box):
         self.sets.add_named(self._step(), "step")
         self.sets.add_named(self._row(_hint("Drag a rectangle · fills with the current colour")), "fill")
         self.sets.add_named(self._redact(), "redact")
-        self.sets.add_named(self._row(_hint("Drag to crop · Enter applies · Esc cancels")), "crop")
+        self.sets.add_named(self._crop(), "crop")
         self.sets.add_named(self._row(_hint("Click to select · drag to move · Delete removes · Ctrl+D duplicates")), "select")
         self.append(self.sets)
         self.settings = None
@@ -197,6 +197,15 @@ class ToolProps(Gtk.Box):
     def _step(self) -> Gtk.Box:
         self.step_size = compact_spin(8, 48, 14, tooltip="Badge size")
         return self._row(labelled("Size", self.step_size), _hint("Each click places the next number"))
+
+    def _crop(self) -> Gtk.Box:
+        apply = Gtk.Button(label="Apply crop", valign=Gtk.Align.CENTER)
+        apply.add_css_class("primary-pill")
+        apply.set_action_name("win.crop-apply")
+        cancel = Gtk.Button(label="Cancel", valign=Gtk.Align.CENTER)
+        cancel.add_css_class("text-btn")
+        cancel.set_action_name("win.crop-cancel")
+        return self._row(_hint("Drag to crop · Enter applies · Esc cancels"), apply, cancel)
 
     def _redact(self) -> Gtk.Box:
         self.mode = segmented(("Pixelate", "Blur"), tooltip="Redaction")

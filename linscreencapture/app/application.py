@@ -22,6 +22,7 @@ ACCELS = {
     "app.capture": ["<Control>n"],
     "app.capture-screen": ["<Control><Shift>n"],
     "win.save": ["<Control>s"],
+    "win.save-as": ["<Control><Shift>s"],
     "win.library": ["<Control>l"],
     "win.toggle-left-rail": ["<Control>bracketleft"],
     "win.toggle-right-rail": ["<Control>bracketright"],

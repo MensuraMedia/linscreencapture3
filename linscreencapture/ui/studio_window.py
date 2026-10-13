@@ -11,7 +11,10 @@ from ..model.settings import Settings
 from ..model.captures_index import CapturesIndex
 from ..model.document import Document
 from ..services import clipboard
-from ..model.undo import UndoStack
+from ..model.undo import UndoStack, ReplaceBase, TransformBase, AddLayer
+from ..app import image_ops
+from .popovers import ResizePopover, RotatePopover, AdjustPopover
+import os
 from ..app.editor_controller import EditorController
 from ..app.shortcuts import ShortcutRouter
 
@@ -20,10 +23,7 @@ AUTO_COLLAPSE_BELOW = 1100
 CAPTURE_MODES = ("region", "window", "screen", "scrolling", "delayed")
 
 # action -> phase that implements it (placeholders show a toast until then)
-PLACEHOLDERS = {
-    "save": 5, "paste": 5, "flatten": 5, "resize": 5, "rotate": 5, "adjust": 5,
-    "duplicate-file": 5, "library-delete": 5, "eyedropper": 5,
-}
+PLACEHOLDERS = {"duplicate-file": 7}
 
 
 class StudioWindow(Gtk.ApplicationWindow):
@@ -97,6 +97,18 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._simple("delete-layer", lambda: self.editor.delete_selected() or self.toast("Select a layer first"))
         self._simple("duplicate-layer", lambda: self.editor.duplicate_selected() or self.toast("Select a layer first"))
         self._simple("custom-colour", self._custom_colour)
+        self._simple("eyedropper", lambda: self.editor.start_eyedropper())
+        self._simple("crop-apply", lambda: self.editor.apply_crop() or self.toast("Drag a crop rectangle first"))
+        self._simple("crop-cancel", lambda: self.editor.cancel_crop())
+        self._simple("flatten", self._flatten)
+        self._simple("save", self._save)
+        self._simple("save-as", self._save_as)
+        self._simple("paste", self._paste)
+        self._simple("library-delete", self._library_delete)
+        self._simple("resize", lambda: self._popover("resize"))
+        self._simple("rotate", lambda: self._popover("rotate"))
+        self._simple("adjust", lambda: self._popover("adjust"))
+        self._popovers: dict = {}
         self.lookup_action("undo").set_enabled(False)
         self.lookup_action("redo").set_enabled(False)
         lib = Gio.SimpleAction.new_stateful("library", None, GLib.Variant("b", False))
@@ -213,12 +225,225 @@ class StudioWindow(Gtk.ApplicationWindow):
         if entry is None:
             self.toast("Select a screenshot first")
             return
+        self.confirm_discard(lambda: self._open_path(entry.path, entry.name))
+
+    def _open_path(self, path: str, name: str) -> None:
         try:
-            doc = Document.open(entry.path)
+            doc = Document.open(path)
         except Exception as exc:  # noqa: BLE001
-            self.toast(f"Could not open {entry.name}: {exc}", timeout=5)
+            self.toast(f"Could not open {name}: {exc}", timeout=5)
             return
         self.load_document(doc)
+
+    def _library_delete(self) -> None:
+        entry = self.stage.library.selected
+        if entry is None:
+            self.toast("Select a screenshot first")
+            return
+        dlg = Adw.AlertDialog(heading=f"Move {entry.name} to the trash?", body="You can restore it from the trash.")
+        dlg.add_response("cancel", "Cancel")
+        dlg.add_response("trash", "Move to trash")
+        dlg.set_response_appearance("trash", Adw.ResponseAppearance.DESTRUCTIVE)
+        dlg.set_default_response("cancel")
+
+        def done(d, response):
+            if response == "trash":
+                try:
+                    Gio.File.new_for_path(entry.path).trash(None)
+                    self.toast(f"Moved {entry.name} to the trash")
+                except GLib.Error as exc:
+                    self.toast(f"Could not trash {entry.name}: {exc.message}", timeout=5)
+                self.captures.scan()
+        dlg.connect("response", done)
+        dlg.present(self)
+
+    # -- discard / save ----------------------------------------------------
+    def confirm_discard(self, then) -> None:
+        """Run ``then`` now, or after the user chooses to save or discard unsaved changes."""
+        doc = self.document
+        if doc is None or not doc.dirty:
+            then()
+            return
+        dlg = Adw.AlertDialog(heading=f"Save changes to {doc.name}?", body="Your annotations will be lost otherwise.")
+        dlg.add_response("cancel", "Cancel")
+        dlg.add_response("discard", "Discard")
+        dlg.add_response("save", "Save")
+        dlg.set_response_appearance("discard", Adw.ResponseAppearance.DESTRUCTIVE)
+        dlg.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
+        dlg.set_default_response("save")
+
+        def done(d, response):
+            if response == "discard":
+                then()
+            elif response == "save":
+                self._save(then_=then)
+        dlg.connect("response", done)
+        dlg.present(self)
+
+    def _save(self, then_=None) -> None:
+        doc = self.document
+        if doc is None or doc.empty:
+            self.toast("Nothing to save yet")
+            return
+        if doc.path:
+            try:
+                doc.save(quality=self.settings.jpeg_quality)
+            except Exception as exc:  # noqa: BLE001
+                self.toast(f"Could not save: {exc}", timeout=5)
+                return
+            self.refresh_document()
+            self.toast(f"Saved {doc.name}")
+            self.captures.scan()
+            if then_:
+                then_()
+        else:
+            self._save_as(then_)
+
+    def _save_as(self, then_=None) -> None:
+        doc = self.document
+        if doc is None or doc.empty:
+            self.toast("Nothing to save yet")
+            return
+        dialog = Gtk.FileDialog(title="Save as…", modal=True)
+        folder = os.path.expanduser(self.settings.screenshot_path)
+        dialog.set_initial_folder(Gio.File.new_for_path(folder))
+        dialog.set_initial_name(os.path.basename(doc.path) if doc.path else self.settings.next_filename())
+
+        def done(d, result):
+            try:
+                f = d.save_finish(result)
+            except GLib.Error:
+                return
+            try:
+                doc.save(f.get_path(), quality=self.settings.jpeg_quality)
+            except Exception as exc:  # noqa: BLE001
+                self.toast(f"Could not save: {exc}", timeout=5)
+                return
+            self.state.title = doc.name
+            self.refresh_document()
+            self.captures.scan()
+            self.toast(f"Saved {doc.name}")
+            if then_:
+                then_()
+        dialog.save(self, None, done)
+
+    # -- paste ---------------------------------------------------------------
+    def _paste(self) -> None:
+        clip = Gdk.Display.get_default().get_clipboard()
+        clip.read_texture_async(None, self._pasted)
+
+    def _pasted(self, clip, result) -> None:
+        try:
+            texture = clip.read_texture_finish(result)
+        except GLib.Error:
+            texture = None
+        if texture is None:
+            self.toast("The clipboard holds no image")
+            return
+        self.paste_texture(texture)
+
+    def paste_texture(self, texture: Gdk.Texture) -> None:
+        # Gdk.Texture.download writes into a buffer PyGObject copies, so go through PNG bytes instead.
+        import io
+        from PIL import Image
+        from ..model.document import surface_from_pil
+        png = texture.save_to_png_bytes()
+        with Image.open(io.BytesIO(png.get_data())) as img:
+            img.load()
+            surf = surface_from_pil(img)
+        w, h = surf.get_width(), surf.get_height()
+        if self.document is None or self.document.empty:
+            self.load_document(Document(surf))
+            self.state.subtitle = self.document.summary()
+            self.toast("Pasted as a new image")
+            return
+        from ..model.annotations import Annotation, Style
+        doc = self.document
+        scale = min(1.0, doc.width / w, doc.height / h)
+        pw, ph = max(1, w * scale), max(1, h * scale)
+        x, y = (doc.width - pw) / 2, (doc.height - ph) / 2
+        a = Annotation("image", x, y, x + pw, y + ph, style=Style(colour=self.state.colour), surface=surf)
+        self.state.tool = "select"
+        self.editor._commit(AddLayer(a))
+        self.toast("Pasted as a layer · drag to move, handles resize")
+
+    # -- image operations ----------------------------------------------------
+    def image_op(self, op: str, *args) -> None:
+        doc = self.document
+        if doc is None or doc.empty or self.undo is None:
+            self.toast("Capture or open an image first")
+            return
+        base = doc.base
+        if op == "crop":
+            new, mapper = image_ops.crop(base, *args); label = "Crop"
+        elif op == "scale":
+            new, mapper = image_ops.scale(base, *args); label = "Resize"
+        elif op == "rotate":
+            new, mapper = image_ops.rotate(base, args[0]); label = f"Rotate {args[0]}°"
+        elif op == "flip":
+            new, mapper = image_ops.flip(base, args[0]); label = "Flip"
+        elif op == "adjust":
+            new, mapper = image_ops.adjust(base, **args[0]), None; label = "Adjust colours"
+        else:
+            return
+        self.editor.select(None)
+        self.undo.do(TransformBase(new, mapper, label=label))
+        self.refresh_document()
+        self.toast(label, timeout=2)
+        if op in ("crop", "scale", "rotate"):
+            GLib.idle_add(lambda: (setattr(self.state, "zoom", self.stage.fit_zoom()), False)[1])
+
+    def preview_base(self, surface) -> None:
+        """Temporarily show ``surface`` as the base (None restores the real one); used by Adjust."""
+        doc = self.document
+        if doc is None or doc.empty:
+            return
+        if surface is None:
+            if getattr(self, "_real_base", None) is not None:
+                doc.base, self._real_base = self._real_base, None
+        else:
+            if getattr(self, "_real_base", None) is None:
+                self._real_base = doc.base
+            doc.base = surface
+        self.stage.refresh()
+
+    def _flatten(self) -> None:
+        doc = self.document
+        if doc is None or doc.empty:
+            self.toast("Nothing to flatten")
+            return
+        if not doc.layers:
+            self.toast("No layers to flatten")
+            return
+        dlg = Adw.AlertDialog(heading="Flatten all layers?", body=f"{len(doc.layers)} layer(s) will be merged into the image. You can undo this.")
+        dlg.add_response("cancel", "Cancel")
+        dlg.add_response("flatten", "Flatten")
+        dlg.set_response_appearance("flatten", Adw.ResponseAppearance.SUGGESTED)
+
+        def done(d, response):
+            if response == "flatten":
+                self.flatten_now()
+        dlg.connect("response", done)
+        dlg.present(self)
+
+    def flatten_now(self) -> None:
+        doc = self.document
+        self.editor.select(None)
+        self.undo.do(ReplaceBase(doc.flatten(), label="Flatten", layers_after=[]))
+        self.refresh_document()
+        self.toast("Flattened")
+
+    def _popover(self, which: str) -> None:
+        if self.document is None or self.document.empty:
+            self.toast("Capture or open an image first")
+            return
+        pop = self._popovers.get(which)
+        if pop is None:
+            pop = {"resize": ResizePopover, "rotate": RotatePopover, "adjust": AdjustPopover}[which](self)
+            anchor = self.tool_rail.button_for({"resize": "win.resize", "rotate": "win.rotate", "adjust": "win.adjust"}[which])
+            pop.set_parent(anchor or self.stage)
+            self._popovers[which] = pop
+        pop.popup()
 
     def _copy(self) -> None:
         if self.document is None or self.document.empty:
@@ -232,9 +457,7 @@ class StudioWindow(Gtk.ApplicationWindow):
     def _discard(self) -> None:
         if self.document is None:
             return
-        # Phase 5 adds the unsaved-changes prompt; captures are saved on disk already
-        self.clear_document()
-        self.toast("Stage cleared")
+        self.confirm_discard(lambda: (self.clear_document(), self.toast("Stage cleared")))
 
     # -- responsive rails --------------------------------------------------
     def _bp_apply(self, *_a) -> None:

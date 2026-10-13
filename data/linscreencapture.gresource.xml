@@ -55,5 +55,7 @@
     <file>icons/scalable/actions/lsc-caret-down-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-caret-left-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-caret-right-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrow-counter-clockwise-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrows-horizontal-symbolic.svg</file>
   </gresource>
 </gresources>

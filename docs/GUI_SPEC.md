@@ -578,3 +578,7 @@ Phase 4 (2026-10-09): annotation tools implemented per sections 6 and 9 with the
 strip shows the selected layer's properties under Select/Move and edits them; the palette recolours the selected
 layer; blur and pixelate preview as a dashed rectangle; Crop previews only until Phase 5; layer drag-reorder is
 deferred (the `MoveLayer` command exists).
+
+Phase 5 (2026-10-13): image operations and file flows per sections 6 and 9; Crop applies with Enter or the
+strip's Apply button; Resize/Rotate/Brightness are popovers on their rail buttons (Brightness previews live);
+pasted images are an `image` annotation kind; the 1.4 C sources are removed from the repository.

@@ -55,7 +55,7 @@ def handles_for(a: Annotation) -> dict[str, tuple[float, float]]:
     if k == "callout":
         x, y, w, h = callout_box(a)
         return {"anchor": (x, y), "target": (a.x2, a.y2)}
-    if k in ("box", "circle", "fill", "blur", "pixelate"):
+    if k in ("box", "circle", "fill", "blur", "pixelate", "image"):
         x, y, w, h = a.rect
         return {"nw": (x, y), "n": (x + w / 2, y), "ne": (x + w, y), "e": (x + w, y + h / 2),
                 "se": (x + w, y + h), "s": (x + w / 2, y + h), "sw": (x, y + h), "w": (x, y + h / 2)}
@@ -114,6 +114,6 @@ def selection_rect(a: Annotation) -> tuple[float, float, float, float]:
 
 
 def duplicate(a: Annotation, offset: float = 12.0) -> Annotation:
-    b = Annotation.from_dict(a.to_dict())
+    b = a.copy()
     b.move_by(offset, offset)
     return b

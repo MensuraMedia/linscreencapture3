@@ -51,3 +51,5 @@ x
 caret-down
 caret-left
 caret-right
+arrow-counter-clockwise
+arrows-horizontal

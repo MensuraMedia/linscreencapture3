@@ -59,9 +59,16 @@ class ShortcutRouter:
             return False
         if keyval in (Gdk.KEY_Delete, Gdk.KEY_KP_Delete):
             return act("library-delete" if win.state.library else "delete-layer")
+        if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            return win.editor.apply_crop()
         if keyval == Gdk.KEY_Escape:
             if win.state.library:
                 return act("library")
+            if win.editor.cancel_crop():
+                return True
+            if win.editor.eyedropper:
+                win.editor.eyedropper = False
+                return True
             if win.editor.selected_id is not None:
                 win.editor.select(None)
                 return True

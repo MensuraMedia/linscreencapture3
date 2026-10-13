@@ -187,5 +187,20 @@ class ToolRail(Gtk.Stack):
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
 
+    def button_for(self, action: str):
+        """The visible rail button bound to ``action`` (open page preferred), or None."""
+        page = self.get_visible_child()
+        for root in (page, self):
+            stack = [root]
+            while stack:
+                w = stack.pop()
+                if isinstance(w, Gtk.Button) and w.get_action_name() == action and w.get_mapped():
+                    return w
+                c = w.get_first_child()
+                while c is not None:
+                    stack.append(c)
+                    c = c.get_next_sibling()
+        return None
+
     def _sync(self, *_a) -> None:
         self.set_visible_child_name("collapsed" if self.state.left_collapsed else "open")

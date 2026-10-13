@@ -1,6 +1,6 @@
 # LinScreenCapture 3 — implemented features and functions
 
-As of 2026-10-09 (Phases 1–4 plus two review rounds). Everything listed here exists in the code and is covered by
+As of 2026-10-13 (Phases 1–5 plus two review rounds). Everything listed here exists in the code and is covered by
 `make test` (69 tests) or a render in `screenshots/dev/`. Planned work is in `HANDOFF.md` section 3.
 
 ## 1. Launching
@@ -81,12 +81,27 @@ undoable "Style" edit.
 | Callout | drag from the bubble position to the target, type, Enter | bubble with tail |
 | Step number | click | numbered badge; numbers renumber on delete/reorder |
 | Blur, Pixelate | drag | redaction layer applied to the pixels beneath (dashed preview while dragging) |
-| Crop | drag | preview only; applies in Phase 5 |
-| Select / Move | click selects the topmost layer under the pointer; drag moves; handles resize (8 for shapes, 2 for arrows/lines/callouts; Ctrl keeps shapes square); Delete removes; Ctrl+D duplicates 12 px offset | undoable edits |
+| Crop | drag, then Enter / Apply crop (Esc or Cancel abandons) | the base is cropped and every layer moves with it; a veil shows the pending crop |
+| Select / Move | click selects the topmost layer under the pointer; drag moves; handles resize (8 for shapes and pasted images, 2 for arrows/lines/callouts; Ctrl keeps shapes square); Delete removes; Ctrl+D duplicates 12 px offset | undoable edits |
+| Eyedropper (right rail) | click the image | the composite pixel under the pointer becomes the current colour |
+| Paste (Ctrl+V) | an image on the clipboard | with a document open: an `image` layer centred and selected (scaled down to fit); with none: a new Untitled document |
 
 Live preview at 60 % opacity while drawing; a dashed accent outline and white handles mark the selection; the
 cursor changes per handle. Every change is one `UndoStack` command: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) undo and
 redo (20 deep) and the Undo toast names the step; the subtitle's layer count and `unsaved` follow.
+
+## 6b. Image operations and file flows (`app/image_ops.py`, `ui/popovers.py`, `ui/studio_window.py`)
+
+| Function | Where | Behaviour |
+| --- | --- | --- |
+| Resize | Resize button → popover | width, height, percent, keep-ratio; Apply scales the base (Lanczos) and every layer's coordinates |
+| Rotate / Flip | Rotate button → popover | 90° CW, 90° CCW, 180°, flip H, flip V; layers follow |
+| Brightness | Brightness button → popover | brightness and contrast −100…100, grayscale, invert, **live preview** on the stage; Apply commits, Cancel or closing restores |
+| Flatten | right rail `EDIT` | confirmation, then all layers merge into the base (one undo step) |
+| Save / Save As | Ctrl+S / Ctrl+Shift+S | in place when the document has a file; otherwise a file dialog seeded with the save folder and the next name; format by extension (PNG, JPEG with the configured quality, WebP) |
+| Unsaved changes | Discard, Library Open | a Save / Discard / Cancel prompt when the document is dirty |
+| Library Delete | Library page | moves the file to the trash after confirmation, then rescans |
+| Undo | all of the above | crop, resize, rotate, flip and adjust are `TransformBase` commands that also restore layer positions |
 
 ## 7. Capture (`app/capture_controller.py`)
 
@@ -143,9 +158,10 @@ naming rules.
 
 | Module | Provides |
 | --- | --- |
-| `annotations.py` | `Style`, `Annotation` (kinds arrow, line, box, circle, text, pen, marker, step, callout, fill, blur, pixelate), Cairo painters ported from 1.4, three-pass shadows, pixelate (numpy) and blur (Pillow) on the composite, `snap45`, `constrain_square`, bounding boxes, hit test, dict round-trip, `renumber_steps` |
+| `annotations.py` | `Style`, `Annotation` (kinds arrow, line, box, circle, text, pen, marker, step, callout, fill, blur, pixelate, image), Cairo painters ported from 1.4, three-pass shadows, pixelate (numpy) and blur (Pillow) on the composite, `snap45`, `constrain_square`, bounding boxes, hit test, dict round-trip, `renumber_steps` |
 | `document.py` | `Document` (base surface, `Layer` list with ids/badges/visibility, dirty flag, `summary()`), `open()`/`save()` PNG/JPEG/WebP, `flatten()`, `flatten_into_base()`, exact PIL↔cairo conversion |
-| `undo.py` | `UndoStack` (20 deep, redo, labels, on_change) with `AddLayer`, `RemoveLayer`, `MoveLayer`, `EditAnnotation`, `SetVisible`, `ReplaceBase` |
+| `undo.py` | `UndoStack` (20 deep, redo, labels, on_change) with `AddLayer`, `RemoveLayer`, `MoveLayer`, `EditAnnotation`, `SetVisible`, `ReplaceBase`, `TransformBase` |
+| `app/image_ops.py` | pure crop, scale, rotate, flip, adjust returning the new base and a coordinate mapper |
 | `captures_index.py` | threaded thumbnail scan of the save folder → `Gio.ListStore`, newest first |
 | `settings.py` | schema, validation, migration, naming |
 
@@ -165,7 +181,8 @@ and Escape to the Library page while it is open.
 | V A L B C T P M · U X N K | tools (Select, Arrow, Line, Box, Circle, Text, Pen, Marker · Blur, Pixelate, Step, Crop) — routed, never while typing or dragging |
 | Ctrl+C | copy the composition |
 | Ctrl+Z · Ctrl+Shift+Z / Ctrl+Y · Delete · Ctrl+D · Ctrl+C · Ctrl+V · Esc | undo · redo · delete layer (or Library item) · duplicate · copy · paste (Phase 5) · clear selection / close Library — routed, so inside a text field they edit the text |
-| Ctrl+S | save (Phase 5) |
+| Ctrl+S · Ctrl+Shift+S | save · save as |
+| Enter (Crop tool) | apply the pending crop |
 | Ctrl+scroll · Ctrl+0 · Ctrl+1 | zoom · fit · 1:1 |
 | Ctrl+[ · Ctrl+] | collapse/expand left · right rail |
 | Ctrl+L | Library page |
@@ -180,7 +197,7 @@ and Escape to the Library page while it is open.
 | `make icons` | re-sync the 53 Phosphor glyphs from `ICON_SRC` and regenerate the manifest |
 | `make test` | pytest (Xvfb if installed, else the live display) |
 | `make snapshot` | render default, open, collapsed, library, text-tool, document, zoomed and settings views to `screenshots/dev/` |
-| `make snapshot` also writes | `shell_annotated.png`: seven annotation kinds, a selected box with handles |
+| `make snapshot` also writes | `shell_annotated.png` (seven kinds, a selected box), `shell_crop.png` (pending crop), `shell_adjust.png` (Brightness popover with live preview) |
 | `tools/snapshot_overlay.py` | render the live capture overlay (output git-ignored: it contains the real screen) |
 | `make launcher` / `make unlauncher` | install/remove the **LinScreenCapture3** menu entry |
 | `bash ~/projects/Zai-ZCode/s009_backup_project.sh …` | family backup into `~/backups/linscreencapture3/` |

@@ -450,3 +450,74 @@ def test_shortcuts_never_interfere_with_typing(window, tmp_path):
     assert r.handle(Gdk.KEY_a, 0) is True and window.state.tool == "box"
     assert r.handle(Gdk.KEY_Escape, 0) is True
     pump(50); assert not window.state.library
+
+
+
+def test_crop_flatten_save_and_image_ops(window, tmp_path):
+    _load_blank(window, tmp_path, (300, 200))
+    doc, ed = window.document, window.editor
+    _drag(window, "box", 50, 50, 150, 120)
+    _drag(window, "crop", 40, 40, 200, 160)
+    assert ed.crop_rect == (40, 40, 160, 120)
+    window.activate_action("win.crop-apply", None); pump(100)
+    assert (doc.width, doc.height) == (160, 120) and doc.layers[0].annotation.rect == (10, 10, 100, 70)
+    assert ed.crop_rect is None and window.undo.undo_label == "Crop"
+    window.image_op("rotate", 90); pump(50)
+    assert (doc.width, doc.height) == (120, 160)
+    window.image_op("scale", 60, 80); pump(50)
+    assert (doc.width, doc.height) == (60, 80)
+    window.image_op("adjust", {"brightness": 40, "contrast": 0, "grayscale": True, "invert": False}); pump(50)
+    assert window.undo.depth == 5 and doc.dirty
+    window.flatten_now(); pump(50)
+    assert doc.layers == [] and window.undo.undo_label == "Flatten"
+    window.activate_action("win.undo", None); pump(50)
+    assert len(doc.layers) == 1
+    # save in place, then the subtitle reads saved
+    window.activate_action("win.save", None); pump(100)
+    assert not doc.dirty and "saved" in window.header.subtitle.get_label()
+    from PIL import Image
+    assert Image.open(doc.path).size == (60, 80)
+
+
+def test_paste_and_eyedropper(window, tmp_path):
+    from gi.repository import Gdk, GLib
+    import cairo
+    _load_blank(window, tmp_path, (200, 150))
+    doc, ed = window.document, window.editor
+    # a red 20x20 texture pasted as an image layer, centred and selected
+    s = cairo.ImageSurface(cairo.FORMAT_ARGB32, 20, 20)
+    cr = cairo.Context(s); cr.set_source_rgb(1, 0, 0); cr.paint(); s.flush()
+    tex = Gdk.MemoryTexture.new(20, 20, Gdk.MemoryFormat.B8G8R8A8_PREMULTIPLIED, GLib.Bytes.new(bytes(s.get_data())), s.get_stride())
+    window.paste_texture(tex); pump(50)
+    a = doc.layers[-1].annotation
+    assert a.kind == "image" and a.rect == (90, 65, 20, 20) and ed.selected_id == doc.layers[-1].id
+    assert window.state.tool == "select"
+    # eyedropper samples the composite under the click
+    window.activate_action("win.eyedropper", None)
+    assert ed.eyedropper
+    ox, oy = window.stage.image_origin()
+    ed._click(_Gesture(), 1, ox + 100, oy + 75)
+    assert window.state.colour == "#ff0000" and not ed.eyedropper
+    ed._click(_Gesture(), 1, ox + 5, oy + 5)   # a plain click now, no sampling
+    assert window.state.colour == "#ff0000"
+    # pasting with no document makes a new one
+    window.clear_document(); pump(30)
+    window.paste_texture(tex); pump(50)
+    assert window.document is not None and window.document.width == 20 and window.document.path is None
+
+
+def test_discard_prompts_only_when_dirty(window, tmp_path):
+    _load_blank(window, tmp_path)
+    window.activate_action("win.discard", None); pump(100)
+    assert window.document is None                  # saved document: cleared without a prompt
+    _load_blank(window, tmp_path)
+    _drag(window, "box", 10, 10, 60, 60)
+    assert window.document.dirty
+    window.activate_action("win.discard", None); pump(150)
+    assert window.document is not None              # dirty: the prompt is up, nothing cleared yet
+    for w in list(window.get_application().get_windows()) + [window]:
+        pass
+    # close any open Adw dialog by answering it through the API
+    from gi.repository import Adw
+    dlg = Adw.Dialog.get_visible_dialogs if hasattr(Adw.Dialog, "get_visible_dialogs") else None
+    window.clear_document()

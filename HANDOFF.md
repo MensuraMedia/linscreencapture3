@@ -6,9 +6,10 @@ this file is authoritative for process and state.
 
 ## 0. Where things stand (2026-10-09)
 
-Phases 1–4 are done and pushed: shell, model + settings migration, capture (X11 verified live; portal and CLI
-backends written), annotation tools with live layers and undo. Two operator review rounds reshaped the shell (see
-decisions 8–11). Next: Phase 5, image operations and file flows (checklist in section 8). The operator reviews renders and asks for layout tweaks between
+Phases 1–5 are done: shell, model + settings migration, capture (X11 verified live; portal and CLI backends
+written), annotation tools with live layers and undo, image operations and file flows. The legacy C sources are
+deleted. Work is on branch `feat/phase5` (push it, open the PR into `main` when the operator signs off). Next:
+Phase 6, system integration (checklist in section 8). The operator reviews renders and asks for layout tweaks between
 phases; expect that and keep `docs/FEATURES.md`, this file and `changelog.md` current with every change.
 
 Update 2026-10-12: work continues on branch `feat/phase5` (cut from the docs/app-screenshots tip e9d017c; main itself
@@ -31,7 +32,7 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | Repo | `/home/user/projects/linscreencapture3`, remote `origin` = `github.com/MensuraMedia/linscreencapture3` (branch `main`); `upstream` = the 1.4 repo `MensuraMedia/linscreencapture` |
 | Last pushed commit | see `git log --oneline -1`; everything is committed and pushed at the time of writing |
 | Run | `make resources && python3 -m linscreencapture` (add `--debug` or `LSC_DEBUG=1` for timestamped start-up, toolkit and capture logging via `app/logging_setup.py`) (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
-| Test | `make test` → 76 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
+| Test | `make test` → 84 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
 | Renders | `make snapshot` → `screenshots/dev/shell_*.png` (default, open, collapsed, library, text tool, document, document zoomed, settings); `tools/snapshot_overlay.py` renders the live capture overlay to `screenshots/dev/overlay.png` (git-ignored: it contains the real screen) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |
 | Spec | `docs/GUI_SPEC.md` (repo copy) and the living doc https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732 |
@@ -53,8 +54,8 @@ Each phase is gated on the operator's sign-off of the previous one.
 | 2 | Model and settings | `Document`, `Annotation` dataclasses + Cairo draw (port `src/editor_tools.c`), `UndoStack` (20), full `Settings` schema + 1.x migration | **done** (commit "Phase 2: model and settings") — awaiting sign-off |
 | 3 | Capture | backends (portal, X11 bulk copy, CLI), `CaptureService`, overlay window, `FileStore`, clipboard, `--capture` activation, live subtitle | **done** (commit "Phase 3: capture") — awaiting sign-off |
 | 4 | Annotation tools and layers | stage draws the document; all tools; handles; Layers panel live; colour and props wired | **done** (commit "Phase 4: annotation tools") — awaiting sign-off |
-| 5 | Image operations and files | crop/resize/rotate/brightness, flatten, save/save-as/paste, unsaved prompts, Library delete, eyedropper; **then remove `src/`, `include/`, `CMakeLists.txt`, `debian/`, `install.sh`, `uninstall.sh`, `packaging/build-deb.sh`** | next |
-| 6 | System integration | hotkey registrar (GNOME append fix), autostart, delayed, pin, scrolling capture, preferences dialog | |
+| 5 | Image operations and files | crop/resize/rotate/brightness, flatten, save/save-as/paste, unsaved prompts, Library delete, eyedropper; legacy C sources removed | **done** (commit "Phase 5") — awaiting sign-off |
+| 6 | System integration | hotkey registrar (GNOME append fix), autostart, delayed countdown chip, pin to screen, scrolling capture, Settings System + Shortcuts pages | next |
 | 7 | Polish and release | navigator live, shortcuts window, about, toasts, golden-image tests, packaging, tag 3.0.0 | |
 
 The full phase table with gate criteria is in `docs/GUI_SPEC.md` section 10 and the README roadmap.
@@ -69,7 +70,7 @@ The full phase table with gate criteria is in `docs/GUI_SPEC.md` section 10 and 
 4. One deviation from the mockup: Region uses the `selection` glyph, Crop keeps `crop`.
 5. Default file-name prefix is `LinScreenCapture_` (was `LinShot_`). The only remaining
    `linshot` strings are the labelled legacy config path.
-6. Old C sources stay as the behavioural reference until Phase 5 parity.
+6. The 1.4 C sources were removed in Phase 5 (they remain in the original repository).
 7. Placeholder actions toast "X arrives in Phase N" so every button is wired from day one.
 8. Shell adjustments (2026-10-08, `docs/SHELL-ADJUSTMENTS-2026-10-08.md`): Capture top-left, no status
    chip, name-only title until a capture exists, `Settings` bottom-right of the right rail, round colour
@@ -109,6 +110,8 @@ linscreencapture/
   ui/tool_rail.py        Item descriptors (icon, label, action, target, collapsed) → open/collapsed pages
   ui/panel_rail.py       Layers, ColourPalette, VIEW (ZoomPill), EDIT (Copy, Flatten), Navigator, Settings; collapsed page
   ui/library_page.py     Library page (grid of the save folder) shown in the stage stack
+  app/image_ops.py       pure crop / scale / rotate / flip / adjust with coordinate mappers
+  ui/popovers.py         Resize, Rotate and Brightness popovers
   ui/stage.py            empty state, Library page, document canvas (flatten cache, zoom, rounded + shadow), Ctrl+scroll zoom, fit_zoom()
   ui/capture_overlay.py  OverlaySession (shared state, physical root px) + OverlayWindow per monitor: veil, handles, crosshair, chips, mode bar, keys
   app/capture_controller.py hide studio → settle → backend → overlay/region or screen → crop → save → clipboard → load_document
@@ -148,19 +151,31 @@ data/ icons, gresource.xml, .desktop files
 - Typing a letter in the hex entry: if it switches tools, scope the single-letter accelerators to the
   stage in Phase 4 (listed in `app/application.py`, `ACCELS`).
 
-## 8. Phase 5 start checklist (image operations and files)
+## 8. Phase 6 start checklist (system integration)
 
-1. Crop: the Crop tool's dashed preview + Enter/HUD check → `ReplaceBase(crop(base))` and move every layer by
-   (−x, −y) in the same command (extend `ReplaceBase` with a layer transform). Esc cancels.
-2. Resize / Rotate / Brightness popovers (`win.resize`, `win.rotate`, `win.adjust`) anchored to their rail
-   buttons, live preview on the stage, Apply = one `ReplaceBase`; rotate/flip also transform layer coordinates.
-3. Flatten (`win.flatten`): `Adw.AlertDialog` then `ReplaceBase(doc.flatten(), layers_after=[])`.
-4. Save (`win.save`, Ctrl+S): in place when `doc.path`, else `Gtk.FileDialog` seeded with the folder and
-   `Settings.next_filename()`; Save As (Ctrl+Shift+S); Paste (Ctrl+V) an image from the clipboard as a new layer.
-5. Discard and Library Open prompt when `doc.dirty`; Library Delete moves to the trash (`Gio.File.trash`) after
-   confirmation; eyedropper samples the composite under the pointer.
-6. Parity reached → delete `src/`, `include/`, `CMakeLists.txt`, `debian/`, `install.sh`, `uninstall.sh`,
-   `packaging/build-deb.sh`; update README/INSTALL/KNOWN_ISSUES; docs/FEATURES.md; changelog; backup; commit; push.
+1. `services/hotkey_registrar.py`: port `keybinding_manager.c` behaviour from the original repository (Cinnamon
+   gsettings custom keybindings, GNOME **append to** `custom-keybindings` and clear `show-screenshot-ui`, XFCE
+   xfconf, MATE marco, KDE/other: document the manual path). Exec = `linscreencapture --capture`.
+2. Settings dialog **System** page: hotkey preset (`Settings.hotkey`), register switch (`register_hotkey`),
+   autostart (`~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop`), backend choice, include pointer,
+   pin opacity, reopen last; **Shortcuts** page listing both shortcut tiers.
+3. Delayed capture: countdown chip in the header (the `StatusChip` widget is ready) instead of a toast.
+4. Pin to screen (`app.pin`): borderless always-on-top window at `pin_opacity`, Esc/double-click closes.
+5. Scrolling capture (`app.capture-scrolling`): repeated region captures stitched by overlap matching (NumPy).
+6. Include pointer: draw the cursor from `Gdk` into the frozen screen when `include_pointer`.
+7. Tests for the registrar (gsettings calls mocked), the countdown and the stitcher; FEATURES/HANDOFF/changelog.
+
+## 8b. Image-operation notes (Phase 5)
+
+- `app/image_ops.py` is pure: each op returns `(new_base, mapper)`; `undo.TransformBase` swaps the base and runs
+  every annotation through the mapper (and restores both on undo). Adjust has no mapper.
+- Crop: the Crop tool stores `editor.crop_rect` after the drag; Enter / `win.crop-apply` applies, Esc /
+  `win.crop-cancel` abandons; the overlay draws a veil around the pending rectangle.
+- Brightness popover previews by temporarily swapping `doc.base` (`window.preview_base`), restored on close.
+- Paste: `Gdk.Texture.download` cannot fill a Python buffer (PyGObject copies it), so textures are decoded via
+  `save_to_png_bytes`. Pasted images are `image` annotations carrying a cairo surface (`Annotation.copy()` keeps
+  it; `to_dict()` omits it).
+- Popovers anchor to the rail buttons found with `ToolRail.button_for(action)`.
 
 ## 8a. Editor notes (Phase 4)
 
