@@ -130,7 +130,7 @@ font settings apply at creation.
 | Crop **K** | drag, then **Enter** or Apply crop (**Esc** / Cancel abandons) | the base is cropped and every layer moves with it; a dark veil shows the pending crop |
 | Hand **H** | drag | pans the view (no layer) |
 | Box area **R**, Round area **O**, Point chain **J** | see §8 | mark a region for copy, crop or clear |
-| Select **V** / Move | click selects the topmost layer under the pointer; drag moves it; handles resize (8 for boxes, circles, fills, redactions and pasted images; 2 for arrows, lines and callouts; **Ctrl** keeps shapes square); **Delete** removes; **Ctrl+D** duplicates 12 px offset | undoable edits; cursor changes per handle |
+| Select **V** / Move | click selects the topmost layer under the pointer; drag moves it; handles resize (8 for boxes, circles, fills, redactions and pasted images; 2 for arrows, lines and callouts; **Ctrl** keeps shapes square); **Delete** removes; **Ctrl+D** duplicates 12 px offset | undoable edits; cursor changes per handle. The selection shows **handles only** (text, pen, marker and step layers, which have no handles, get four small corner ticks); Settings → Window → "Dashed frame around the selected layer" restores a dashed frame |
 
 Shadows (Arrow, Line, Box, Circle, Text, Pen, Marker) are a Gaussian-blurred black silhouette of the shape,
 cached per annotation, whose offset and blur grow with the line width (the 1.4 three-pass shadow banded).
@@ -144,7 +144,7 @@ subtitle's layer count and `unsaved` follow every change.
 
 | Action | Keys | Behaviour |
 | --- | --- | --- |
-| Select one | click (Select / Move) or a Layers row | dashed accent outline with white handles; the strip shows its properties |
+| Select one | click (Select / Move) or a Layers row | white handles with an accent border (corner ticks for layers without handles; the dashed frame is optional); the strip shows its properties |
 | Select all | **Ctrl+A** | every layer is marked: dashed outline around the image and each layer, Select tool active. Ctrl+C then copies the flattened image, Delete removes all layers in one undo step; a plain selection, Esc, a tool switch or a click on the empty stage ends it. Moving all layers together is not implemented |
 | Clear selection | **Esc** | |
 
@@ -252,6 +252,7 @@ and numbering derived from `filename_format`, tool widths and shadows, blur bloc
 | Copy to clipboard | `copy_to_clipboard` | bool |
 | Delayed capture | `delay_seconds` | 0–60 (used while the Delayed toggle is on) |
 | Start with the left / right rail collapsed | `left_collapsed`, `right_collapsed` | bool (applied live) |
+| Dashed frame around the selected layer | `selection_frame` | bool, default off (handles only) |
 
 Keys without a dialog row yet (Phase 6 pages): `backend` (auto · portal · x11 · cli), `include_pointer`,
 `pin_opacity`, `reopen_last`; `[System]` `autostart`, `hotkey`, `register_hotkey`. `[Tools]` keys are written by

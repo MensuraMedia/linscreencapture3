@@ -50,6 +50,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         window = Adw.PreferencesGroup(title="Window")
         window.add(self._switch("Start with the left rail collapsed", None, "left_collapsed"))
         window.add(self._switch("Start with the right rail collapsed", None, "right_collapsed"))
+        window.add(self._switch("Dashed frame around the selected layer", "Off: only the resize handles mark the selection", "selection_frame"))
         page.add(window)
         return page
 

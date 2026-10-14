@@ -816,3 +816,11 @@ def test_area_tools_mark_copy_clear_and_crop(window, tmp_path):
     assert (doc.width, doc.height) == (300, 200)
     rows = [row for row in _walk(window.panel_rail.layers) if isinstance(row, Gtk.ListBoxRow)]
     assert rows[-1].kind.get_label() == "IMG"
+
+
+def test_selection_frame_is_optional(window, settings):
+    assert settings.selection_frame is False                        # handles only, by default
+    settings.selection_frame = True; settings.save()
+    from linscreencapture.model.settings import Settings
+    assert Settings.load(root=settings.root).selection_frame is True
+    window.settings_changed("selection_frame", False)               # the dialog's live hook redraws the stage

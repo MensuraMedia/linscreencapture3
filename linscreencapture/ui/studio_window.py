@@ -204,6 +204,8 @@ class StudioWindow(Gtk.ApplicationWindow):
         if field == "screenshot_path":
             self.captures.folder = value
             self.captures.scan()
+        elif field == "selection_frame":
+            self.stage.canvas.queue_draw()
         elif field in ("left_collapsed", "right_collapsed"):
             self.state.set_property(field, bool(value))
             self.state.set_property(field.replace("collapsed", "manual"), True)

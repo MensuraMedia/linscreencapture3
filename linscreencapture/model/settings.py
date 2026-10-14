@@ -84,6 +84,7 @@ class Settings:
     window_maximized: bool = False
     left_collapsed: bool = True   # the collapsed rails are the default on first run
     right_collapsed: bool = True
+    selection_frame: bool = False  # dashed frame around the selected layer (handles alone by default)
     # [Capture]
     screenshot_path: str = field(default_factory=_default_pictures)
     prefix: str = "LinScreenCapture_"
@@ -179,6 +180,7 @@ class Settings:
         self.window_maximized = g.bool("Window", "maximized", self.window_maximized)
         self.left_collapsed = g.bool("Window", "left_collapsed", self.left_collapsed)
         self.right_collapsed = g.bool("Window", "right_collapsed", self.right_collapsed)
+        self.selection_frame = g.bool("Window", "selection_frame", self.selection_frame)
         self.screenshot_path = g.str("Capture", "screenshot_path", self.screenshot_path)
         self.prefix = g.str("Capture", "prefix", self.prefix)
         self.numbering = g.choice("Capture", "numbering", NUMBERING, self.numbering)
@@ -249,6 +251,7 @@ class Settings:
         kf.set_boolean("Window", "maximized", bool(self.window_maximized))
         kf.set_boolean("Window", "left_collapsed", bool(self.left_collapsed))
         kf.set_boolean("Window", "right_collapsed", bool(self.right_collapsed))
+        kf.set_boolean("Window", "selection_frame", bool(self.selection_frame))
         kf.set_string("Capture", "screenshot_path", self.screenshot_path)
         kf.set_string("Capture", "prefix", self.prefix)
         kf.set_string("Capture", "numbering", self.numbering)

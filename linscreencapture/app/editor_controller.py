@@ -658,14 +658,22 @@ class EditorController:
             return
         a = layer.annotation
         x, y, w, h = tools.selection_rect(a)
+        handles = tools.handles_for(a)
         cr.save()
         cr.set_source_rgba(*ACCENT, 0.9)
         cr.set_line_width(1)
-        cr.set_dash([5, 3])
-        cr.rectangle(ox + x * z + 0.5, oy + y * z + 0.5, w * z, h * z)
-        cr.stroke()
-        cr.set_dash([])
-        for hx, hy in tools.handles_for(a).values():
+        if self.settings.selection_frame:                  # optional dashed frame (off by default)
+            cr.set_dash([5, 3])
+            cr.rectangle(ox + x * z + 0.5, oy + y * z + 0.5, w * z, h * z)
+            cr.stroke()
+            cr.set_dash([])
+        elif not handles:                                  # no handles to show: four quiet corner ticks
+            t = 7
+            x0, y0, x1, y1 = ox + x * z + 0.5, oy + y * z + 0.5, ox + (x + w) * z - 0.5, oy + (y + h) * z - 0.5
+            for cx, cy, sx, sy in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
+                cr.move_to(cx, cy + sy * t); cr.line_to(cx, cy); cr.line_to(cx + sx * t, cy)
+            cr.stroke()
+        for hx, hy in handles.values():
             sx, sy = ox + hx * z, oy + hy * z
             cr.rectangle(sx - HANDLE_PX / 2, sy - HANDLE_PX / 2, HANDLE_PX, HANDLE_PX)
             cr.set_source_rgb(1, 1, 1)
