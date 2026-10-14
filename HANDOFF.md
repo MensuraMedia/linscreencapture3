@@ -34,6 +34,10 @@ rail button. Follow-up the same night: the tray is reduced to **one slot** (more
 **Area tool** (Box area R, Round area O, Point chain J) marks a region for Ctrl+C / Enter (crop) / Delete (clear);
 its vocabulary avoids other editors' terms. 105 tests pass. Per-feature layout/implementation notes: `docs/FEATURES.md` §16.
 
+Update 2026-10-14: `docs/FEATURES.md` rewritten as the complete 16-section feature reference; the dashed frame around a
+selected layer is off by default (handles only; corner ticks for handle-less layers; `Settings.selection_frame` and a
+Settings → Window switch restore it). 106 tests. Awaiting the operator's on-screen sign-off and the PR into `main`.
+
 ## 1. Mission
 
 Rebuild the 1.4 C/GTK3 screenshot tool as **LinScreenCapture 3: Python 3 + GTK 4 + libadwaita**,
