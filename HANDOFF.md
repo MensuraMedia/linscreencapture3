@@ -32,7 +32,7 @@ Library in the left rail; transparent PNGs (checkerboard, alpha-preserving save)
 the shortcut under the caption; Hand tool / Space / middle button pan the view; Space no longer activates a focused
 rail button. Follow-up the same night: the tray is reduced to **one slot** (more slots = roadmap item in §8) and an
 **Area tool** (Box area R, Round area O, Point chain J) marks a region for Ctrl+C / Enter (crop) / Delete (clear);
-its vocabulary avoids other editors' terms. 105 tests pass. Per-feature layout/implementation notes: `docs/FEATURES.md` §12.
+its vocabulary avoids other editors' terms. 105 tests pass. Per-feature layout/implementation notes: `docs/FEATURES.md` §16.
 
 ## 1. Mission
 

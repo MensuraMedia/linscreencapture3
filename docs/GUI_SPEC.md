@@ -600,7 +600,7 @@ preview popover (Copy · Paste · Delete) — sits above Library in the left rai
 rail). The stage paints a checkerboard under the image so transparent pixels show; an Eraser tool (E, DEST_OUT stroke)
 clears to transparent; PNG keeps alpha, JPEG lands on white. Tooltips carry the shortcut under the caption. A Hand
 tool (H), Space held, or a middle-button drag pans the view; Space is swallowed by the router (it used to activate the
-focused rail caret). Per-feature layout and implementation notes: `docs/FEATURES.md` §12.
+focused rail caret). Per-feature layout and implementation notes: `docs/FEATURES.md` §16.
 
 Follow-up the same day: the clipboard tray holds one slot for now (several slots are a roadmap item; the
 history and tray are parametrised). An **Area** tool joins the second tool row with three modes — Box area (R),

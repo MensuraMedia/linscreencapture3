@@ -1,242 +1,356 @@
-# LinScreenCapture 3 — implemented features and functions
+# LinScreenCapture 3 — feature reference
 
-As of 2026-10-13 (Phases 1–5 plus two review rounds). Everything listed here exists in the code and is covered by
-`make test` (69 tests) or a render in `screenshots/dev/`. Planned work is in `HANDOFF.md` section 3.
+Complete description of everything the application does as of 2026-10-13 (Phases 1–5 of 7 plus two review
+rounds). Every item below exists in the code on branch `feat/phase5` and is covered by `make test` (105 tests,
+live display) or a render in `screenshots/dev/`. Planned work (Phase 6: hotkeys, countdown, pin, scrolling
+capture; Phase 7: polish and release) and the backlog are in `HANDOFF.md` §3 and §8; known limits in
+`KNOWN_ISSUES.md`; the GUI specification in `docs/GUI_SPEC.md`.
+
+Conventions: `win.*` are window actions, `app.*` application actions (`ui/studio_window.py`,
+`app/application.py`); a key in **bold** is a shortcut; "strip" is the tool-properties strip in the header.
+
+Contents: 1 Launching · 2 Window and chrome · 3 Left rail · 4 Header strip · 5 Right rail · 6 Stage ·
+7 Annotation tools · 8 Selection, clipboard and the Area tool · 9 Image operations and files · 10 Library ·
+11 Capture · 12 Settings · 13 Model and services · 14 Keyboard and mouse reference · 15 Developer tools ·
+16 Layout and implementation notes for agents
+
+---
 
 ## 1. Launching
 
 | Function | How | Module |
 | --- | --- | --- |
-| Start the studio | `python3 -m linscreencapture`, the `linscreencapture` script, or the **LinScreenCapture3** menu entry (`make launcher`) | `__main__.py`, `tools/launch.sh` |
-| Capture immediately | `linscreencapture --capture` (`-c`): a second instance forwards to the running one over D-Bus; at first start the window stays hidden until the capture is done | `app/application.py` |
-| Diagnostics | `--debug` (`-d`) or `LSC_DEBUG=1`: timestamped log of versions (Python, PyGObject, GTK, libadwaita), session, resources and icon count, stylesheet, settings file and values, backend order, action counts, window build time, every capture step; GTK/GLib messages routed into the same stream under `toolkit` | `app/logging_setup.py` |
-| Single instance | `Adw.Application` id `com.mensuramedia.LinScreenCapture`; a second launch raises the window | `app/application.py` |
-| Window memory | size, maximised state and rail state are saved on close and restored | `model/settings.py`, `ui/studio_window.py` |
+| Start the studio | `python3 -m linscreencapture`, the `linscreencapture` console script, or the **LinScreenCapture3** menu entry installed by `make launcher` (runs `tools/launch.sh` from the checkout) | `__main__.py`, `tools/launch.sh`, `data/linscreencapture3-dev.desktop.in` |
+| Capture immediately | `linscreencapture --capture` (`-c`): a second instance forwards the request to the running one over D-Bus; at first start the window stays hidden until the capture is done, then appears with the result. The installed `.desktop` file exposes it as the "Capture a region" action | `app/application.py` |
+| Single instance | `Adw.Application`, id `com.mensuramedia.LinScreenCapture`; a second launch raises the window. Tools and probes build `Application(non_unique=True)` so they never activate a running copy | `app/application.py` |
+| Diagnostics | `--debug` (`-d`) or `LSC_DEBUG=1`: timestamped log of versions (Python, PyGObject, GTK, libadwaita), session type, resource and icon count, stylesheet, settings file and values, backend order, action counts, window build time and every capture step; GTK/GLib messages go to the same stream under `toolkit` | `app/logging_setup.py` |
+| Window memory | size, maximised state and the collapsed state of both rails are saved on close and restored on the next start | `model/settings.py`, `StudioWindow._on_close` |
+| First keyboard focus | the stage canvas, never a rail button (so Space and Enter cannot activate one by accident) | `StudioWindow` (`map` handler) |
 
 ## 2. Window and chrome
 
 | Function | Behaviour |
 | --- | --- |
-| Title bar | the 52 px Graphite header is the title bar (CSD): drag moves, double-click maximises, window buttons follow the system layout |
-| Header contents | title block (document name + `Edit · W×H · FORMAT · n layers · saved/unsaved` once a document exists), the tool-properties strip in the centre, window controls |
-| Rails | left 220 px open / 56 px collapsed, right the same; **collapsed by default**; carets are single chevrons pointing the way the rail moves |
-| Auto-collapse | below 1100 px window width both rails collapse; when the window widens they return to the state they had before (manual toggles in the session win) |
-| Minimum size | 960×600 |
-| Toasts | bottom-centre messages for saves, copies, errors and placeholders ("… arrives in Phase N") |
+| Theme | "Graphite Night": one dark palette (`ui/style.css`), Ubuntu / Cantarell fonts, 30 px controls, 18 px glyphs, 6 px radii; the dark scheme is forced (`Adw.ColorScheme.FORCE_DARK`) |
+| Title bar | the 52 px header is the window's title bar (client-side decoration): drag moves, double-click maximises; the system window buttons follow `gtk-decoration-layout` (icon/menu tokens dropped) |
+| Header contents | left: the title block — the document name, and once a document exists the subtitle `Edit · W×H · FORMAT · n layers · saved/unsaved`; centre: the tool-properties strip (§4); right: window controls |
+| Rails | left and right rails are 220 px open and 56 px collapsed; **collapsed by default** on first run (Settings → Window changes that); carets are single chevrons pointing the way the rail moves; **Ctrl+[** / **Ctrl+]** toggle them |
+| Auto-collapse | below 1100 px window width both rails collapse; when the window widens they return to the state they had before; a caret clicked by hand wins for the rest of the session |
+| Minimum size | 960×600; default 1360×840 |
+| Toasts | bottom-centre messages for saves, copies, captures, hints and errors; placeholders say "… arrives in Phase N" |
+| Dialogs | Settings, Flatten, Delete and unsaved-changes prompts are libadwaita dialogs (they open as small separate windows because the studio uses a plain GTK window for its custom title bar) |
+| Icons | 64 Phosphor "regular" glyphs compiled into the GResource as `lsc-<name>-symbolic`, recoloured by CSS |
 
-## 3. Left rail
+## 3. Left rail (`ui/tool_rail.py`)
+
+Every button has a two-line tooltip: the caption, then its shortcut in small muted type.
 
 | Row | Controls | Actions |
 | --- | --- | --- |
-| Top | Capture (30 px accent icon) + collapse caret | `app.capture` (current mode) |
-| CAPTURE | Region · Window · Full screen · Scrolling · Delayed · Pin | `win.capture-mode` (stateful: region, window, screen, scrolling); **Delayed is a toggle** (`win.capture-delayed`, boolean): on, the next captures in any mode wait `delay_seconds`; click the timer again to turn it off (a toast confirms each state); Pin = `app.pin` (Phase 6) |
-| TOOLS | Select · Arrow · Line · Box · Circle · Text · Pen · Marker · **Eraser** · **Hand** | `win.tool::<name>` (stateful); every tool tooltip shows its shortcut letter under the caption |
-| second row | **Box area · Round area · Point chain** · Blur · Pixelate · Fill · Step number · Callout · Crop · Resize · Rotate · Brightness · Move · Duplicate | tools via `win.tool`; the three Area tools mark a region (see §6a); Duplicate = Phase 7 placeholder |
-| CLIPBOARD | a navigator-sized tray (116 px) with **one slot**: the last copy the app made (accent border while it is on the clipboard); hovering shows label · size · time, a click opens a preview popover (≤ 320×200 sample, caption, then Copy · Paste · Delete centred below). More slots are on the roadmap (HANDOFF §8) — `ClipHistory.limit` / `clip_tray.SLOTS` already parametrise it | `ui/clip_tray.py` + `services/clip_history.py`; Copy puts the sample back on the clipboard, Paste adds it as a layer (or a new image), Delete drops it from the tray and clears the clipboard if it held that copy |
-| above the line | Library (toggle) | `win.library` |
-| ACTIONS | Discard · Save | `win.discard` (clears the stage), `win.save` (Phase 5) |
-| collapsed | caret, Capture, Region/Full screen/Delayed, seven tools (the active one always present), a clipboard button whose popover holds the same tray, Library, Discard, Save | same actions |
+| Top | Capture (30 px accent icon, **Ctrl+N**) · collapse caret (**Ctrl+[**) | `app.capture` captures in the current mode |
+| CAPTURE | Region · Window · Full screen (**Ctrl+Shift+N**) · Scrolling · Delayed · Pin | `win.capture-mode` is a stateful choice (region, window, screen, scrolling); **Region is the mode at every launch**. **Delayed is a toggle** (`win.capture-delayed`, boolean, **off at every launch**): while on, captures in any mode wait `delay_seconds` first; clicking the timer again turns it off; a toast confirms each state and warns when the configured delay is 0 s. Scrolling and Pin are Phase 6 placeholders (toast) |
+| TOOLS row 1 | Select **V** · Arrow **A** · Line **L** · Box **B** · Circle **C** · Text **T** · Pen **P** · Marker **M** · Eraser **E** · Hand **H** | `win.tool::<name>` (stateful; exactly one toggle checked) |
+| TOOLS row 2 | Box area **R** · Round area **O** · Point chain **J** · Blur **U** · Pixelate **X** · Fill · Step number **N** · Callout · Crop **K** · Resize · Rotate · Brightness · Move · Duplicate | tools via `win.tool`; Resize / Rotate / Brightness open popovers (`win.resize`, `win.rotate`, `win.adjust`); Duplicate (file) is a Phase 7 placeholder |
+| CLIPBOARD | a navigator-sized tray (116 px) with **one slot** holding the last copy the application made (accent border while that copy is still on the clipboard); hover shows `label · W×H · time`; a click opens a preview popover (sample ≤ 320×200, caption, then **Copy · Paste · Delete** centred below). Copy puts the sample back on the clipboard; Paste adds it to the open image as a layer (or opens it as a new image on an empty stage); Delete drops it from the tray and clears the system clipboard if it held that copy. Several slots are a roadmap item (HANDOFF §8); `ClipHistory.limit` and `clip_tray.SLOTS` already parametrise it | `ui/clip_tray.py`, `services/clip_history.py` |
+| above the line | Library (**Ctrl+L**, toggle) | `win.library` |
+| ACTIONS | Discard · Save (**Ctrl+S**) | `win.discard` clears the stage (asks when unsaved); `win.save` |
+| Collapsed page | caret, Capture, Region / Full screen / Delayed, seven tools (Arrow, Box, Text, Pen, Blur, Step, Crop — the active tool always takes the last slot if it is not among them), a clipboard button whose popover holds the same tray, Library, Discard, Save | same actions |
 
 ## 4. Header tool-properties strip (`ui/tool_props.py`)
 
-Follows the active tool, and under Select/Move the **selected layer** (title reads `BOX · SELECTED`). Arrow/Line:
-width, shadow, intensity, opacity. Box/Circle: + fill. Pen/Marker: width, shadow, opacity (marker paints at 4×
-width; its opacity defaults to 0.40). Text/Callout: font, size, bold, italic, shadow, opacity. Step: badge size,
-opacity. Fill: opacity. Blur/Pixelate: mode (switches the tool), block size. Crop, Select/Move without a
-selection: hints. **Opacity** (0.05–1.00) applies to the whole annotation as one group, so a translucent filled
-box shows no darker rim where stroke and fill overlap; it is per tool even when Universal is on.
+The strip follows the active tool, and under Select / Move the **selected layer** (title reads for example
+`BOX · SELECTED`). Each control reads from and writes to `Settings` the moment it changes; with a layer
+selected the change is also applied to that annotation as an undoable "Style" edit.
 
-Keyboard focus never stays in the strip: switches, toggles and scales do not take focus on click, a tool switch
-hands focus back to the canvas, and Enter in a spin does the same (otherwise the spin's text field would swallow
-Ctrl+Z and tool letters — see section 10).
+| Tool(s) | Controls |
+| --- | --- |
+| Arrow, Line | Width (1–20) · Shadow · Intensity (0–1) · Opacity |
+| Box, Circle | the same plus Fill |
+| Pen, Marker | Width · Shadow · Opacity (the marker paints at 4× width; its opacity defaults to 0.40) |
+| Eraser | Width (2–80, default 24) · Opacity (= erase strength) · hint |
+| Text, Callout | Font (Ubuntu, Cantarell, DejaVu Sans, Liberation Sans, Noto Sans) · Size (6–96) · Bold · Italic · Shadow · Opacity |
+| Step number | Badge size (8–48) · Opacity |
+| Fill | Opacity |
+| Blur, Pixelate | Mode (Pixelate / Blur — switches the tool) · Block size (2–32) |
+| Crop | hint · Apply crop · Cancel |
+| Box area, Round area, Point chain | a hint for the mode (drag / click points, then Ctrl+C · Enter · Delete · Esc) |
+| Hand | hint (also Space, middle button) |
+| Select, Move (no selection) | hint (click, drag, Delete, Ctrl+D, Ctrl+A) |
 
-Every control reads from and writes to `Settings` (`tools[<tool>].width/shadow/shadow_intensity/opacity/fill`,
-`text_font_family/size/bold/italic`, `step_size`, `blur_block`; saved on change; the Universal switch in Settings
-makes a change apply to every tool). With a layer selected the change is also applied to that annotation as an
-undoable "Style" edit.
+Opacity (0.05–1.00) applies to the whole annotation as one cairo group, so a translucent filled box shows no
+darker rim where stroke and fill overlap; it is stored per tool and stays per tool even when the Universal
+switch makes width/shadow/fill shared.
 
-## 5. Right rail
+Keyboard focus never stays in the strip: switches, toggles, scales and buttons do not take focus on click, a
+tool switch and the font dropdown hand focus back to the canvas, Enter in a spin does the same, and the shortcut
+router (§14) handles editing chords and tool letters even while a spin button holds focus.
 
-| Group | Controls | Actions |
+## 5. Right rail (`ui/panel_rail.py`)
+
+| Group | Controls | Behaviour |
 | --- | --- | --- |
-| COLOUR | 12 round swatches (accent ring = current), custom colour `+` (`Gtk.ColorDialog`), eyedropper | sets the colour for new annotations, recolours the selected layer, persists to settings; `win.eyedropper` arrives with Phase 5 |
-| VIEW | zoom out · value · zoom in · fit | `win.zoom-out`, `win.zoom-in`, `win.zoom-fit` (fit never exceeds 1:1); `win.zoom-actual` = 1:1 |
-| EDIT | Copy · Flatten | `win.copy` (flattened composition to the clipboard and the tray), `win.flatten` |
-| LAYERS | scrollable list: annotation layers top-first with a rendered 40×28 thumbnail, a **number** (stack position, 1 = bottom), a label naming the **tool that made it** (`ARROW`, `BOX`, `BLUR`, `PIXELATE`, `TEXT`, `STEP`, `CALLOUT`, `IMAGE`…) and an eye; then `Base capture · IMG`; "No layers yet" when empty | row click selects the layer on the stage (and vice versa); eye = undoable show/hide |
-| navigator (untitled) | thumbnail of the composite, dimmed outside the viewport, accent viewport rectangle that follows zoom and scroll; click or drag scrolls the stage | `ui/panel_rail.py::Navigator` |
-| bottom-right | Settings | `app.preferences` |
-| collapsed | caret, six colour dots, eyedropper, −, +, fit, Copy, Flatten, gear | same actions |
+| COLOUR | 12 round 18 px swatches (accent ring on the current one), custom colour `+` (`Gtk.ColorDialog`), eyedropper | sets the colour for new annotations, recolours the selected layer (undoable), persists to every tool's settings; the eyedropper makes the next click on the image pick that composite pixel (toast shows the hex) |
+| VIEW | zoom out · value · zoom in · fit | `win.zoom-out` / `win.zoom-in` step through 25 · 50 · 75 · 100 · 150 · 200 · 300 · 400 · 800 · 1000 %; `win.zoom-fit` (**Ctrl+0**, never above 1:1); `win.zoom-actual` (**Ctrl+1**) |
+| EDIT | Copy (**Ctrl+C**) · Flatten | `win.copy` (§8), `win.flatten` (§9) |
+| LAYERS | scrollable list, annotation layers top-first: a rendered 40×28 thumbnail of that layer alone, its **number** (stack position, 1 = bottom), a label naming the **tool that made it** (`ARROW`, `BOX`, `BLUR`, `PIXELATE`, `TEXT`, `STEP`, `CALLOUT`, `ERASER`, `CUTOUT`, `IMAGE`…) and an eye; the last row is `Base capture · IMG`; "No layers yet" when empty | a row click selects the layer on the stage and vice versa; the eye hides/shows the layer (undoable). Drag-to-reorder is not implemented (`MoveLayer` exists) |
+| Navigator (untitled) | 116 px thumbnail of the composite, dimmed outside the viewport, accent rectangle for the visible part | follows zoom and scroll; click or drag scrolls the stage to that point |
+| bottom-right | Settings (**Ctrl+,**) | `app.preferences` |
+| Collapsed page | caret, six colour dots, eyedropper, −, +, fit, Copy, Flatten, gear | same actions |
 
-## 6. Stage
+## 6. Stage (`ui/stage.py`)
 
 | State | Behaviour |
 | --- | --- |
-| Empty | camera glyph, "Press PrintScreen or click Capture", mode list, shortcut chips; HUD shows `—` |
-| Document | the capture painted pixel-exact with square corners, centred, scrollable when larger than the viewport, over a muted 8 px checkerboard that shows through transparent pixels (clear PNGs, eraser strokes); a smooth gradient drop shadow (linear on the sides, radial on the corners, 18 px) sits outside the image; HUD shows the zoom |
-| Panning | Hand tool (H) drag · Space held + drag · middle-button drag anywhere on the stage; the navigator still works | `Stage.scroll_by`, editor mode `pan` |
-| Zoom | steps 25 · 50 · 75 · 100 · 150 · 200 · 300 · 400 · 800 · 1000 %; Ctrl+scroll; Ctrl+0 fit; Ctrl+1 1:1; a loaded document fits automatically |
-| Library page | covers the stage: head (count · folder or "n of m selected", Refresh, Select all, Copy, Duplicate, Delete, Open, close), grid of 180×120 thumbnails with name and date, empty state; **group selection** (click, Ctrl+click, Shift+click, Ctrl+A); **double-click** (or Enter / Open) loads that file into the editor; Copy (Ctrl+C) puts one image + its file on the clipboard (several: the files, for a file manager); Duplicate (Ctrl+D) writes `name copy.png`, `name copy 2.png`…; Delete moves the selection to the trash after one confirmation; all three touch only the library, never the open document |
+| Empty | camera glyph, "Press PrintScreen or click Capture", mode list, shortcut chips (Ctrl+N region · Ctrl+Shift+N full screen · Ctrl+V paste); HUD shows `—` |
+| Document | the image painted pixel-exact with square corners, centred, scrollable when larger than the viewport, over a muted 8 px **checkerboard** that shows through transparent pixels (clear PNGs, eraser strokes, cleared areas); a smooth drop shadow (linear gradients on the sides, radial on the corners, 18 px reach) outside the image; the HUD bottom-left shows the zoom |
+| Zoom | the steps above; **Ctrl+scroll**; a loaded or cropped document fits automatically; nearest-neighbour filtering from 400 % up |
+| Panning | Hand tool (**H**) drag · **Space** held + drag with any tool · **middle-button** drag anywhere on the stage; cursors `grab` / `grabbing`; the navigator also scrolls |
+| Inline text entry | Text and Callout type into an entry positioned over the image (Enter commits, Esc cancels); keyboard shortcuts yield to it |
+| Click on the empty stage | a click (not a drag) outside the image — in the canvas margin or beyond — drops the active tool back to Select, clears the selection, any marked area and any pending text; the zoom HUD is not "empty stage" |
+| Library page | covers the stage while the Library is open (§10) |
 
-## 6a. Annotation editing (`app/editor_controller.py`, `app/tools.py`)
+## 7. Annotation tools (`app/editor_controller.py`, `app/tools.py`, `model/annotations.py`)
+
+Every drawing produces one layer and one undo step; the new layer is selected. A live preview shows while
+dragging (at 60 % opacity, or the tool's own opacity if lower); the strip's width, shadow, opacity, fill and
+font settings apply at creation.
 
 | Tool | Gesture | Result |
 | --- | --- | --- |
-| Arrow, Line | drag (Shift snaps to 45°) | filled arrow / round-capped line layer |
-| Box, Circle | drag (Ctrl constrains to a square/circle); Fill switch in the strip | outlined or filled shape |
-| Fill | drag | filled rectangle in the current colour |
-| Pen, Marker | drag | stroke of the pointer path (sub-pixel jitter dropped); marker 4× width at 40 % |
-| Eraser (E) | drag | a stroke that clears what lies beneath to transparent (`OPERATOR_DEST_OUT`; the Opacity slider sets the erase strength); default width 24 px; shown as a translucent band while dragging and in thumbnails; PNG keeps the transparency, JPEG lands it on white |
-| Hand (H) | drag | pans the view (no layer); Space held does the same with any tool, as does a middle-button drag |
-| **Area** — Box area (R), Round area (O) | drag (Shift keeps it square / round) | marks a region: dashed accent outline with a faint fill. While an area is marked: **Ctrl+C** copies just that region (outside the shape transparent; also in the tray), **Enter** crops to it (`image_ops.crop_masked`: bounding box, pixels outside a round/chain area cleared), **Delete** clears it to transparent (a `CUTOUT` layer, undoable), **Esc** / a tool switch drops it |
-| **Area** — Point chain (J) | click points; each click joins a line from the previous point; click the first point (within 9 px) or double-click to close; Backspace removes the last point; Esc cancels | the enclosed polygon becomes the marked area (same Ctrl+C / Enter / Delete as above) |
-| Text | click, type in the inline editor, Enter (Esc cancels) | text layer; double-click a text/callout layer under Select to edit it |
-| Callout | drag from the bubble position to the target, type, Enter | bubble with tail |
-| Step number | click | numbered badge; numbers renumber on delete/reorder |
-| Blur, Pixelate | drag | redaction layer applied to the pixels beneath (dashed preview while dragging) |
-| Crop | drag, then Enter / Apply crop (Esc or Cancel abandons) | the base is cropped and every layer moves with it; a veil shows the pending crop |
-| Select / Move | click selects the topmost layer under the pointer; drag moves; handles resize (8 for shapes and pasted images, 2 for arrows/lines/callouts; Ctrl keeps shapes square); Delete removes; Ctrl+D duplicates 12 px offset | undoable edits |
-| Select all (Ctrl+A) | — | marks every layer (dashed outline around the image and each layer, Select tool active); Ctrl+C then copies the flattened image with every edit; Delete removes all layers as one undo step; Escape, a plain selection or a click on the empty stage ends it |
-| Eyedropper (right rail) | click the image | the composite pixel under the pointer becomes the current colour |
-| Copy (Ctrl+C) | — | the flattened composition goes to the system clipboard and to the left rail's clipboard tray; if a layer is selected it is also remembered for Ctrl+V (until the clipboard changes elsewhere) |
-| Paste (Ctrl+V) | a layer copied in the app · an image on the clipboard · text on the clipboard | layer: a copy 12 px offset (repeated pastes cascade) · image: with a document open an `image` layer centred and selected (scaled down to fit), with none a new Untitled document · text (from a document, a web page…): a `text` layer in the Text tool's style centred on the image, Select tool active; clipboard images are detected by GType (local `Gdk.Texture` subclasses) or `image/*` MIME types |
-| Click on the empty stage | a click (not a drag) outside the image, in the canvas margin or beyond it | drops the active tool back to Select, clears the selection and any pending text entry; the zoom pill overlay is not "empty stage" |
+| Arrow **A**, Line **L** | drag; **Shift** snaps to 45° | filled arrow with a head that scales with the width / round-capped line |
+| Box **B**, Circle **C** | drag; **Ctrl** constrains to a square / circle; Fill switch | outlined or filled rectangle / ellipse |
+| Fill | drag | rectangle filled with the current colour |
+| Pen **P** | drag | free stroke of the pointer path (sub-pixel jitter dropped), round caps and joins |
+| Marker **M** | drag | the same at 4× width and 40 % opacity (per-tool opacity) |
+| Eraser **E** | drag | a stroke that clears what lies beneath to transparent (`OPERATOR_DEST_OUT`; the Opacity slider is the strength); shown as a translucent band while dragging and in thumbnails; PNG keeps the transparency, JPEG lands it on white |
+| Text **T** | click, type, **Enter** (**Esc** cancels) | text layer in the strip's font; double-click a text or callout layer under Select to edit its text |
+| Callout | drag from the bubble position to the target, type, Enter | rounded bubble with a tail pointing at the target; white text |
+| Step number **N** | click | numbered badge (size from the strip); numbers follow stack order and renumber on delete and reorder |
+| Blur **U**, Pixelate **X** | drag (dashed preview) | redaction applied to the pixels beneath at render time (Gaussian blur radius / block average), so layers under it are redacted too |
+| Crop **K** | drag, then **Enter** or Apply crop (**Esc** / Cancel abandons) | the base is cropped and every layer moves with it; a dark veil shows the pending crop |
+| Hand **H** | drag | pans the view (no layer) |
+| Box area **R**, Round area **O**, Point chain **J** | see §8 | mark a region for copy, crop or clear |
+| Select **V** / Move | click selects the topmost layer under the pointer; drag moves it; handles resize (8 for boxes, circles, fills, redactions and pasted images; 2 for arrows, lines and callouts; **Ctrl** keeps shapes square); **Delete** removes; **Ctrl+D** duplicates 12 px offset | undoable edits; cursor changes per handle |
 
-Live preview at 60 % opacity (or the tool's own opacity if lower) while drawing; a dashed accent outline and white handles mark the selection; the
-cursor changes per handle. Every change is one `UndoStack` command: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) undo and
-redo (20 deep) and the Undo toast names the step; the subtitle's layer count and `unsaved` follow.
+Shadows (Arrow, Line, Box, Circle, Text, Pen, Marker) are a Gaussian-blurred black silhouette of the shape,
+cached per annotation, whose offset and blur grow with the line width (the 1.4 three-pass shadow banded).
 
-## 6b. Image operations and file flows (`app/image_ops.py`, `ui/popovers.py`, `ui/studio_window.py`)
+Undo: **Ctrl+Z**, redo **Ctrl+Shift+Z** or **Ctrl+Y**, 20 steps deep; the Undo toast names the step; the
+subtitle's layer count and `unsaved` follow every change.
+
+## 8. Selection, clipboard and the Area tool
+
+### Selecting layers
+
+| Action | Keys | Behaviour |
+| --- | --- | --- |
+| Select one | click (Select / Move) or a Layers row | dashed accent outline with white handles; the strip shows its properties |
+| Select all | **Ctrl+A** | every layer is marked: dashed outline around the image and each layer, Select tool active. Ctrl+C then copies the flattened image, Delete removes all layers in one undo step; a plain selection, Esc, a tool switch or a click on the empty stage ends it. Moving all layers together is not implemented |
+| Clear selection | **Esc** | |
+
+### Clipboard
+
+| Action | Keys | Behaviour |
+| --- | --- | --- |
+| Copy | **Ctrl+C**, EDIT → Copy | with an **area marked**: just that region (outside the shape transparent); otherwise the **flattened image** with every layer. A selected layer is also remembered so Ctrl+V pastes a copy of it (until the clipboard changes elsewhere). Every copy also lands in the clipboard tray (§3) |
+| Paste | **Ctrl+V** | in order: a layer copied in the app → a copy 12 px offset (repeated pastes cascade); an image on the clipboard → with a document open an `image` layer centred and selected (scaled down to fit), with none a new Untitled document; text on the clipboard (from a document, a web page…) → a `text` layer in the Text tool's style centred on the image, Select tool active (CRLF normalised, 2000 characters max). Clipboard images are recognised by GType (local `Gdk.Texture` subclasses) or `image/*` MIME types |
+| Tray | left rail | the last copy with preview, Copy, Paste, Delete (§3) |
+
+### The Area tool
+
+Three modes mark a region of the image. The vocabulary (area, point chain, mark) is deliberately distinct from
+other image editors' selection terms.
+
+| Mode | Key | Gesture |
+| --- | --- | --- |
+| Box area | **R** | drag; **Shift** keeps it square |
+| Round area | **O** | drag; **Shift** keeps it round |
+| Point chain | **J** | each click joins a line from the previous point; a rubber band follows the pointer; click the first point (within 9 px) or **double-click** to close; **Backspace** removes the last point; **Esc** cancels the chain |
+
+A marked area shows as a dashed accent outline with a faint fill. While it is marked:
+
+| Key | Effect |
+| --- | --- |
+| **Ctrl+C** | copies the region (bounding box; outside a round or chained shape transparent) to the clipboard and the tray |
+| **Enter** | crops the document to the area (`image_ops.crop_masked`: bounding box, pixels outside the shape cleared); layers move with the crop; one undo step |
+| **Delete** | clears the area to transparent as a `CUTOUT` layer (undoable; it clears whatever is beneath it in the stack) |
+| **Esc**, a tool switch, a click on the empty stage | drops the area |
+
+## 9. Image operations and files (`app/image_ops.py`, `ui/popovers.py`, `ui/studio_window.py`)
 
 | Function | Where | Behaviour |
 | --- | --- | --- |
+| Crop | Crop tool, Area tool | see §7 and §8 |
 | Resize | Resize button → popover | width, height, percent, keep-ratio; Apply scales the base (Lanczos) and every layer's coordinates |
-| Rotate / Flip | Rotate button → popover | 90° CW, 90° CCW, 180°, flip H, flip V; layers follow |
+| Rotate / Flip | Rotate button → popover | 90° clockwise, 90° counter-clockwise, 180°, flip horizontal, flip vertical; layers follow (text stays upright: KNOWN_ISSUES) |
 | Brightness | Brightness button → popover | brightness and contrast −100…100, grayscale, invert, **live preview** on the stage; Apply commits, Cancel or closing restores |
-| Flatten | right rail `EDIT` | confirmation, then all layers merge into the base (one undo step) |
-| Save / Save As | Ctrl+S / Ctrl+Shift+S | in place when the document has a file; otherwise a file dialog seeded with the save folder and the next name; format by extension (PNG, JPEG with the configured quality, WebP) |
-| Unsaved changes | Discard, Library Open | a Save / Discard / Cancel prompt when the document is dirty |
-| Library Delete | Library page | moves the file to the trash after confirmation, then rescans |
-| Undo | all of the above | crop, resize, rotate, flip and adjust are `TransformBase` commands that also restore layer positions |
+| Flatten | EDIT → Flatten | confirmation, then all layers merge into the base (one undo step) |
+| Save / Save As | **Ctrl+S** / **Ctrl+Shift+S** | in place when the document has a file; otherwise a file dialog seeded with the save folder and the next free name; format by extension — PNG (keeps transparency), JPEG (configured quality, transparent pixels on white), WebP; the Library rescans |
+| Discard | ACTIONS → Discard | clears the stage; with unsaved changes a Save / Discard / Cancel prompt first |
+| Unsaved changes | Discard, Library Open | the same prompt |
+| Undo | all of the above | crop, resize, rotate, flip, adjust are `TransformBase` commands that also restore layer positions; flatten is a `ReplaceBase` |
 
-## 7. Capture (`app/capture_controller.py`)
+## 10. Library (`ui/library_page.py`, `model/captures_index.py`)
 
-1. The studio hides; the compositor gets 300 ms (plus `delay_seconds` while the Delayed toggle is on — it starts off on every launch, the mode starts as Region) to repaint.
-2. The screen is frozen by the first working backend (`services/capture_service.py`): on X11 sessions x11 → portal
-   → cli, on Wayland portal → x11 → cli, or the one chosen in Settings; each is tried once and the last error is
-   reported in a toast.
-3. Full screen: done. Region/Window: the overlay opens on every monitor (`ui/capture_overlay.py`).
-4. The region is cropped, saved to the save folder as the next name, copied to the clipboard (if enabled), loaded
-   into the editor, and announced in a toast.
+A full-stage page of the save folder, newest first, toggled by the Library button or **Ctrl+L** (Esc closes).
+
+| Function | Behaviour |
+| --- | --- |
+| Head | title, `n screenshots · ~/folder` (or `k of n selected`), then Refresh · Select all · Copy · Duplicate · Delete · **Open** · Close |
+| Grid | 180×120 thumbnails with file name and date (`Oct 9, 2026 · 14:17`); up to 200 newest PNG/JPEG/BMP/GIF/WebP/TIFF files; thumbnails are loaded in a worker thread; an empty folder shows a placeholder |
+| Selection | click, **Ctrl+click**, **Shift+click**, **Ctrl+A** (`Gtk.MultiSelection`); a rescan (Refresh, Open, save) keeps the selection when the folder has not changed |
+| Open | **double-click**, **Enter** or the Open button loads the file into the editor (prompting first if the current document is unsaved) |
+| Copy (**Ctrl+C**) | one file: its pixels, the file and a `text/uri-list` go on the clipboard (and into the tray); several files: the files only, for pasting into a file manager |
+| Duplicate (**Ctrl+D**) | copies each selected file next to itself as `name copy.png`, `name copy 2.png`… and rescans |
+| Delete (**Delete**) | moves the selection to the trash after one confirmation, then rescans |
+| Scope | Copy, Duplicate and Delete touch only the library (files on disk and the clipboard), never the document on the stage |
+
+## 11. Capture (`app/capture_controller.py`, `services/capture_service.py`, `backends/`, `ui/capture_overlay.py`)
+
+1. The studio window hides; the compositor gets 300 ms to repaint without it (plus `delay_seconds` while the
+   Delayed toggle is on). A toast announces a delayed capture.
+2. The screen is frozen by the first working backend: on X11 sessions x11 → portal → cli, on Wayland portal → x11
+   → cli, or the backend chosen in Settings first; each is tried once and the last error is shown in a toast.
+3. Full screen: done. Region / Window: the overlay opens on every monitor.
+4. The region is cropped, saved to the save folder under the next name (§12), copied to the clipboard (if
+   enabled) and into the tray, loaded into the editor, and announced in a toast (`Saved … · copied to clipboard`).
+   Cancelling the overlay (Esc) writes nothing.
 
 | Backend | Mechanism | Window list |
 | --- | --- | --- |
-| `x11` | libX11 `XGetImage` through ctypes (≈50 ms for 2560×1080; python-xlib's pure-Python reply parsing took ≈3.5 s and read as a "capture delay"), one numpy copy BGRX → ARGB32; python-xlib only as a fallback | `_NET_CLIENT_LIST_STACKING` + `_NET_FRAME_EXTENTS` via python-xlib, topmost first, docks/desktop skipped |
-| `portal` | `org.freedesktop.portal.Screenshot` (async Response signal), temp file loaded and deleted | none (window mode falls back to region) |
+| `x11` | libX11 `XGetImage` through ctypes (≈50 ms for 2560×1080; python-xlib's pure-Python reply parsing took ≈3.5 s and was perceived as a "capture delay"), one numpy copy BGRX → ARGB32; python-xlib only as a fallback | `_NET_CLIENT_LIST_STACKING` + `_NET_FRAME_EXTENTS` via python-xlib: topmost first, docks and desktop skipped |
+| `portal` | `org.freedesktop.portal.Screenshot` (async Response signal), temporary file loaded and deleted | none (Window mode falls back to Region) |
 | `cli` | `gnome-screenshot -f`, `grim`, `import -window root`, `spectacle -b -n -f -o` | none |
 
 ### Overlay
 
 | Function | Keys / mouse |
 | --- | --- |
-| Select a region | drag; **Shift** constrains to a square; **Space** while dragging moves the box |
-| Adjust (handles style) | 8 handles resize, drag inside moves, arrows nudge 1 px, Shift+arrows 10 px, Ctrl+A selects all |
-| Confirm / cancel | **Enter** or double-click inside; **Esc** |
-| Simple style (Settings → Selection box) | the capture happens on mouse release; no handles, no Enter |
-| Window mode | hovering highlights the window under the pointer (title chip); click captures it with its frame |
-| Mode bar | Region · Window · Full screen toggles at the top; key hints beside them |
-| Readouts | size chip under the box (`W × H`), pointer position and colour under the pointer bottom-left |
-| Multi-monitor | one overlay window per monitor; a selection cannot span monitors; HiDPI scale factors handled per monitor |
+| Select a region | drag; **Shift** constrains to a square; **Space** while dragging moves the box instead of resizing |
+| Adjust (handles style) | 8 handles resize, drag inside moves, **arrows** nudge 1 px, **Shift+arrows** 10 px, **Ctrl+A** selects the whole screen |
+| Confirm / cancel | **Enter** or double-click inside the box; **Esc** |
+| Simple style (Settings → Selection box) | the capture happens on mouse release: no handles, no Enter |
+| Window mode | hovering highlights the window under the pointer with its title; a click captures it including its frame |
+| Mode bar | Region · Window · Full screen toggles at the top with key hints; a hint bar explains the current style |
+| Readouts | size chip under the box (`W × H`); pointer position and the colour under it bottom-left |
+| Multi-monitor | one overlay window per monitor sharing one session; a selection cannot span monitors; integer HiDPI scale factors per monitor |
 
-## 8. Settings (`model/settings.py`, dialog `ui/preferences.py`)
+## 12. Settings (`model/settings.py`, dialog `ui/preferences.py`)
 
-File `~/.config/linscreencapture/settings.conf`, groups `[Window] [Capture] [System] [Tools]`; a 1.4 file at
-`~/.config/linshot/settings.conf` is migrated once on first run (every key, `rgb()` colours, prefix/numbering
-derived from `filename_format`) and left untouched; `[Meta] migrated_from` records it.
+File `~/.config/linscreencapture/settings.conf` (GLib key file), groups `[Window] [Capture] [System] [Tools]`.
+A 1.4 file at `~/.config/linshot/settings.conf` is migrated once on first run (colours in `rgb()` form, prefix
+and numbering derived from `filename_format`, tool widths and shadows, blur block, text font) and left untouched;
+`[Meta] migrated_from` records it. Every setting is written the moment it changes; window geometry on close.
 
 | Dialog row (Capture page) | Key | Values |
 | --- | --- | --- |
-| Save folder (picker) | `screenshot_path` | any folder |
-| File name prefix | `prefix` | `LinScreenCapture_`, `Screenshot_` |
-| Numbering | `numbering` | `sequence` (`_1`, `_2`, …, first free number) · `timestamp` (`_2026-10-09_21-14-05`) |
-| Format | `format` (+ `jpeg_quality`) | png · jpeg · webp |
-| Selection box | `selection_style` | `handles` · `simple` |
+| Save folder (picker) | `screenshot_path` | any folder (default: the Pictures directory) |
+| File name prefix | `prefix` | `LinScreenCapture_` · `Screenshot_` |
+| Numbering | `numbering` | `sequence` (`_1`, `_2`, … first free number) · `timestamp` (`_2026-10-09_21-14-05`) |
+| Format | `format` (+ `jpeg_quality`, default 92) | png · jpeg · webp |
+| Selection box | `selection_style` | `handles` (adjust, then Enter) · `simple` (captures on release) |
 | Copy to clipboard | `copy_to_clipboard` | bool |
-| Delayed capture | `delay_seconds` | 0–60 |
-| Start with the left/right rail collapsed | `left_collapsed`, `right_collapsed` | bool (apply live) |
+| Delayed capture | `delay_seconds` | 0–60 (used while the Delayed toggle is on) |
+| Start with the left / right rail collapsed | `left_collapsed`, `right_collapsed` | bool (applied live) |
 
-Not yet in the dialog (keys exist): `backend`, `include_pointer`, `pin_opacity`, `reopen_last`, `[System]`
-autostart/hotkey/register_hotkey, `[Tools]` per-tool colour/width/shadow/intensity, universal, blur block/radius,
-text font/size/bold/italic. `Settings.tool_style(tool)` builds a drawing `Style`; `next_filename()` applies the
-naming rules.
+Keys without a dialog row yet (Phase 6 pages): `backend` (auto · portal · x11 · cli), `include_pointer`,
+`pin_opacity`, `reopen_last`; `[System]` `autostart`, `hotkey`, `register_hotkey`. `[Tools]` keys are written by
+the header strip and the palette: per tool `colour_*`, `width_*`, `shadow_*`, `shadow_intensity_*`, `fill_*`,
+`opacity_*` for arrow, line, box, circle, text, pen, marker, eraser, step, callout, fill; shared `universal`,
+`blur_block`, `blur_radius`, `text_font_family`, `text_font_size`, `text_bold`, `text_italic`, `step_size`.
+`Settings.tool_style(tool)` builds a drawing `Style`; `next_filename()` applies the naming rules.
 
-## 9. Model (`model/`, pure Python, headless-tested)
+## 13. Model and services (pure Python where noted; headless tests in `tests/model/`)
 
 | Module | Provides |
 | --- | --- |
-| `annotations.py` | `Style` (incl. `opacity`), `Annotation` (kinds arrow, line, box, circle, text, pen, marker, step, callout, fill, blur, pixelate, image), Cairo painters ported from 1.4, **Gaussian shadows** (a black silhouette blurred with Pillow, cached per annotation, offset and sigma grow with the line width; replaces the 1.4 three-pass shadow that banded), whole-annotation opacity via a cairo group, pixelate (numpy) and blur (Pillow) on the composite, `snap45`, `constrain_square`, bounding boxes, hit test, dict round-trip, `renumber_steps`; `BADGE[kind]` is the tool name in capitals |
-| `document.py` | `Document` (base surface, `Layer` list with ids/badges/visibility, dirty flag, `summary()`), `open()`/`save()` PNG/JPEG/WebP, `flatten()`, `flatten_into_base()`, exact PIL↔cairo conversion |
-| `undo.py` | `UndoStack` (20 deep, redo, labels, on_change) with `AddLayer`, `RemoveLayer`, `MoveLayer`, `EditAnnotation`, `SetVisible`, `ReplaceBase`, `TransformBase` |
-| `app/image_ops.py` | pure crop, scale, rotate, flip, adjust returning the new base and a coordinate mapper |
-| `captures_index.py` | threaded thumbnail scan of the save folder → `Gio.ListStore`, newest first |
-| `settings.py` | schema, validation, migration, naming |
+| `model/annotations.py` (no GTK) | `Style`, `Annotation` (kinds arrow, line, box, circle, text, pen, marker, eraser, step, callout, fill, blur, pixelate, image, cutout; `shape` for cutouts), Cairo painters, Gaussian shadows, whole-annotation opacity, eraser and cutout clearing (`DEST_OUT`), `area_path()`, pixelate (numpy) and blur (Pillow) on the composite, `snap45`, `constrain_square`, bounding boxes, hit tests, dict round-trip, `renumber_steps`; `NAMES` / `BADGE` |
+| `model/document.py` | `Document` (base surface, ordered `Layer`s with ids and badges, dirty flag, `summary()`), `open()` / `save()` (PNG, JPEG on white, WebP), `flatten()`, exact PIL ↔ cairo conversion with alpha |
+| `model/undo.py` | `UndoStack` (20 deep, redo, labels, change callback) with `AddLayer`, `RemoveLayer`, `RemoveLayers`, `MoveLayer`, `EditAnnotation`, `SetVisible`, `ReplaceBase`, `TransformBase` |
+| `model/settings.py` | schema, migration, `tool_style()`, `next_filename()` |
+| `model/captures_index.py` | threaded thumbnail scan of the save folder → `Gio.ListStore` newest first; unchanged folders keep the store |
+| `app/image_ops.py` | crop, `crop_masked`, scale, rotate, flip, adjust — each returns the new base and a coordinate mapper |
+| `app/tools.py` | drag / stroke / click / area tool tables, handles and handle drags, selection rectangles, duplicate |
+| `app/shortcuts.py` | the capture-phase `ShortcutRouter` (§14) |
+| `app/view_state.py` | observable zoom, rail state, tool, colour, title, library flag |
+| `services/capture_service.py` | backend order by session and preference, one fall-through per backend, worker thread → main loop |
+| `services/selection.py` | overlay selection geometry (handles, hit, resize, move, clamp, square) |
+| `services/file_store.py` | `save_capture()`, `duplicate_file()` |
+| `services/clipboard.py` | `texture_from_surface()`, `copy_surface()` (`Gdk.MemoryTexture` + `ContentProvider`) |
+| `services/clip_history.py` | `ClipHistory`: the last copies (limit 1 today), digest dedupe, ≤ 320×200 preview textures, clipboard ownership tracking |
+| `services/icon_loader.py` | GResource registration, icon theme path, `icon(name, size)` |
 
-## 10. Keyboard shortcuts
+## 14. Keyboard and mouse reference
 
 Two tiers, so a shortcut can never steal a keystroke from a text field. **Global chords** are GTK application
-accelerators (which GTK dispatches in the capture phase, before the focused widget). **Editing and tool keys**
-go through `app/shortcuts.py`, a capture-phase router on the window that yields whenever the inline text editor,
-a text entry or anything inside a popover has focus, swallows tool letters during a drag, and retargets Delete
-and Escape to the Library page while it is open. With focus in a header **spin button** (after adjusting Width,
-say) the editing chords, tool letters and Escape still work and move the focus back to the canvas; digits, Enter,
-Delete and arrows keep editing the number. So Ctrl+Z works whatever tool is active and wherever the last click went.
-
+accelerators. **Editing and tool keys** go through `app/shortcuts.py`, a capture-phase router on the window
+that yields whenever the inline text editor, a text entry or anything inside a popover has focus, swallows tool
+letters during a drag, handles chords and tool letters even with focus in a header spin button (then returns
+focus to the canvas; digits, Enter, Delete and arrows still edit the number), and retargets keys to the Library
+while it is open.
 
 | Keys | Action |
 | --- | --- |
-| PrintScreen (system binding, Phase 6) · Ctrl+N | capture in the current mode |
-| Ctrl+Shift+N | full-screen capture |
-| V A L B C T P M E H · R O J · U X N K | tools (Select, Arrow, Line, Box, Circle, Text, Pen, Marker, Eraser, Hand · Box area, Round area, Point chain · Blur, Pixelate, Step, Crop) — routed, never while typing or dragging; each tool button's tooltip shows its letter |
-| Area marked: Ctrl+C · Enter · Delete · Esc · Backspace | copy the region · crop to it · clear it · drop it · (chain in progress) remove the last point |
-| Space (held) · middle button | pan the view with a drag (Space is always swallowed, so it never activates a focused rail button) |
-| Ctrl+A | editor: select all layers · Library: select all files |
-| Ctrl+C | copy the composition to the clipboard (and remember the selected layer for Ctrl+V) |
-| Ctrl+V | paste: a copied layer, a clipboard image (image layer / new document) or clipboard text (text layer) |
-| Ctrl+Z · Ctrl+Shift+Z / Ctrl+Y · Delete · Ctrl+D · Esc | undo · redo · delete layer(s) (Library: trash the selection) · duplicate layer (Library: duplicate files) · clear selection / close Library — routed, so inside a text field they edit the text |
-| Library: Ctrl+C · Ctrl+D · Delete · Enter · Esc | copy the selection · duplicate · trash · open · close |
-| Ctrl+S · Ctrl+Shift+S | save · save as |
-| Enter (Crop tool) | apply the pending crop |
-| Ctrl+scroll · Ctrl+0 · Ctrl+1 | zoom · fit · 1:1 |
-| Ctrl+[ · Ctrl+] | collapse/expand left · right rail |
-| Ctrl+L | Library page |
-| Ctrl+, | Settings |
-| Ctrl+Q | quit |
+| **Ctrl+N** · **Ctrl+Shift+N** | capture in the current mode · full-screen capture (PrintScreen registration is Phase 6; bind it to `linscreencapture --capture` in the desktop meanwhile) |
+| **V A L B C T P M E H** | Select, Arrow, Line, Box, Circle, Text, Pen, Marker, Eraser, Hand |
+| **R O J** | Box area, Round area, Point chain |
+| **U X N K** | Blur, Pixelate, Step number, Crop |
+| **Ctrl+Z** · **Ctrl+Shift+Z** / **Ctrl+Y** | undo · redo |
+| **Ctrl+A** | select all layers (Library: select all files) |
+| **Ctrl+C** | copy the marked area, else the flattened image (Library: copy the selected files) |
+| **Ctrl+V** | paste a copied layer, a clipboard image or clipboard text |
+| **Ctrl+D** | duplicate the selected layer (Library: duplicate the selected files) |
+| **Delete** | clear the marked area · delete all selected layers · delete the selected layer (Library: trash the selection) |
+| **Enter** | crop to the marked area · apply the pending crop (Library: open) |
+| **Esc** | drop the area or chain · cancel the crop · stop the eyedropper · clear the selection (Library: close) |
+| **Backspace** | remove the last point of a chain in progress |
+| **Space** (held) | pan with a drag; always swallowed, so it never activates a focused button |
+| **Shift** / **Ctrl** while dragging | 45° snap for arrows and lines · square / round shapes and areas (Shift) · square shapes and handle drags (Ctrl) |
+| **Ctrl+S** · **Ctrl+Shift+S** | save · save as |
+| **Ctrl+scroll** · **Ctrl+0** · **Ctrl+1** · **Ctrl++** · **Ctrl+−** | zoom · fit · 1:1 · in · out |
+| **Ctrl+[** · **Ctrl+]** | collapse / expand the left · right rail |
+| **Ctrl+L** · **Ctrl+,** · **Ctrl+Q** | Library · Settings · quit |
+| Mouse | left: draw / select / mark; middle drag: pan; Ctrl+scroll: zoom; double-click: edit text, close a chain, open a Library file; click on the empty stage: back to Select |
 
-## 11. Developer tools
+Overlay keys are listed in §11.
+
+## 15. Developer tools
 
 | Command | Purpose |
 | --- | --- |
-| `make resources` | compile `data/` + `style.css` into the GResource bundle |
-| `make icons` | re-sync the 53 Phosphor glyphs from `ICON_SRC` and regenerate the manifest |
-| `make test` | pytest (Xvfb if installed, else the live display) |
-| `make snapshot` | render default, open, collapsed, library, text-tool, document, zoomed and settings views to `screenshots/dev/` |
-| `make snapshot` also writes | `shell_annotated.png` (seven kinds, a selected box), `shell_crop.png` (pending crop), `shell_adjust.png` (Brightness popover with live preview), `shell_select_all_tray.png` (Ctrl+A outline, three copies in the tray), `shell_eraser.png` (checkerboard through an eraser stroke), `shell_library_multiselect.png` (8 of 8 selected), `shell_area_chain.png` (a closed point chain) |
+| `make resources` | compile `data/` and `style.css` into the GResource bundle (`linscreencapture/linscreencapture.gresource`) |
+| `make icons` | re-sync the 64 Phosphor glyphs listed in `data/icons/icons.txt` from `ICON_SRC` and regenerate the manifest |
+| `make run` | resources + `python3 -m linscreencapture` |
+| `make test` | pytest, 105 tests (Xvfb if installed, else the live display: a window flashes) |
+| `make snapshot` | render to `screenshots/dev/`: `shell_default`, `shell_open`, `shell_collapsed`, `shell_library`, `shell_text_tool`, `shell_document`, `shell_annotated`, `shell_crop`, `shell_adjust`, `shell_document_zoomed`, `shell_select_all_tray`, `shell_eraser`, `shell_area_chain`, `shell_library_multiselect`, `shell_settings` (popover contents cannot be rendered and are skipped) |
 | `tools/snapshot_overlay.py` | render the live capture overlay (output git-ignored: it contains the real screen) |
-| `make launcher` / `make unlauncher` | install/remove the **LinScreenCapture3** menu entry |
+| `make launcher` / `make unlauncher` | install / remove the **LinScreenCapture3** menu entry pointing at this checkout |
 | `bash ~/projects/Zai-ZCode/s009_backup_project.sh …` | family backup into `~/backups/linscreencapture3/` |
 
-## 12. Review round 2 (2026-10-13) — layout and implementation notes for agents
+Process rules (AGENTS.md): feature work on `feat/…` and `docs/…` branches; never commit real screen captures;
+keep this file, `HANDOFF.md` and `changelog.md` current; never `pkill -f` a pattern that appears in the agent's
+own shell.
 
-One entry per feature of the round: where it lives, how it is wired, what to keep in mind.
+## 16. Layout and implementation notes for agents
+
+One entry per feature of the two review rounds after Phase 5: where it lives, how it is wired, what to keep in mind.
 
 | Feature | Layout | Implementation |
 | --- | --- | --- |
-| Capture delay | Delayed is the timer toggle in the CAPTURE group; it is off at every launch and the mode is Region (`win.capture-delayed` boolean, `win.capture-mode` "region"). | `capture_controller.capture()` reads the toggle; the real "3 s delay" users saw was python-xlib parsing the `GetImage` reply. `backends/x11.py::grab_root_libx11` now calls libX11 `XGetImage` through ctypes (≈50 ms); python-xlib remains for the window list and as a fallback. A toast warns when the toggle is on with `delay_seconds` = 0. |
-| Library controls | Head row, right-aligned: Refresh · Select all · Copy · Duplicate · Delete · Open · Close. Summary line reads "n of m selected" with a group selection. | `ui/library_page.py` uses `Gtk.MultiSelection`; `selected_entries` reads the bitset. Window actions `library-select-all/copy/duplicate/delete/open`; the router maps Ctrl+A/C/D, Delete, Enter, Esc to them while `state.library` is true. `services/file_store.duplicate_file` names copies. Copy of one file = texture + `Gdk.FileList` + `text/uri-list` union; several = files only. `CapturesIndex._apply` keeps the store when the folder is unchanged so a rescan never wipes the selection. Double-click = GridView `activate(position)` → `activated_entry` → open. |
-| Ctrl+A / Ctrl+C in the editor | Dashed accent outline around the image and each visible layer; header strip shows the Select hint. | `EditorController.select_all()` sets `all_selected` (cleared by `select()`, `_commit()`, tool change); `_copy()` copies `document.flatten()` and toasts the layer count; `delete_selected()` commits `undo.RemoveLayers` (one step). Moving all layers together is not implemented. |
-| Clipboard tray | Left rail, CLIPBOARD group between the tool grid and Library; 116 px like the navigator; **one slot** for now (accent border = currently on the clipboard; hover = caption tooltip); collapsed rail: a `clipboard` MenuButton with the tray in a popover. Slot click → popover: ≤ 320×200 sample, caption, Copy · Paste · Delete centred. Roadmap: several slots (`SLOTS`, `ClipHistory.limit`). | `services/clip_history.py::ClipHistory` (signal `changed`, limit 1 — the class supports any limit, blake2b digest dedupe, `preview` texture ≤ 320×200, `remove()` clears the system clipboard when the entry owns it, external clipboard changes drop the "current" mark). `ui/clip_tray.py`: `ClipTray` (slots are `Gtk.MenuButton`s — a popover popped up from a plain button's `clicked` handler was closed by the same release), `ClipPreview` (actions `clip.copy/paste/delete` in a local `Gio.SimpleActionGroup`), `ClipTrayButton`. Pushed from `StudioWindow._copy`, `_library_copy` and `CaptureController._finish` (when copy-to-clipboard is on). Copies made by other apps are not tracked. |
-| Transparent PNGs | Checkerboard under the image on the stage; PNG save keeps alpha; JPEG composites on white. | `Stage._checkerboard()` (16 px repeat pattern, two greys near the stage colour) painted inside the image clip before the composite; `Document.save` pastes RGBA onto white for JPEG; open/paste already preserved alpha (`surface_from_pil`). |
-| Eraser tool | TOOLS row 2 after Marker (icon `eraser`, key E); strip set "eraser": Width (2–80, default 24) · Opacity · hint. Layer badge `ERASER`. | Annotation kind `eraser` (stroke kind; `draw()` → `_erase`: `OPERATOR_DEST_OUT` with the tool opacity as strength); previews and thumbnails use `_paint_eraser_ghost` (a translucent white band) because clearing the overlay would also clear the checkerboard. `settings.TOOLS` includes `eraser` (`width_eraser`, `opacity_eraser`). |
-| Shortcut captions | Every rail/pill/head button tooltip is two lines: caption, then the key in small muted type. | `widgets.tooltip_with_key()` + `rail_button(key=…)`; `tool_rail.Item.key` (tools take theirs from `shortcuts.KEY_FOR_TOOL`); `get_tooltip_text()` returns `"Caption\nKey"`. |
-| Panning with the mouse | Hand tool (icon `hand`, key H, strip hint); Space held with any tool; middle-button drag anywhere on the stage. Cursors `grab` / `grabbing`. | Editor mode `pan`: deltas measured in stage-scroller coordinates (`_to_scroller`) so scrolling the canvas does not feed back into the drag; `Stage.scroll_by(dx, dy, origin)` clamps adjustments; middle button is a `Gtk.GestureDrag(button=2)` on the scroller. Space: `ShortcutRouter` sets `editor.set_space_pan(True/False)` on press/release (and on window deactivate). |
-| Area tool (Box area · Round area · Point chain) | TOOLS row 2, first three buttons (icons `bounding-box`, `circle-dashed`, `polygon`; Blur moved to `drop-half`); keys R · O · J; strip set "area" shows a per-mode hint. Marked area = dashed accent outline + 12 % fill; chain in progress = accent lines, rubber band to the pointer, white dot on the first point. The vocabulary is deliberately its own (area, point chain, mark) — no marquee / lasso / select / path / pen terms. | `EditorController.area` is an `Annotation("cutout", shape=box\|round\|points)`; drag modes `area`; clicks → `_chain_click` (closes within `CHAIN_CLOSE_PX` of the first point or on double-click); `area_path()` in `model/annotations.py` traces the region for drawing, `_cutout` (DEST_OUT fill, the Delete layer), `area_surface()` (Ctrl+C: DEST_IN copy) and `image_ops.crop_masked` (Enter: crop to the bbox + DEST_IN). Router: Esc → `cancel_area`, Backspace → `chain_pop`, Enter → `apply_crop` (area first), Delete → `delete_selected` (area first). Tool switch cancels. Style/colour irrelevant; `settings.TOOLS` unchanged. |
-| Space toggling the right rail | Not intended. A rail button held keyboard focus (initial focus landed on the first focusable widget) and Space activated it. | The window focuses the canvas on map; the router swallows Space (editor and Library) so a focused button never sees it. Guarded by `test_hand_space_and_middle_button_pan_the_view`. |
+| Soft shadows | annotation shadows and the stage drop shadow | `_shadow_surface()` in `model/annotations.py`: a black silhouette blurred with Pillow, cached on the annotation by geometry and style, offset and sigma from the width; `Stage._draw_drop_shadow`: four linear + four radial gradients (stacked rectangles banded on dark captures) |
+| Per-tool opacity | Opacity slider in every drawing tool's strip set | `ToolStyle.opacity` (`opacity_<tool>`), `ToolProps._opacity()` one scale per set kept in step by `_load`; `draw()` composites shadow + shape in a cairo group and `paint_with_alpha` |
+| Capture delay | Delayed is the timer toggle in CAPTURE; off at every launch, mode Region | `capture_controller.capture()` reads `win.capture-delayed`; the perceived delay was python-xlib's `GetImage` parsing — `backends/x11.py::grab_root_libx11` calls libX11 through ctypes (declare `XImage.data` as `c_void_p`, free via the struct's `destroy_image`) |
+| Copy / paste | Ctrl+C / Ctrl+V | `StudioWindow._copy` (area → region, select-all → flattened, layer remembered in `_layer_clip` until the clipboard "changed" from elsewhere), `_paste` → `paste_layer` / `paste_texture` / `paste_text`; `_holds_image` walks `get_gtypes()` with `GType.is_a` because `contain_gtype(Gdk.Texture)` is false for local `GdkMemoryTexture` |
+| Click on the empty stage | canvas margin or scroller background | `Stage._stage_click` + `EditorController.clicked_outside`; a drag's release is ignored through `_suppress_click`, cleared on idle |
+| Ctrl+Z with a tool active | — | focus stuck in a header spin's `Gtk.Text`, which binds Ctrl+Z; `ShortcutRouter` runs in the CAPTURE phase, `focus_kind()` returns text / spin / other; strip controls `focus_on_click=False`, `release_focus()` on tool switch and Enter |
+| Layer rows | numbered, tool-name badge | `PanelRail.set_document` numbers by stack position; `BADGE = NAMES upper` |
+| Library controls | head row Refresh · Select all · Copy · Duplicate · Delete · Open · Close; summary `k of n selected` | `Gtk.MultiSelection`, `selected_entries` from the bitset; window actions `library-select-all/copy/duplicate/delete/open`; router maps Ctrl+A/C/D, Delete, Enter, Esc while `state.library`; `file_store.duplicate_file`; Copy of one file = texture + `Gdk.FileList` + `text/uri-list` union, several = files only; `CapturesIndex._apply` keeps the store when (path, mtime) are unchanged; double-click = GridView `activate(position)` → `activated_entry` |
+| Select all | dashed outline around the image and each layer | `EditorController.select_all()` / `all_selected` (cleared by `select()`, `_commit()`, tool change); `delete_selected()` commits `undo.RemoveLayers` |
+| Clipboard tray | CLIPBOARD group above Library; one 116 px slot; collapsed rail: a clipboard MenuButton with the tray in a popover | `ClipHistory` (signal `changed`, `limit`, blake2b dedupe, `preview` texture ≤ 320×200, `remove()` clears the clipboard when the entry owns it); `ClipTray` slots are `Gtk.MenuButton`s (a popover popped up from a plain button's `clicked` handler was closed by the same release); `ClipPreview` actions `clip.copy/paste/delete`; pushed from `_copy`, `_library_copy`, `CaptureController._finish` |
+| Transparent PNGs | checkerboard under the image | `Stage._checkerboard()` painted inside the image clip; `Document.save` pastes RGBA onto white for JPEG |
+| Eraser | TOOLS row 1 after Marker, key E, own strip set | kind `eraser` (stroke): `_erase` = `OPERATOR_DEST_OUT` with the opacity as strength; `_paint_eraser_ghost` for previews and thumbnails; `settings.TOOLS` has `eraser` (default width 24) |
+| Area tool | TOOLS row 2 first three buttons (`bounding-box`, `circle-dashed`, `polygon`; Blur moved to `drop-half`); keys R O J; strip hint per mode | `EditorController.area` is an `Annotation("cutout", shape=box\|round\|points)`; drag mode `area`; `_chain_click` closes within `CHAIN_CLOSE_PX` of the first point or on double-click; `area_path()` traces the region for drawing, `_cutout` (Delete layer), `area_surface()` (Ctrl+C, `DEST_IN`) and `image_ops.crop_masked` (Enter); router: Esc → `cancel_area`, Backspace → `chain_pop`, Enter → `apply_crop` (area first), Delete → `delete_selected` (area first); a tool switch cancels |
+| Shortcut captions | two-line tooltips everywhere | `widgets.tooltip_with_key()`, `rail_button(key=…)`, `tool_rail.Item.key` from `shortcuts.KEY_FOR_TOOL`; `get_tooltip_text()` returns `"Caption\nKey"` |
+| Panning | Hand tool, Space, middle button; cursors grab / grabbing | editor mode `pan` with deltas in stage-scroller coordinates (`_to_scroller`) so scrolling never feeds back into the drag; `Stage.scroll_by(dx, dy, origin)`; middle button = `Gtk.GestureDrag(button=2)` on the scroller; Space = `set_space_pan()` from the router's press / release and on window deactivate |
+| Space toggled the right rail | not intended | initial focus sat on a rail button; the window focuses the canvas on map and the router swallows Space everywhere |
+| Snapshot tool | `make snapshot` | `Application(non_unique=True)`; `render_widget()` skips widgets without a render node (popovers) |
