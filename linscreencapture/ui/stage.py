@@ -36,6 +36,12 @@ class Stage(Gtk.Overlay):
         scroll.connect("scroll", self._scroll)
         self.scroller.add_controller(scroll)
         self.on_click_outside = None          # set by the editor: a click on the empty stage drops the tool
+        # middle-button drag pans the view wherever the pointer is (the scroller never moves, so plain deltas work)
+        pan = Gtk.GestureDrag()
+        pan.set_button(2)
+        pan.connect("drag-begin", self._pan_begin)
+        pan.connect("drag-update", self._pan_update)
+        self.scroller.add_controller(pan)
         outside = Gtk.GestureClick()
         outside.set_button(1)
         outside.connect("released", self._stage_click)
@@ -166,6 +172,8 @@ class Stage(Gtk.Overlay):
         cr.save()
         cr.rectangle(x, y, iw, ih)
         cr.clip()
+        cr.set_source(self._checkerboard())        # shows through transparent pixels (clear PNGs, eraser)
+        cr.paint()
         cr.translate(x, y)
         cr.scale(z, z)
         cr.set_source_surface(self._composite, 0, 0)
@@ -174,6 +182,40 @@ class Stage(Gtk.Overlay):
         cr.restore()
         if self.extra_draw is not None:
             self.extra_draw(cr, x, y, z)
+
+    _checker = None
+
+    @classmethod
+    def _checkerboard(cls):
+        """A muted 8 px checkerboard pattern (two greys close to the stage colour)."""
+        if cls._checker is None:
+            tile = cairo.ImageSurface(cairo.FORMAT_RGB24, 16, 16)
+            c = cairo.Context(tile)
+            c.set_source_rgb(0x2c / 255, 0x30 / 255, 0x36 / 255); c.paint()
+            c.set_source_rgb(0x3a / 255, 0x3f / 255, 0x47 / 255)
+            c.rectangle(0, 0, 8, 8); c.rectangle(8, 8, 8, 8); c.fill()
+            pat = cairo.SurfacePattern(tile)
+            pat.set_extend(cairo.EXTEND_REPEAT)
+            cls._checker = pat
+        return cls._checker
+
+    # -- panning --------------------------------------------------------------
+    def scroll_by(self, dx: float, dy: float, origin: tuple[float, float] | None = None) -> None:
+        """Move the viewport by (dx, dy) px from ``origin`` (the adjustment values when a pan began)."""
+        for adj, o, d in ((self.scroller.get_hadjustment(), origin[0] if origin else None, dx),
+                          (self.scroller.get_vadjustment(), origin[1] if origin else None, dy)):
+            base = adj.get_value() if o is None else o
+            adj.set_value(max(adj.get_lower(), min(base + d, adj.get_upper() - adj.get_page_size())))
+
+    def pan_origin(self) -> tuple[float, float]:
+        return self.scroller.get_hadjustment().get_value(), self.scroller.get_vadjustment().get_value()
+
+    def _pan_begin(self, _g, _x, _y) -> None:
+        self._pan_from = self.pan_origin()
+        self.canvas.set_cursor(Gdk.Cursor.new_from_name("grabbing"))
+
+    def _pan_update(self, _g, dx: float, dy: float) -> None:
+        self.scroll_by(-dx, -dy, getattr(self, "_pan_from", None))
 
     SHADOW_REACH = 18      # px the stage shadow extends beyond the image edge
     SHADOW_ALPHA = 0.55    # darkest value, right at the edge

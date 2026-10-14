@@ -590,3 +590,20 @@ not a mode; Ctrl+V pastes clipboard text as a text layer and Ctrl+C/Ctrl+V copy 
 click on the empty stage returns to Select; layer rows are numbered by stack position and labelled with the tool
 name (`BLUR`, `PIXELATE`…) instead of the category badges of section 6; the shortcut router runs in the capture
 phase so editing keys work with focus in a header spin button.
+
+Review round 2 after Phase 5 (2026-10-13): the X11 grab uses libX11 `XGetImage` through ctypes (python-xlib's
+3.5 s reply parsing was the "capture delay"); Delayed stays a toggle that starts off, with Region as the start-up
+mode. The Library page gains group selection (`Gtk.MultiSelection`) and a Select all · Copy · Duplicate · Delete head
+row, all acting on files only; double-click opens. Ctrl+A selects every layer (Ctrl+C then copies the flattened
+image, Delete removes them in one step). A CLIPBOARD group — a navigator-sized tray of the last three copies with a
+preview popover (Copy · Paste · Delete) — sits above Library in the left rail (a clipboard button in the collapsed
+rail). The stage paints a checkerboard under the image so transparent pixels show; an Eraser tool (E, DEST_OUT stroke)
+clears to transparent; PNG keeps alpha, JPEG lands on white. Tooltips carry the shortcut under the caption. A Hand
+tool (H), Space held, or a middle-button drag pans the view; Space is swallowed by the router (it used to activate the
+focused rail caret). Per-feature layout and implementation notes: `docs/FEATURES.md` §12.
+
+Follow-up the same day: the clipboard tray holds one slot for now (several slots are a roadmap item; the
+history and tray are parametrised). An **Area** tool joins the second tool row with three modes — Box area (R),
+Round area (O) and Point chain (J: click points, close on the first point or by double-click) — marking a region
+that Ctrl+C copies, Enter crops to (outside the shape cleared) and Delete clears to transparent as a `CUTOUT` layer.
+The naming (area, point chain, mark) is deliberately distinct from other image editors' selection vocabulary.

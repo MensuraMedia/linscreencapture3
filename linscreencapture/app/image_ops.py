@@ -76,3 +76,25 @@ def adjust(base: cairo.ImageSurface, brightness: float = 0.0, contrast: float = 
 
 def identity(px: float, py: float) -> Point:
     return px, py
+
+
+def crop_masked(base: cairo.ImageSurface, area) -> tuple[cairo.ImageSurface, Mapper]:
+    """Crop to the area's bounding box and clear everything outside the area (round / point chain)."""
+    from ..model.annotations import area_path
+    if area.shape == "points" and area.points:
+        xs = [p[0] for p in area.points]; ys = [p[1] for p in area.points]
+        x, y, w, h = min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
+    else:
+        x, y, w, h = area.rect
+    x0, y0 = max(0, int(math.floor(x))), max(0, int(math.floor(y)))
+    x1, y1 = min(base.get_width(), int(math.ceil(x + w))), min(base.get_height(), int(math.ceil(y + h)))
+    out, mapper = crop(base, x0, y0, max(1, x1 - x0), max(1, y1 - y0))
+    if area.shape != "box":
+        cr = cairo.Context(out)
+        cr.translate(-x0, -y0)
+        cr.set_operator(cairo.OPERATOR_DEST_IN)      # keep only what lies inside the area
+        cr.set_source_rgba(0, 0, 0, 1)
+        if area_path(cr, area):
+            cr.fill()
+        out.flush()
+    return out, mapper

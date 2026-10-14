@@ -33,7 +33,7 @@ def painted_bbox(before: cairo.ImageSurface, after: cairo.ImageSurface):
 def sample(kind: str) -> Annotation:
     st = Style(colour="#e5484d", width=4, shadow=(kind in ("arrow", "box")), shadow_intensity=0.6,
                opacity=0.4 if kind == "marker" else 1.0)   # the marker tool's Settings default
-    if kind in ("pen", "marker"):
+    if kind in ("pen", "marker", "eraser"):
         return Annotation(kind, style=st, points=[(30, 40), (60, 70), (90, 50), (120, 90)])
     if kind == "text":
         return Annotation(kind, 30, 30, style=st, text="Login form")

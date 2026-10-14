@@ -11,6 +11,8 @@ from ..model.settings import Settings
 from ..model.captures_index import CapturesIndex
 from ..model.document import Document
 from ..services import clipboard
+from ..services.clip_history import ClipHistory
+from ..services.file_store import duplicate_file
 from ..model.undo import UndoStack, ReplaceBase, TransformBase, AddLayer
 from ..app import image_ops
 from .popovers import ResizePopover, RotatePopover, AdjustPopover
@@ -49,7 +51,8 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.breakpoint_bin = Adw.BreakpointBin()
         self.breakpoint_bin.set_size_request(MIN_WIDTH, MIN_HEIGHT)
         body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self.tool_rail = ToolRail(self.state)
+        self.clips = ClipHistory()                    # the last three copies, shown in the left rail's tray
+        self.tool_rail = ToolRail(self.state, self.clips, self._paste_clip)
         self.stage = Stage(self.state, self.captures)
         self.panel_rail = PanelRail(self.state)
         body.append(self.tool_rail)
@@ -76,6 +79,8 @@ class StudioWindow(Gtk.ApplicationWindow):
 
         self._install_actions()
         self.connect("close-request", self._on_close)
+        # keyboard focus starts on the canvas, never on a rail button (Space/Enter would activate it)
+        self.connect("map", lambda *_: GLib.idle_add(lambda: (self.stage.canvas.grab_focus(), False)[1]))
         self.captures.scan()
         self.state.colour = self.settings.tools["arrow"].colour
         self.state.connect("notify::colour", self._persist_colour)
@@ -109,6 +114,10 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._simple("save-as", self._save_as)
         self._simple("paste", self._paste)
         self._simple("library-delete", self._library_delete)
+        self._simple("library-copy", self._library_copy)
+        self._simple("library-duplicate", self._library_duplicate)
+        self._simple("library-select-all", self._library_select_all)
+        self._simple("select-all", self._select_all)
         self._simple("resize", lambda: self._popover("resize"))
         self._simple("rotate", lambda: self._popover("rotate"))
         self._simple("adjust", lambda: self._popover("adjust"))
@@ -130,7 +139,10 @@ class StudioWindow(Gtk.ApplicationWindow):
     def _delayed_change(self, action, value) -> None:
         action.set_state(value)
         if value.get_boolean():
-            self.toast(f"Delayed capture on · waits {self.settings.delay_seconds} s · click the timer again to turn it off")
+            if self.settings.delay_seconds <= 0:
+                self.toast("Delayed capture on, but the delay is 0 s · set the seconds in Settings → Capture", timeout=5)
+            else:
+                self.toast(f"Delayed capture on · waits {self.settings.delay_seconds} s · click the timer again to turn it off")
         else:
             self.toast("Delayed capture off", timeout=2)
 
@@ -236,11 +248,63 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.state.colour = "#%02x%02x%02x" % (round(rgba.red * 255), round(rgba.green * 255), round(rgba.blue * 255))
 
     def _library_open(self) -> None:
-        entry = self.stage.library.selected
+        lib = self.stage.library
+        entry, lib.activated_entry = lib.activated_entry or lib.selected, None
         if entry is None:
             self.toast("Select a screenshot first")
             return
         self.confirm_discard(lambda: self._open_path(entry.path, entry.name))
+
+    def _library_select_all(self) -> None:
+        n = self.stage.library.select_all()
+        self.toast(f"{n} selected · Ctrl+C copies, Ctrl+D duplicates, Delete trashes", timeout=3)
+
+    def _library_copy(self) -> None:
+        """One image: pixels + file on the clipboard (and in the tray). Several: the files (for file managers)."""
+        entries = self.stage.library.selected_entries
+        if not entries:
+            self.toast("Select a screenshot first")
+            return
+        display = Gdk.Display.get_default()
+        if display is None:
+            self.toast("Clipboard not available", timeout=5)
+            return
+        files = Gdk.FileList.new_from_list([Gio.File.new_for_path(e.path) for e in entries])
+        uris = "".join(f"file://{GLib.uri_escape_string(e.path, '/', True)}\r\n" for e in entries)
+        providers = [Gdk.ContentProvider.new_for_value(files),
+                    Gdk.ContentProvider.new_for_bytes("text/uri-list", GLib.Bytes.new(uris.encode()))]
+        if len(entries) == 1:
+            try:
+                from ..model.document import load_image
+                surface = load_image(entries[0].path)
+            except Exception as exc:  # noqa: BLE001
+                self.toast(f"Could not read {entries[0].name}: {exc}", timeout=5)
+                return
+            providers.insert(0, Gdk.ContentProvider.new_for_value(clipboard.texture_from_surface(surface)))
+            display.get_clipboard().set_content(Gdk.ContentProvider.new_union(providers))
+            self.clips.push(surface, entries[0].name)
+            self.toast(f"Copied {entries[0].name} to the clipboard")
+        else:
+            display.get_clipboard().set_content(Gdk.ContentProvider.new_union(providers))
+            self.toast(f"Copied {len(entries)} files to the clipboard (paste them in a file manager)")
+
+    def _library_duplicate(self) -> None:
+        entries = self.stage.library.selected_entries
+        if not entries:
+            self.toast("Select a screenshot first")
+            return
+        made = []
+        for e in entries:
+            try:
+                made.append(os.path.basename(duplicate_file(e.path)))
+            except OSError as exc:
+                self.toast(f"Could not duplicate {e.name}: {exc}", timeout=5)
+                break
+        self.captures.scan()
+        if len(made) == 1:
+            self.toast(f"Duplicated as {made[0]}")
+        elif made:
+            self.toast(f"Duplicated {len(made)} files")
 
     def _open_path(self, path: str, name: str) -> None:
         try:
@@ -251,11 +315,13 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.load_document(doc)
 
     def _library_delete(self) -> None:
-        entry = self.stage.library.selected
-        if entry is None:
+        entries = self.stage.library.selected_entries
+        if not entries:
             self.toast("Select a screenshot first")
             return
-        dlg = Adw.AlertDialog(heading=f"Move {entry.name} to the trash?", body="You can restore it from the trash.")
+        entry = entries[0]
+        heading = f"Move {entry.name} to the trash?" if len(entries) == 1 else f"Move {len(entries)} screenshots to the trash?"
+        dlg = Adw.AlertDialog(heading=heading, body="You can restore them from the trash.")
         dlg.add_response("cancel", "Cancel")
         dlg.add_response("trash", "Move to trash")
         dlg.set_response_appearance("trash", Adw.ResponseAppearance.DESTRUCTIVE)
@@ -263,11 +329,15 @@ class StudioWindow(Gtk.ApplicationWindow):
 
         def done(d, response):
             if response == "trash":
-                try:
-                    Gio.File.new_for_path(entry.path).trash(None)
-                    self.toast(f"Moved {entry.name} to the trash")
-                except GLib.Error as exc:
-                    self.toast(f"Could not trash {entry.name}: {exc.message}", timeout=5)
+                n = 0
+                for e in entries:
+                    try:
+                        Gio.File.new_for_path(e.path).trash(None)
+                        n += 1
+                    except GLib.Error as exc:
+                        self.toast(f"Could not trash {e.name}: {exc.message}", timeout=5)
+                if n:
+                    self.toast(f"Moved {entry.name} to the trash" if n == 1 else f"Moved {n} screenshots to the trash")
                 self.captures.scan()
         dlg.connect("response", done)
         dlg.present(self)
@@ -459,13 +529,15 @@ class StudioWindow(Gtk.ApplicationWindow):
             new, mapper = image_ops.flip(base, args[0]); label = "Flip"
         elif op == "adjust":
             new, mapper = image_ops.adjust(base, **args[0]), None; label = "Adjust colours"
+        elif op == "crop-area":
+            new, mapper = image_ops.crop_masked(base, args[0]); label = "Crop to area"
         else:
             return
         self.editor.select(None)
         self.undo.do(TransformBase(new, mapper, label=label))
         self.refresh_document()
         self.toast(label, timeout=2)
-        if op in ("crop", "scale", "rotate"):
+        if op in ("crop", "crop-area", "scale", "rotate"):
             GLib.idle_add(lambda: (setattr(self.state, "zoom", self.stage.fit_zoom()), False)[1])
 
     def preview_base(self, surface) -> None:
@@ -521,20 +593,53 @@ class StudioWindow(Gtk.ApplicationWindow):
         pop.popup()
 
     def _copy(self) -> None:
-        """Ctrl+C: the flattened image goes to the system clipboard; a selected layer is remembered for Ctrl+V."""
+        """Ctrl+C: the flattened image goes to the system clipboard (and the tray); a selected layer is remembered for Ctrl+V."""
         if self.document is None or self.document.empty:
             self.toast("Nothing to copy yet")
             return
+        if self.editor.area is not None:                 # Ctrl+C with a marked area: just that region
+            region = self.editor.area_surface()
+            if region is None:
+                self.toast("The marked area is empty")
+                return
+            ok = clipboard.copy_surface(region)
+            if ok:
+                self.clips.push(region, f"{self.document.name} · area")
+            self._layer_clip = None
+            self.toast(f"Copied the marked area ({region.get_width()}×{region.get_height()})" + ("" if ok else " · clipboard not available"))
+            return
         layer = self.editor.selected_layer()
-        ok = clipboard.copy_surface(self.document.flatten())
+        everything = self.editor.all_selected
+        flat = self.document.flatten()
+        ok = clipboard.copy_surface(flat)
+        if ok:
+            self.clips.push(flat, self.document.name)
         self._layer_clip = layer.annotation.copy() if layer is not None else None   # after the clipboard "changed"
-        if layer is not None:
+        n = len(self.document.layers)
+        if everything:
+            self.toast(f"Copied the flattened image with {n} layer{'s' if n != 1 else ''}" + ("" if ok else " · clipboard not available"))
+        elif layer is not None:
             number = self.document.layers.index(layer) + 1
             self.toast(f"Copied layer {number} ({layer.badge.title()}) · Ctrl+V pastes a copy" + ("" if ok else " · clipboard not available"))
         elif ok:
             self.toast(f"Copied {self.document.name} to clipboard")
         else:
             self.toast("Clipboard not available", timeout=5)
+
+    def _select_all(self) -> None:
+        if self.editor.select_all():
+            n = len(self.document.layers)
+            self.toast(f"All {n} layer{'s' if n != 1 else ''} selected · Ctrl+C copies the flattened image · Delete removes them", timeout=3)
+        elif self.document is not None and not self.document.empty:
+            self.toast("No layers to select · Ctrl+C copies the image as it is", timeout=2)
+        else:
+            self.toast("Capture or open an image first", timeout=2)
+
+    def _paste_clip(self, entry) -> None:
+        """Paste a tray entry: as a layer on the current image, or as a new image on an empty stage."""
+        if self.state.library:
+            self.state.library = False
+        self.paste_texture(entry.texture)
 
     def _discard(self) -> None:
         if self.document is None:

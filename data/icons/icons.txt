@@ -53,3 +53,12 @@ caret-left
 caret-right
 arrow-counter-clockwise
 arrows-horizontal
+eraser
+hand
+clipboard
+clipboard-text
+files
+selection-all
+bounding-box
+polygon
+drop-half

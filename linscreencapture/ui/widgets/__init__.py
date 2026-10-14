@@ -44,14 +44,21 @@ def set_colour_class(widget: Gtk.Widget, hex_colour: str) -> None:
 
 
 # ---- buttons -----------------------------------------------------------------
+def tooltip_with_key(tooltip: str, key: str | None) -> str:
+    """Tooltip markup: the caption, then the shortcut in small muted letters on its own line."""
+    if not key:
+        return GLib.markup_escape_text(tooltip)
+    return f"{GLib.markup_escape_text(tooltip)}\n<span size='small' alpha='65%'>{GLib.markup_escape_text(key)}</span>"
+
+
 def rail_button(icon: str, tooltip: str, action: str | None = None, target: str | None = None,
-                classes: Iterable[str] = (), size: int = 18, toggle: bool = False) -> Gtk.Button:
+                classes: Iterable[str] = (), size: int = 18, toggle: bool = False, key: str | None = None) -> Gtk.Button:
     btn = Gtk.ToggleButton() if toggle else Gtk.Button()
     btn.set_child(icon_loader.icon(icon, size))
     btn.add_css_class("rail-btn")
     for c in classes:
         btn.add_css_class(c)
-    btn.set_tooltip_text(tooltip)
+    btn.set_tooltip_markup(tooltip_with_key(tooltip, key))
     btn.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
     btn.set_can_focus(True)
     btn.set_focus_on_click(False)
@@ -132,11 +139,11 @@ class ZoomPill(Gtk.Box):
     def __init__(self):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
         self.add_css_class("pill")
-        self.minus = rail_button("minus", "Zoom out", "win.zoom-out")
+        self.minus = rail_button("minus", "Zoom out", "win.zoom-out", key="Ctrl+−")
         self.value = Gtk.Label(label="100%", xalign=0.5)
         self.value.add_css_class("zoom-value")
-        self.plus = rail_button("plus", "Zoom in", "win.zoom-in")
-        self.fit = rail_button("arrows-in", "Fit to window", "win.zoom-fit")
+        self.plus = rail_button("plus", "Zoom in", "win.zoom-in", key="Ctrl++")
+        self.fit = rail_button("arrows-in", "Fit to window", "win.zoom-fit", key="Ctrl+0")
         for w in (self.minus, self.value, self.plus, self.fit):
             self.append(w)
 

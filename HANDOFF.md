@@ -24,6 +24,16 @@ as a toggle (it could not be turned off before), Ctrl+V of clipboard text as a t
 selected layer, click on the empty stage drops the tool, numbered layers with tool-name labels, and the Ctrl+Z
 regression (focus stuck in a header spin button) fixed by a capture-phase shortcut router. 94 tests pass.
 
+Update 2026-10-13 (night): review round 2 on `feat/phase5` — the "3 s capture delay" was python-xlib parsing the
+`GetImage` reply (3.5 s for 2560×1080); the X11 grab now goes through libX11 via ctypes (≈50 ms). Library has
+group selection with Copy / Duplicate / Delete and double-click open; Ctrl+A selects all layers and Ctrl+C copies the
+flattened result; a clipboard tray (last three copies, preview popover with Copy / Paste / Delete) sits above
+Library in the left rail; transparent PNGs (checkerboard, alpha-preserving save) and an Eraser tool; tooltips show
+the shortcut under the caption; Hand tool / Space / middle button pan the view; Space no longer activates a focused
+rail button. Follow-up the same night: the tray is reduced to **one slot** (more slots = roadmap item in §8) and an
+**Area tool** (Box area R, Round area O, Point chain J) marks a region for Ctrl+C / Enter (crop) / Delete (clear);
+its vocabulary avoids other editors' terms. 105 tests pass. Per-feature layout/implementation notes: `docs/FEATURES.md` §12.
+
 ## 1. Mission
 
 Rebuild the 1.4 C/GTK3 screenshot tool as **LinScreenCapture 3: Python 3 + GTK 4 + libadwaita**,
@@ -106,7 +116,9 @@ linscreencapture/
   model/annotations.py   Annotation + Style dataclasses, Cairo painters for 12 kinds, pixelate/blur pixel ops, geometry helpers
   model/document.py      Document (base surface + Layer list), flatten/save/open, PIL<->cairo conversion
   model/undo.py          UndoStack (20) + commands: AddLayer, RemoveLayer, MoveLayer, EditAnnotation, SetVisible, ReplaceBase
-  model/captures_index.py threaded thumbnail scan → Gio.ListStore (newest first)
+  model/captures_index.py threaded thumbnail scan → Gio.ListStore (newest first; the store is kept when the folder is unchanged)
+  services/clip_history.py ClipHistory: the last three copies the app made (digest dedupe, preview textures, clipboard ownership)
+  ui/clip_tray.py        ClipTray (three MenuButton slots), ClipPreview popover (clip.* actions), ClipTrayButton for the collapsed rail
   services/icon_loader.py GResource register, IconTheme resource path, icon(name, size)
   ui/style.css           Graphite Night tokens + every widget rule
   ui/widgets/            rail_button, group_label, hairline, flow_group (Gtk.Grid), rail_page, pin_width,
@@ -115,16 +127,17 @@ linscreencapture/
   ui/tool_props.py       per-tool control sets in a Gtk.Stack keyed by tool group; follows ViewState.tool
   ui/tool_rail.py        Item descriptors (icon, label, action, target, collapsed) → open/collapsed pages
   ui/panel_rail.py       Layers, ColourPalette, VIEW (ZoomPill), EDIT (Copy, Flatten), Navigator, Settings; collapsed page
-  ui/library_page.py     Library page (grid of the save folder) shown in the stage stack
+  ui/library_page.py     Library page (grid of the save folder, Gtk.MultiSelection, Select all/Copy/Duplicate/Delete/Open head) in the stage stack
   app/image_ops.py       pure crop / scale / rotate / flip / adjust with coordinate mappers
   ui/popovers.py         Resize, Rotate and Brightness popovers
   ui/stage.py            empty state, Library page, document canvas (flatten cache, zoom, rounded + shadow), Ctrl+scroll zoom, fit_zoom()
   ui/capture_overlay.py  OverlaySession (shared state, physical root px) + OverlayWindow per monitor: veil, handles, crosshair, chips, mode bar, keys
   app/capture_controller.py hide studio → settle → backend → overlay/region or screen → crop → save → clipboard → load_document
-  backends/              base (protocol, crop), x11 (python-xlib bulk copy, _NET_CLIENT_LIST_STACKING windows), portal (D-Bus Screenshot), cli
+  backends/              base (protocol, crop), x11 (libX11 XGetImage via ctypes; python-xlib for the window list), portal (D-Bus Screenshot), cli
   services/capture_service.py backend order by session/preference, one fall-through per backend, thread → main loop
   services/selection.py  pure selection geometry (handles, hit, resize, move, clamp, square)
-  services/file_store.py save_capture(); services/clipboard.py copy_surface() via Gdk.MemoryTexture + ContentProvider
+  services/file_store.py save_capture(), duplicate_file(); services/clipboard.py copy_surface() via Gdk.MemoryTexture + ContentProvider
+  app/shortcuts.py       capture-phase ShortcutRouter: tool letters (incl. E eraser, H hand), Ctrl chords, Ctrl+A, Space pan, Library routing
   ui/studio_window.py    composes everything; win.* actions; breakpoint; close saves settings
 tools/sync_icons.py, tools/snapshot_shell.py, tools/launch.sh
 tests/ conftest (live-display fixtures), test_icons, test_settings, test_shell
@@ -161,6 +174,24 @@ data/ icons, gresource.xml, .desktop files
   (pattern matches its command line). Use `pgrep -a -x python3 | grep …` or let `timeout` end it.
 - `.gitignore` used to list `linshot` and `Makefile` as build artefacts; after the rename they hid
   the Python package. Removed; keep it that way.
+- **python-xlib `get_image` is slow**: its pure-Python reply parsing takes ~3.5 s for a 2560×1080 root window
+  (17 s under load) — users read it as a capture delay that no toggle could switch off. The X11 backend grabs through
+  libX11 `XGetImage` with ctypes (~50 ms; the `XImage` struct must declare `data` as `c_void_p` and be freed through
+  its `destroy_image` function pointer). Guarded by `test_x11_grab_is_fast_and_delay_defaults_off`.
+- `pkill -f <pattern>` also kills the agent shell whenever the pattern appears in that shell's own command line
+  (happened again with `pkill -f delay_probe.py`). Kill by PID: `for p in $(pgrep -x python3 -a | grep … | awk …)`.
+- Monkeypatching `GLib.timeout_add` in a probe patches the module the probe itself uses (same object); a probe that
+  "hangs" after such a patch is waiting on its own fake timer.
+- A popover `popup()` called from a plain button's `clicked` handler is closed again by the same button release on
+  X11; use a `Gtk.MenuButton` with `set_popover` (the clipboard tray slots) — it pops on press and survives.
+- `Gtk.WidgetPaintable` of the window does not include popovers (own surfaces), and a popover child on this display
+  yields no render node; `tools/snapshot_shell.py::render_widget` skips such widgets instead of failing the chain.
+- A `Gio.ListStore.remove_all()` + re-append on every Library open wiped the GridView selection; `CapturesIndex._apply`
+  compares (path, mtime) and leaves an unchanged store alone.
+- A `Gtk.Picture` with `can_shrink=True` still reports the texture's natural size, so a popover around it grew to the
+  full capture; the tray keeps a pre-scaled ≤ 320×200 `preview` texture per entry instead.
+- Initial keyboard focus lands on the first focusable widget (a rail button), so Space/Enter activated it ("Space
+  toggles the right pane"). The window focuses the canvas on map and the router swallows Space.
 
 ## 7. What to verify on screen before Phase 2
 
@@ -170,6 +201,13 @@ data/ icons, gresource.xml, .desktop files
   stage in Phase 4 (listed in `app/application.py`, `ACCELS`).
 
 ## 8. Phase 6 start checklist (system integration)
+
+Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operator's call):
+
+- Clipboard tray with several slots (three or more, newest first). `ClipHistory.limit` and `clip_tray.SLOTS` already
+  parametrise it; the tray was reduced to one slot on 2026-10-13 to keep the rail quiet.
+- Area tool follow-ups: move / restyle the marked region as a group, feather the edge, invert the area, Ctrl+X cut.
+- Select all (Ctrl+A) follow-ups: move or restyle all layers together.
 
 1. `services/hotkey_registrar.py`: port `keybinding_manager.c` behaviour from the original repository (Cinnamon
    gsettings custom keybindings, GNOME **append to** `custom-keybindings` and clear `show-screenshot-ui`, XFCE

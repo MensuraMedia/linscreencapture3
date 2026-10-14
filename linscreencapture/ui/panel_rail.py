@@ -9,7 +9,7 @@ from ..services import icon_loader
 from ..app.view_state import ViewState
 
 OPEN_WIDTH, COLLAPSED_WIDTH = 220, 56
-EDIT_ITEMS = (("copy", "Copy", "win.copy"), ("stack-simple", "Flatten", "win.flatten"))
+EDIT_ITEMS = (("copy", "Copy the image with its annotations", "win.copy", "Ctrl+C"), ("stack-simple", "Flatten", "win.flatten", None))
 
 
 def _settings_button() -> Gtk.Button:
@@ -51,6 +51,9 @@ def _layer_thumbnail(doc, layer):
             cr.set_source_rgba(1, 1, 1, 0.5)
             cr.rectangle(x, y, bw, bh)
             cr.fill()
+        elif a.kind in ("eraser", "cutout"):
+            from ..model.annotations import _paint_eraser_ghost, _paint_cutout_ghost
+            (_paint_eraser_ghost if a.kind == "eraser" else _paint_cutout_ghost)(a, cr)   # clearing a thumbnail shows nothing
         else:
             draw(a, cr, None)
     surf.flush()
@@ -218,7 +221,7 @@ class PanelRail(Gtk.Stack):
         box = rail_page(OPEN_WIDTH)
         box.add_css_class("rail")
         top = Gtk.Box(halign=Gtk.Align.START, margin_bottom=6)
-        top.append(rail_button("caret-right", "Collapse panels", "win.toggle-right-rail"))
+        top.append(rail_button("caret-right", "Collapse panels", "win.toggle-right-rail", key="Ctrl+]"))
         box.append(top)
         self.palette = ColourPalette(self.state)
         self.palette.set_margin_bottom(10)
@@ -235,7 +238,7 @@ class PanelRail(Gtk.Stack):
         lbl.set_margin_top(10)
         box.append(lbl)
         edit = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_top=4, margin_bottom=10)
-        self.edit_buttons = [rail_button(icon, label, action) for icon, label, action in EDIT_ITEMS]
+        self.edit_buttons = [rail_button(icon, label, action, key=key) for icon, label, action, key in EDIT_ITEMS]
         for b in self.edit_buttons:
             edit.append(b)
         box.append(edit)
@@ -338,7 +341,7 @@ class PanelRail(Gtk.Stack):
         box = rail_page(COLLAPSED_WIDTH, 8)
         box.add_css_class("rail")
         box.add_css_class("collapsed")
-        exp = rail_button("caret-left", "Expand panels", "win.toggle-right-rail", classes=("outlined",))
+        exp = rail_button("caret-left", "Expand panels", "win.toggle-right-rail", classes=("outlined",), key="Ctrl+]")
         exp.set_halign(Gtk.Align.CENTER)
         box.append(exp)
         box.append(hairline(30))
@@ -350,19 +353,19 @@ class PanelRail(Gtk.Stack):
         ed.set_halign(Gtk.Align.CENTER)
         box.append(ed)
         box.append(hairline(30))
-        for icon, label, action in (("minus", "Zoom out", "win.zoom-out"), ("plus", "Zoom in", "win.zoom-in"),
-                                    ("arrows-in", "Fit to window", "win.zoom-fit")):
-            b = rail_button(icon, label, action)
+        for icon, label, action, key in (("minus", "Zoom out", "win.zoom-out", "Ctrl+−"), ("plus", "Zoom in", "win.zoom-in", "Ctrl++"),
+                                         ("arrows-in", "Fit to window", "win.zoom-fit", "Ctrl+0")):
+            b = rail_button(icon, label, action, key=key)
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
         box.append(hairline(30))
-        for icon, label, action in EDIT_ITEMS:
-            b = rail_button(icon, label, action)
+        for icon, label, action, key in EDIT_ITEMS:
+            b = rail_button(icon, label, action, key=key)
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
         box.append(Gtk.Box(vexpand=True))
         box.append(hairline(30))
-        gear = rail_button("gear", "Settings", "app.preferences")
+        gear = rail_button("gear", "Settings", "app.preferences", key="Ctrl+,")
         gear.set_halign(Gtk.Align.CENTER)
         box.append(gear)
         self._colour_changed()

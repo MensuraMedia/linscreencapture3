@@ -133,7 +133,7 @@ def test_tool_action_checks_exactly_one_toggle(window):
     assert window.state.tool == "box"
     checked = [b for b in _buttons(window.tool_rail.get_child_by_name("open"))
                if isinstance(b, Gtk.ToggleButton) and b.get_action_name() == "win.tool" and b.get_active()]
-    assert len(checked) == 1 and checked[0].get_tooltip_text() == "Box"
+    assert len(checked) == 1 and checked[0].get_tooltip_text() == "Box\nB"      # caption, then the shortcut letter
 
 
 def test_rails_collapse_and_expand(window):
@@ -179,7 +179,7 @@ def test_library_page_toggles(window):
     pump(100)
     assert window.state.library and window.stage.pages.get_visible_child_name() == "library"
     assert window.header.title.get_label() == "Library"
-    lib_btn = next(b for b in _buttons(window.tool_rail) if b.get_tooltip_text() == "Library")
+    lib_btn = next(b for b in _buttons(window.tool_rail) if b.get_tooltip_text().startswith("Library"))
     assert isinstance(lib_btn, Gtk.ToggleButton) and lib_btn.get_active()
     window.activate_action("win.library", None)
     pump(100)
@@ -190,6 +190,8 @@ def test_library_page_toggles(window):
 def test_settings_button_is_last_in_right_rail(window):
     btn = window.panel_rail.settings_btn
     assert btn.get_action_name() == "app.preferences" and btn.get_tooltip_text() == "Settings"
+    gear = next(b for b in _buttons(window.panel_rail) if b.get_action_name() == "app.preferences")
+    assert gear.get_tooltip_text() == "Settings\nCtrl+,"
     assert btn.get_next_sibling() is None and btn.get_halign() == Gtk.Align.END
 
 
@@ -270,12 +272,16 @@ def test_preferences_dialog_builds_and_saves(window):
 
 class _Gesture:
     """Stand-in for a Gtk gesture: only the modifier state is read."""
-    def __init__(self, shift=False, ctrl=False):
+    def __init__(self, shift=False, ctrl=False, start=(0.0, 0.0)):
         from gi.repository import Gdk
         self.state = (Gdk.ModifierType.SHIFT_MASK if shift else 0) | (Gdk.ModifierType.CONTROL_MASK if ctrl else 0)
+        self.start = start
 
     def get_current_event_state(self):
         return self.state
+
+    def get_start_point(self):
+        return True, self.start[0], self.start[1]
 
 
 def _drag(window, tool, x1, y1, x2, y2, shift=False, ctrl=False):
@@ -609,3 +615,204 @@ def test_clipboard_image_detection_accepts_texture_subclasses(window, tmp_path):
     assert window._holds_image(local.ref_formats()) is True
     assert window._holds_image(Gdk.ContentFormats.new(["image/png"])) is True
     assert window._holds_image(Gdk.ContentFormats.new(["text/plain"])) is False
+
+
+# ---- review round 2 (2026-10-13): library controls, select all, tray, eraser, pan, tooltips -----------------
+def test_tooltips_carry_the_shortcut_under_the_caption(window):
+    tips = {b.get_tooltip_text() for b in _buttons(window.tool_rail)}
+    assert "Arrow\nA" in tips and "Eraser (clears to transparent)\nE" in tips and "Hand · drag to pan the view\nH" in tips
+    assert "Capture a new screenshot\nCtrl+N" in tips and "Library\nCtrl+L" in tips and "Save\nCtrl+S" in tips
+    for b in _buttons(window.tool_rail):
+        assert "\n" not in (b.get_tooltip_text() or "").split("\n", 1)[0]      # one caption line, key underneath
+
+
+def test_select_all_then_copy_and_delete(window, tmp_path):
+    _load_blank(window, tmp_path)
+    _drag(window, "box", 10, 10, 80, 60)
+    _drag(window, "arrow", 20, 20, 120, 90)
+    window.state.tool = "pen"
+    window.activate_action("win.select-all", None); pump(30)
+    ed = window.editor
+    assert ed.all_selected and ed.selected_id is None and window.state.tool == "select"
+    window.activate_action("win.copy", None); pump(50)
+    assert window._layer_clip is None and len(window.clips) == 1          # the whole image went to the tray
+    assert window.clips.entries[0].width == window.document.width
+    window.activate_action("win.delete-layer", None); pump(30)
+    assert window.document.layers == [] and not ed.all_selected
+    window.activate_action("win.undo", None); pump(30)
+    assert [l.annotation.kind for l in window.document.layers] == ["box", "arrow"]
+    ed.select(window.document.layers[0].id)
+    assert not ed.all_selected                                               # a plain selection ends select-all
+
+
+def test_clip_history_and_tray(window, tmp_path):
+    import cairo
+    from linscreencapture.services.clip_history import ClipHistory
+    h = ClipHistory(limit=3, watch_clipboard=False)              # the history itself keeps up to ``limit``
+    s1 = cairo.ImageSurface(cairo.FORMAT_ARGB32, 8, 6)
+    s2 = cairo.ImageSurface(cairo.FORMAT_ARGB32, 10, 4)
+    e1 = h.push(s1, "one"); h.push(s1, "one again")
+    assert len(h) == 1 and h.entries[0] is e1 and e1.label == "one again"   # same pixels are not repeated
+    e2 = h.push(s2, "two")
+    for n in range(3):
+        h.push(cairo.ImageSurface(cairo.FORMAT_ARGB32, 3 + n, 3), f"x{n}")
+    assert len(h) == 3 and e2 not in h.entries and h.is_current(h.entries[0])
+    h.remove(h.entries[0])
+    assert len(h) == 2 and h._current is None
+    # the window's tray follows the window's history
+    tray = window.tool_rail.tray
+    assert tray.get_height() == 116 and len(tray.slots) == 1 and not tray.slots[0].get_sensitive()   # one slot for now
+    assert len(window.clips.entries) == 0 and window.clips.limit == 1
+    _load_blank(window, tmp_path)
+    window.activate_action("win.copy", None); pump(50)
+    assert tray.slots[0].get_sensitive() and "current" in tray.slots[0].get_css_classes()
+    assert tray.slots[0].get_tooltip_text().startswith("blank.png")
+    tray.slots[0].popup(); pump(150)                       # each slot is a MenuButton with its own preview
+    assert tray.preview is tray.previews[0] and tray.preview.get_visible()
+    assert tray.preview.picture.get_paintable() is window.clips.entries[0].preview
+    assert window.clips.entries[0].preview.get_width() <= 320 and window.clips.entries[0].preview.get_height() <= 200
+    assert tray.preview.entry is window.clips.entries[0]
+    tray.preview.activate_action("clip.delete", None); pump(50)
+    assert len(window.clips) == 0 and not tray.slots[0].get_sensitive()
+    assert window.tool_rail.tray_button.tray.slots[0].get_sensitive() is False     # collapsed rail shares the history
+
+
+def test_eraser_clears_to_transparent_and_png_keeps_alpha(window, tmp_path):
+    from PIL import Image
+    _load_blank(window, tmp_path)
+    doc = window.document
+    window.state.tool = "eraser"
+    ox, oy = window.stage.image_origin()
+    g = _Gesture()
+    ed = window.editor
+    ed._drag_begin(g, ox + 20, oy + 40); ed._drag_update(g, 60, 0); ed._drag_end(g, 60, 0); pump(30)
+    assert [l.annotation.kind for l in doc.layers] == ["eraser"]
+    assert doc.layers[0].annotation.style.width == 24                      # the eraser's own default width
+    flat = doc.flatten(); flat.flush()
+    data = flat.get_data(); st = flat.get_stride()
+    assert data[40 * st + 50 * 4 + 3] == 0                                 # under the stroke: transparent
+    assert data[5 * st + 5 * 4 + 3] == 255                                 # away from it: untouched
+    out = tmp_path / "erased.png"
+    doc.save(str(out))
+    with Image.open(out) as img:
+        assert img.mode == "RGBA" and img.getpixel((50, 40))[3] == 0 and img.getpixel((5, 5))[3] == 255
+    jpg = tmp_path / "erased.jpg"
+    doc.save(str(jpg))
+    with Image.open(jpg) as img:
+        assert img.mode == "RGB" and img.getpixel((50, 40))[0] > 240       # transparent lands on white in JPEG
+    rows = [r for r in _walk(window.panel_rail.layers) if isinstance(r, Gtk.ListBoxRow)]
+    assert rows[0].kind.get_label() == "ERASER"
+
+
+def test_hand_space_and_middle_button_pan_the_view(window, tmp_path):
+    from gi.repository import Gdk
+    from linscreencapture.app.shortcuts import ShortcutRouter
+    _load_blank(window, tmp_path, (2000, 1600))
+    window.state.zoom = 2.0; pump(100)
+    st = window.stage
+    h, v = st.scroller.get_hadjustment(), st.scroller.get_vadjustment()
+    h.set_value(300); v.set_value(300); pump(30)
+    ed = window.editor
+    window.state.tool = "hand"
+    g = _Gesture(start=(500, 400))
+    ed._drag_begin(g, 500, 400); ed._drag_update(g, 40, -25); pump(30)
+    assert ed._mode == "pan" and abs(h.get_value() - 260) < 1 and abs(v.get_value() - 325) < 1
+    ed._drag_end(g, 40, -25); pump(30)
+    assert len(window.document.layers) == 0                                  # panning never draws
+    window.state.tool = "box"
+    r = ShortcutRouter(window)
+    assert r.handle(Gdk.KEY_space, 0) is True and ed.space_pan             # Space is taken (never toggles a rail)
+    ed._drag_begin(g, 500, 400); assert ed._mode == "pan"; ed._drag_end(g, 0, 0)
+    r.released(Gdk.KEY_space); assert not ed.space_pan
+    st._pan_begin(None, 0, 0); st._pan_update(None, -50, 10); pump(30)     # middle button on the scroller
+    assert abs(h.get_value() - 310) < 1 and abs(v.get_value() - 315) < 1
+    assert window.state.tool == "box"
+
+
+def test_library_group_copy_duplicate_delete(window, tmp_path):
+    from PIL import Image
+    folder = tmp_path / "pics"; folder.mkdir(exist_ok=True)
+    for n in range(3):
+        Image.new("RGBA", (20 + n, 10), (200, 30, 30, 255)).save(folder / f"shot{n}.png")
+    window.captures.scan(); pump(600)
+    window.activate_action("win.library", None); pump(100)
+    lib = window.stage.library
+    assert isinstance(lib.selection, Gtk.MultiSelection) and lib.captures.store.get_n_items() == 3
+    window.activate_action("win.library-select-all", None); pump(30)
+    assert len(lib.selected_entries) == 3 and "3 of 3 selected" in lib.summary.get_label()
+    window.activate_action("win.library-duplicate", None); pump(600)
+    names = sorted(p.name for p in folder.iterdir())
+    assert names == ["shot0 copy.png", "shot0.png", "shot1 copy.png", "shot1.png", "shot2 copy.png", "shot2.png"]
+    lib.selection.unselect_all(); lib.selection.select_item(0, True); pump(30)
+    window.activate_action("win.library-copy", None); pump(50)
+    assert len(window.clips) >= 1 and window.clips.entries[0].label == lib.selected.name
+    from gi.repository import Gdk
+    fmts = Gdk.Display.get_default().get_clipboard().get_formats()
+    assert window._holds_image(fmts) and fmts.contain_mime_type("text/uri-list")
+    lib.selection.select_all(); pump(30)
+    window.activate_action("win.library-copy", None); pump(50)
+    assert not window._holds_image(Gdk.Display.get_default().get_clipboard().get_formats())   # several: files only
+    lib.activated_entry = lib.selection.get_item(1)
+    window.activate_action("win.library-open", None); pump(200)
+    assert window.document is not None and window.document.name == lib.selection.get_item(1).name
+    assert not window.state.library
+
+
+def test_x11_grab_is_fast_and_delay_defaults_off(window):
+    import os, time
+    from linscreencapture.backends.x11 import X11Backend, grab_root_libx11
+    assert window.lookup_action("capture-delayed").get_state().get_boolean() is False
+    assert window.lookup_action("capture-mode").get_state().get_string() == "region"
+    if os.environ.get("XDG_SESSION_TYPE", "x11") == "x11" and os.environ.get("DISPLAY"):
+        t0 = time.monotonic(); s = grab_root_libx11(); dt = time.monotonic() - t0
+        assert s.get_width() > 0 and dt < 1.0, f"libX11 grab took {dt:.2f} s"
+
+
+def test_duplicate_path_names(tmp_path):
+    from linscreencapture.services.file_store import duplicate_path, duplicate_file
+    f = tmp_path / "a.png"; f.write_bytes(b"x")
+    assert duplicate_path(str(f)) == str(tmp_path / "a copy.png")
+    duplicate_file(str(f))
+    assert duplicate_path(str(f)) == str(tmp_path / "a copy 2.png")
+
+
+def test_area_tools_mark_copy_clear_and_crop(window, tmp_path):
+    from gi.repository import Gdk
+    from linscreencapture.app.shortcuts import ShortcutRouter
+    _load_blank(window, tmp_path, (300, 200))
+    doc, ed = window.document, window.editor
+    # Box area: drag, Ctrl+C copies just that region (and feeds the tray), Delete clears it to transparent
+    _drag(window, "area_box", 20, 30, 120, 90)
+    assert ed.area is not None and ed.area.shape == "box" and ed.area.rect == (20, 30, 100, 60)
+    window.activate_action("win.copy", None); pump(50)
+    assert window.clips.entries[0].width == 100 and window.clips.entries[0].height == 60
+    window.activate_action("win.delete-layer", None); pump(30)
+    assert ed.area is None and [l.annotation.kind for l in doc.layers] == ["cutout"]
+    flat = doc.flatten(); flat.flush(); d = flat.get_data(); st = flat.get_stride()
+    assert d[50 * st + 60 * 4 + 3] == 0 and d[10 * st + 10 * 4 + 3] == 255
+    window.activate_action("win.undo", None); pump(30)
+    assert doc.layers == []
+    # Round area: Shift keeps it round; Escape drops it; switching tools drops it too
+    _drag(window, "area_round", 10, 10, 90, 50, shift=True)
+    assert ed.area.shape == "round" and ed.area.rect[2] == ed.area.rect[3] == 80
+    r = ShortcutRouter(window)
+    assert r.handle(Gdk.KEY_Escape, 0) is True and ed.area is None
+    _drag(window, "area_round", 10, 10, 90, 50); window.state.tool = "box"; pump(30)
+    assert ed.area is None
+    # Point chain: clicks join points; Backspace drops one; a click on the first point closes; Enter crops
+    window.state.tool = "area_points"; pump(30)
+    ox, oy = window.stage.image_origin()
+    for x, y in ((40, 20), (140, 20), (200, 200), (100, 120)):
+        ed._click(None, 1, ox + x, oy + y)
+    assert len(ed._chain) == 4
+    assert r.handle(Gdk.KEY_BackSpace, 0) is True and len(ed._chain) == 3
+    ed._click(None, 1, ox + 42, oy + 22)                       # within 9 px of the first point: closes
+    assert ed.area is not None and ed.area.shape == "points" and len(ed.area.points) == 3 and ed._chain == []
+    assert r.handle(Gdk.KEY_Return, 0) is True; pump(50)
+    assert (doc.width, doc.height) == (160, 180) and doc.layers == [] and ed.area is None   # bbox of the triangle
+    d = doc.base.get_data(); st = doc.base.get_stride()
+    assert d[2 * st + 50 * 4 + 3] == 255 and d[170 * st + 2 * 4 + 3] == 0         # inside near the top edge · outside corner
+    window.activate_action("win.undo", None); pump(30)
+    assert (doc.width, doc.height) == (300, 200)
+    rows = [row for row in _walk(window.panel_rail.layers) if isinstance(row, Gtk.ListBoxRow)]
+    assert rows[-1].kind.get_label() == "IMG"

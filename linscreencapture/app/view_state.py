@@ -2,8 +2,8 @@
 from __future__ import annotations
 from gi.repository import GObject
 
-TOOLS = ("select", "arrow", "line", "box", "circle", "text", "pen", "marker",
-         "blur", "pixelate", "fill", "step", "callout", "crop", "move")
+TOOLS = ("select", "arrow", "line", "box", "circle", "text", "pen", "marker", "eraser",
+         "blur", "pixelate", "fill", "step", "callout", "crop", "move", "hand", "area_box", "area_round", "area_points")
 ZOOM_STEPS = (0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0, 10.0)
 
 

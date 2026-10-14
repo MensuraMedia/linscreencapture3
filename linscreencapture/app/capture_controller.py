@@ -101,6 +101,8 @@ class CaptureController:
             self._fail(f"Could not save: {exc}")
             return
         copied = clipboard.copy_surface(surface) if settings.copy_to_clipboard else False
+        if copied and win is not None and getattr(win, "clips", None) is not None:
+            win.clips.push(surface, doc.name)          # the left rail's clipboard tray
         LOG.info("saved %s (%dx%d)%s in %.0f ms", doc.path, doc.width, doc.height,
                  ", copied to clipboard" if copied else "", (time.monotonic() - self._t0) * 1000)
         self._done(win, doc, copied)

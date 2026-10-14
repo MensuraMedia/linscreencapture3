@@ -14,12 +14,17 @@ from .widgets import compact_spin, labelled, segmented, scale_with_value, switch
 from ..app.view_state import ViewState
 
 TOOL_TITLES = {"select": "Select", "arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text",
-               "pen": "Pen", "marker": "Marker", "blur": "Blur", "pixelate": "Pixelate", "fill": "Fill",
-               "step": "Step number", "callout": "Callout", "crop": "Crop", "move": "Move"}
+               "pen": "Pen", "marker": "Marker", "eraser": "Eraser", "blur": "Blur", "pixelate": "Pixelate", "fill": "Fill",
+               "step": "Step number", "callout": "Callout", "crop": "Crop", "move": "Move", "hand": "Hand",
+               "area_box": "Box area", "area_round": "Round area", "area_points": "Point chain"}
 # which control set each tool shows
 GROUP = {"arrow": "shape", "line": "shape", "box": "shape", "circle": "shape", "pen": "stroke", "marker": "stroke",
-         "text": "text", "callout": "text", "step": "step", "fill": "fill", "blur": "redact", "pixelate": "redact",
-         "crop": "crop", "select": "select", "move": "select"}
+         "eraser": "eraser", "text": "text", "callout": "text", "step": "step", "fill": "fill", "blur": "redact",
+         "pixelate": "redact", "crop": "crop", "select": "select", "move": "select", "hand": "hand",
+         "area_box": "area", "area_round": "area", "area_points": "area"}
+AREA_HINTS = {"area_box": "Drag a box · Shift keeps it square · then Ctrl+C copies the area · Enter crops to it · Delete clears it · Esc drops it",
+              "area_round": "Drag an oval · Shift keeps it round · then Ctrl+C copies the area · Enter crops to it · Delete clears it · Esc drops it",
+              "area_points": "Click points to chain them · click the first point (or double-click) to close · Backspace removes the last · Esc cancels"}
 FONTS = ("Ubuntu", "Cantarell", "DejaVu Sans", "Liberation Sans", "Noto Sans")
 
 
@@ -48,7 +53,11 @@ class ToolProps(Gtk.Box):
         self.sets.add_named(self._fill(), "fill")
         self.sets.add_named(self._redact(), "redact")
         self.sets.add_named(self._crop(), "crop")
-        self.sets.add_named(self._row(_hint("Click to select · drag to move · Delete removes · Ctrl+D duplicates")), "select")
+        self.sets.add_named(self._row(_hint("Click to select · drag to move · Delete removes · Ctrl+D duplicates · Ctrl+A selects all")), "select")
+        self.sets.add_named(self._eraser(), "eraser")
+        self.sets.add_named(self._row(_hint("Drag to pan the view · also: hold Space, or drag with the middle button")), "hand")
+        self.area_hint = _hint("")
+        self.sets.add_named(self._row(self.area_hint), "area")
         self.append(self.sets)
         self.settings = None
         self.editor = None
@@ -108,6 +117,7 @@ class ToolProps(Gtk.Box):
         self.intensity.connect("value-changed", lambda w: self._put("shadow_intensity", w.get_value()))
         self.fill.connect("notify::active", lambda w, _p: self._put("fill", w.get_active()))
         self.stroke_width.connect("value-changed", lambda w: self._put("width", w.get_value()))
+        self.eraser_width.connect("value-changed", lambda w: self._put("width", w.get_value()))
         self.stroke_shadow.connect("notify::active", lambda w, _p: self._put("shadow", w.get_active()))
         for sc in self.opacity_scales:
             sc.connect("value-changed", lambda w: self._put("opacity", round(w.get_value(), 2)))
@@ -182,6 +192,7 @@ class ToolProps(Gtk.Box):
             self.intensity.set_value(inten)
             self.fill.set_active(fill)
             self.stroke_width.set_value(width)
+            self.eraser_width.set_value(width)
             self.stroke_shadow.set_active(shadow)
             self.font.set_selected(FONTS.index(family) if family in FONTS else 0)
             self.size.set_value(size)
@@ -222,6 +233,10 @@ class ToolProps(Gtk.Box):
         self.stroke_shadow = switch(False, "Shadow")
         return self._row(labelled("Width", self.stroke_width), labelled("Shadow", self.stroke_shadow),
                          self._opacity(), _hint("Marker paints at 4× width"))
+
+    def _eraser(self) -> Gtk.Box:
+        self.eraser_width = compact_spin(2, 80, 24, tooltip="Eraser width")
+        return self._row(labelled("Width", self.eraser_width), self._opacity(), _hint("Erased pixels become transparent · save as PNG to keep them"))
 
     def _text(self) -> Gtk.Box:
         self.font = Gtk.DropDown.new_from_strings(list(FONTS))
@@ -264,6 +279,8 @@ class ToolProps(Gtk.Box):
         self.release_focus()     # a tool switch must not leave focus in a control of the old set
         self.title.set_label(TOOL_TITLES.get(tool, tool).upper() + (" · SELECTED" if selected else ""))
         self.sets.set_visible_child_name(GROUP.get(tool, "select"))
+        if tool in AREA_HINTS:
+            self.area_hint.set_label(AREA_HINTS[tool])
         if GROUP.get(tool) == "shape":
             self.fill_row.set_visible(tool in ("box", "circle"))
         self._load(tool)

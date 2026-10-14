@@ -4,11 +4,11 @@ import logging
 from typing import Callable
 
 import cairo
-from gi.repository import Gdk, GLib, Gtk
+from gi.repository import Gdk, GLib, Gtk, Graphene
 
 from . import tools
-from ..model.annotations import Annotation, Style, draw
-from ..model.undo import AddLayer, RemoveLayer, EditAnnotation, SetVisible, MoveLayer
+from ..model.annotations import Annotation, Style, draw, _paint_eraser_ghost, area_path, constrain_square
+from ..model.undo import AddLayer, RemoveLayer, RemoveLayers, EditAnnotation, SetVisible, MoveLayer
 
 LOG = logging.getLogger("linscreencapture.editor")
 ACCENT = (0x4c / 255, 0x9d / 255, 1.0)
@@ -26,7 +26,14 @@ class EditorController:
         self.on_selection: list[Callable[[int | None], None]] = []
         self.preview: Annotation | None = None
         self._points: list[tuple[float, float]] = []
-        self._mode: str | None = None          # draw | stroke | move | handle:<name> | crop
+        self._mode: str | None = None          # draw | stroke | move | handle:<name> | crop | pan
+        self.all_selected = False               # Ctrl+A: every layer (Ctrl+C copies the flattened image, Delete removes all)
+        self.space_pan = False                  # Space held: a drag pans instead of drawing
+        self._pan_from = (0.0, 0.0)
+        self._pan_start = (0.0, 0.0)
+        self.area: Annotation | None = None     # a marked region (kind "cutout": shape box | round | points)
+        self._chain: list[tuple[float, float]] = []   # Point chain in progress
+        self._hover: tuple[float, float] | None = None
         self._start = (0.0, 0.0)
         self._orig: Annotation | None = None   # copy of the selected annotation when a move/handle drag began
         self._hidden_layer = None
@@ -80,15 +87,36 @@ class EditorController:
         return self.doc.find_layer(self.selected_id) if (self.doc and self.selected_id is not None) else None
 
     def select(self, layer_id: int | None, notify: bool = True) -> None:
-        if layer_id == self.selected_id:
+        if layer_id == self.selected_id and not self.all_selected:
             return
+        self.all_selected = False
         self.selected_id = layer_id
         self.stage.canvas.queue_draw()
         if notify:
             for cb in list(self.on_selection):
                 cb(layer_id)
 
+    def select_all(self) -> bool:
+        """Ctrl+A: mark every layer; Ctrl+C then copies the whole flattened image, Delete removes all layers."""
+        if not self._ready() or not self.doc.layers:
+            return False
+        self.stage.cancel_text_entry()
+        self.selected_id = None
+        self.all_selected = True
+        if self.state.tool not in ("select", "move"):
+            self.state.tool = "select"           # _tool_changed keeps all_selected for Select
+        self.stage.canvas.queue_draw()
+        for cb in list(self.on_selection):
+            cb(None)
+        return True
+
+    def set_space_pan(self, on: bool) -> None:
+        self.space_pan = on
+        if self._mode is None:
+            self.stage.canvas.set_cursor(Gdk.Cursor.new_from_name("grab") if on else None)
+
     def _commit(self, cmd, select_new: bool = True) -> None:
+        self.all_selected = False
         self.undo.do(cmd)
         if select_new and isinstance(cmd, AddLayer) and cmd.layer is not None:
             self.selected_id = cmd.layer.id
@@ -114,6 +142,17 @@ class EditorController:
         x, y = self.to_image(cx, cy)
         self._start = (x, y)
         tool = self.state.tool
+        if tool in ("area_box", "area_round"):
+            self._mode = "area"
+            self.area = None
+            self.preview = None
+            return
+        if tool == "hand" or self.space_pan:
+            self._mode = "pan"
+            self._pan_from = self.stage.pan_origin()
+            self._pan_start = self._to_scroller(cx, cy)
+            self.stage.canvas.set_cursor(Gdk.Cursor.new_from_name("grabbing"))
+            return
         if tool in ("select", "move"):
             layer = self.selected_layer()
             tol = HIT_PX / self.state.zoom
@@ -142,11 +181,19 @@ class EditorController:
     def _drag_update(self, gesture, dx: float, dy: float) -> None:
         if self._mode is None:
             return
+        if self._mode == "pan":
+            _ok, sx, sy = gesture.get_start_point()
+            nx, ny = self._to_scroller(sx + dx, sy + dy)
+            self.stage.scroll_by(self._pan_start[0] - nx, self._pan_start[1] - ny, self._pan_from)
+            return
         z = self.state.zoom
         x, y = self._start[0] + dx / z, self._start[1] + dy / z
         shift, ctrl = self._modifiers(gesture)
         tool = self.state.tool
-        if self._mode == "stroke":
+        if self._mode == "area":
+            x2, y2 = (constrain_square(self._start[0], self._start[1], x, y) if shift else (x, y))
+            self.preview = Annotation("cutout", self._start[0], self._start[1], x2, y2, shape=tools.AREA_TOOLS[tool])
+        elif self._mode == "stroke":
             self._points.append((x, y))
             self.preview = tools.annotation_from_points(tool, self._points, self.style_for(tool))
         elif self._mode == "draw":
@@ -171,8 +218,18 @@ class EditorController:
             GLib.idle_add(self._clear_suppress)
         if mode is None:
             return
+        if mode == "pan":
+            self.stage.canvas.set_cursor(Gdk.Cursor.new_from_name("grab") if (self.space_pan or self.state.tool == "hand") else None)
+            return
         tool = self.state.tool
         preview, self.preview = self.preview, None
+        if mode == "area":
+            if preview is not None and preview.rect[2] >= 2 and preview.rect[3] >= 2:
+                self.set_area(preview)
+            else:
+                self.cancel_area()
+            self.stage.canvas.queue_draw()
+            return
         if mode in ("draw", "stroke"):
             if preview is not None:
                 if tool == "callout":
@@ -207,6 +264,11 @@ class EditorController:
         self._suppress_click = False
         return False
 
+    def _to_scroller(self, cx: float, cy: float) -> tuple[float, float]:
+        """Canvas point -> stage scroller coordinates (which do not move while the view scrolls)."""
+        ok, pt = self.stage.canvas.compute_point(self.stage.scroller, Graphene.Point().init(cx, cy))
+        return (pt.x, pt.y) if ok else (cx, cy)
+
     def clicked_outside(self) -> None:
         """A plain click on the empty stage: back to Select, nothing selected, pending text dropped."""
         if self._suppress_click or self._mode is not None or not self._ready():
@@ -234,6 +296,9 @@ class EditorController:
             self.stage.canvas.set_cursor(None)
             return
         tool = self.state.tool
+        if tool == "area_points":
+            self._chain_click(x, y, n_press)
+            return
         if tool == "text":
             self.stage.cancel_text_entry()
             self._pending_callout = None
@@ -251,8 +316,15 @@ class EditorController:
         if not self._ready():
             return
         tool = self.state.tool
+        if self._chain:
+            self._hover = self.to_image(cx, cy)
+            self.stage.canvas.queue_draw()
         name = "crosshair"
-        if tool == "text":
+        if self._mode == "pan":
+            name = "grabbing"
+        elif tool == "hand" or self.space_pan:
+            name = "grab"
+        elif tool == "text":
             name = "text"
         elif tool in ("select", "move"):
             x, y = self.to_image(cx, cy)
@@ -272,6 +344,141 @@ class EditorController:
             else:
                 name = "move" if self._layer_at(x, y) else "default"
         self.stage.canvas.set_cursor(Gdk.Cursor.new_from_name(name))
+
+    # -- area tool (box / round / point chain) ----------------------------------
+    CHAIN_CLOSE_PX = 9
+
+    def _chain_click(self, x: float, y: float, n_press: int) -> None:
+        if not self._chain:
+            self.cancel_area()
+            self._chain = [(x, y)]
+            self.win.toast("Click more points · click the first point (or double-click) to close the chain · Esc cancels", timeout=4)
+            self.stage.canvas.queue_draw()
+            return
+        fx, fy = self._chain[0]
+        near_first = abs(x - fx) <= self.CHAIN_CLOSE_PX / self.state.zoom and abs(y - fy) <= self.CHAIN_CLOSE_PX / self.state.zoom
+        if (near_first or n_press >= 2) and len(self._chain) >= 3:
+            pts = list(self._chain)
+            if n_press >= 2 and len(pts) > 3 and abs(pts[-1][0] - pts[-2][0]) < 1 and abs(pts[-1][1] - pts[-2][1]) < 1:
+                pts.pop()                      # the first click of a double-click already added this point
+            self._chain = []
+            self._hover = None
+            xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+            self.set_area(Annotation("cutout", min(xs), min(ys), max(xs), max(ys), shape="points", points=pts))
+            return
+        if n_press >= 2:
+            return
+        self._chain.append((x, y))
+        self.stage.canvas.queue_draw()
+
+    def chain_pop(self) -> bool:
+        """Backspace: remove the last point of the chain in progress."""
+        if not self._chain:
+            return False
+        self._chain.pop()
+        self.stage.canvas.queue_draw()
+        return True
+
+    def set_area(self, a: Annotation) -> None:
+        self.area = a
+        self.select(None)
+        self.stage.canvas.queue_draw()
+        self.win.toast("Area marked · Ctrl+C copies it · Enter crops to it · Delete clears it · Esc drops it", timeout=4)
+
+    def cancel_area(self) -> bool:
+        had = self.area is not None or bool(self._chain)
+        self.area = None
+        self._chain = []
+        self._hover = None
+        if had:
+            self.stage.canvas.queue_draw()
+        return had
+
+    def area_bounds(self) -> tuple[int, int, int, int] | None:
+        """Integer (x, y, w, h) of the marked area clamped to the image, or None."""
+        a = self.area
+        if a is None or self.doc is None:
+            return None
+        if a.shape == "points":
+            xs = [p[0] for p in a.points]; ys = [p[1] for p in a.points]
+            x, y, w, h = min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
+        else:
+            x, y, w, h = a.rect
+        import math
+        x0, y0 = max(0, int(math.floor(x))), max(0, int(math.floor(y)))
+        x1, y1 = min(self.doc.width, int(math.ceil(x + w))), min(self.doc.height, int(math.ceil(y + h)))
+        if x1 - x0 < 1 or y1 - y0 < 1:
+            return None
+        return x0, y0, x1 - x0, y1 - y0
+
+    def area_surface(self):
+        """The marked region of the composite as its own surface (outside the shape: transparent)."""
+        b = self.area_bounds()
+        comp = self.stage.composite
+        if b is None or comp is None:
+            return None
+        x, y, w, h = b
+        out = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+        cr = cairo.Context(out)
+        cr.set_source_surface(comp, -x, -y)
+        cr.paint()
+        if self.area.shape != "box":
+            cr.translate(-x, -y)
+            cr.set_operator(cairo.OPERATOR_DEST_IN)
+            cr.set_source_rgba(0, 0, 0, 1)
+            if area_path(cr, self.area):
+                cr.fill()
+        out.flush()
+        return out
+
+    def clear_area(self) -> bool:
+        """Delete with an area: the pixels inside become transparent (a Cutout layer, undoable)."""
+        if self.area is None or not self._ready():
+            return False
+        a = self.area.copy()
+        a.style = Style(opacity=1.0)
+        self.cancel_area()
+        self._commit(AddLayer(a, label="Clear area"))
+        self.win.toast("Cleared the area · Ctrl+Z restores it", timeout=2)
+        return True
+
+    def crop_to_area(self) -> bool:
+        if self.area is None or not self._ready():
+            return False
+        a, _ = self.area, self.cancel_area()
+        self.win.image_op("crop-area", a)
+        return True
+
+    def _draw_area_overlay(self, cr, ox: float, oy: float, z: float) -> None:
+        cr.save()
+        cr.translate(ox, oy)
+        cr.scale(z, z)
+        if self.area is not None:
+            if area_path(cr, self.area):
+                cr.set_source_rgba(*ACCENT, 0.12)
+                cr.fill_preserve()
+                cr.set_source_rgba(*ACCENT, 0.95)
+                cr.set_line_width(1.5 / z)
+                cr.set_dash([6 / z, 4 / z])
+                cr.stroke()
+        if self._chain:
+            cr.set_source_rgba(*ACCENT, 0.95)
+            cr.set_line_width(1.5 / z)
+            cr.move_to(*self._chain[0])
+            for p in self._chain[1:]:
+                cr.line_to(*p)
+            if self._hover is not None:
+                cr.line_to(*self._hover)
+            cr.stroke()
+            r = 4 / z
+            for n, (px, py) in enumerate(self._chain):
+                cr.arc(px, py, r * (1.6 if n == 0 else 1.0), 0, 6.2832)
+                cr.set_source_rgb(1, 1, 1) if n == 0 else cr.set_source_rgba(*ACCENT, 1)
+                cr.fill_preserve()
+                cr.set_source_rgba(*ACCENT, 1)
+                cr.set_line_width(1.5 / z)
+                cr.stroke()
+        cr.restore()
 
     # -- text ----------------------------------------------------------------
     def _text_committed(self, x: float, y: float, text: str) -> None:
@@ -310,6 +517,8 @@ class EditorController:
             self.win.toast("Click the image to pick a colour", timeout=2)
 
     def apply_crop(self) -> bool:
+        if self.area is not None:
+            return self.crop_to_area()
         if self.crop_rect is None or not self._ready():
             return False
         rect, self.crop_rect = self.crop_rect, None
@@ -325,6 +534,14 @@ class EditorController:
 
     # -- commands from the UI ---------------------------------------------
     def delete_selected(self) -> bool:
+        if self.area is not None:
+            return self.clear_area()
+        if self.all_selected and self.doc is not None and self.doc.layers:
+            layers = list(self.doc.layers)
+            self.selected_id = None
+            self._commit(RemoveLayers(layers), select_new=False)
+            self.win.toast(f"Deleted {len(layers)} layers · Ctrl+Z restores them", timeout=3)
+            return True
         layer = self.selected_layer()
         if layer is None:
             return False
@@ -364,8 +581,12 @@ class EditorController:
         self.eyedropper = False
         if self.state.tool != "crop":
             self.cancel_crop()
+        if self.state.tool not in tools.AREA_TOOLS:
+            self.cancel_area()
         if self.state.tool not in ("select", "move"):
             self.select(None)
+        if self.state.tool == "hand":
+            self.stage.canvas.set_cursor(Gdk.Cursor.new_from_name("grab"))
 
     def _colour_changed(self) -> None:
         layer = self.selected_layer()
@@ -380,18 +601,42 @@ class EditorController:
             cr.translate(ox, oy)
             cr.scale(z, z)
             p = self.preview
-            if p.kind in ("blur", "pixelate") or self._mode == "crop":
+            if p.kind == "cutout":                   # an area being dragged
+                if area_path(cr, p):
+                    cr.set_source_rgba(*ACCENT, 0.12); cr.fill_preserve()
+                    cr.set_source_rgba(*ACCENT, 0.95); cr.set_line_width(1.5 / z); cr.set_dash([6 / z, 4 / z]); cr.stroke()
+            elif p.kind in ("blur", "pixelate") or self._mode == "crop":
                 x, y, w, h = p.rect
                 cr.set_source_rgba(*ACCENT, 0.9)
                 cr.set_line_width(1.5 / z)
                 cr.set_dash([6 / z, 4 / z])
                 cr.rectangle(x, y, w, h)
                 cr.stroke()
+            elif p.kind == "eraser":
+                _paint_eraser_ghost(p, cr)          # clearing the canvas would also clear the checkerboard
             else:
                 ghost = p.copy()
                 if self._mode in ("draw", "stroke"):
                     ghost.style.opacity = min(ghost.style.opacity, 0.6)
                 draw(ghost, cr, None)
+            cr.restore()
+        if (self.area is not None or self._chain) and self._ready():
+            self._draw_area_overlay(cr, ox, oy, z)
+        if self.all_selected and self._mode is None and self._ready():
+            comp = self.stage.composite
+            cr.save()
+            cr.set_source_rgba(*ACCENT, 0.9)
+            cr.set_line_width(1.5)
+            cr.set_dash([6, 4])
+            cr.rectangle(ox + 0.75, oy + 0.75, comp.get_width() * z - 1.5, comp.get_height() * z - 1.5)
+            cr.stroke()
+            cr.set_line_width(1)
+            cr.set_dash([3, 3])
+            for l in self.doc.layers:
+                if l.visible:
+                    x, y, w, h = tools.selection_rect(l.annotation)
+                    cr.rectangle(ox + x * z + 0.5, oy + y * z + 0.5, w * z, h * z)
+            cr.stroke()
             cr.restore()
         if self.crop_rect is not None and self._mode is None:
             x, y, w, h = self.crop_rect

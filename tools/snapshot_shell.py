@@ -31,6 +31,22 @@ def render(win: Gtk.Window, path: pathlib.Path) -> None:
     print("wrote", path, f"{w}x{h}")
 
 
+def render_widget(widget: Gtk.Widget, path: pathlib.Path, renderer) -> None:
+    """Render one widget with ``renderer`` (popover contents live on a surface without a renderer of their own)."""
+    w, h = widget.get_width(), widget.get_height()
+    paintable = Gtk.WidgetPaintable.new(widget)
+    snap = Gtk.Snapshot()
+    paintable.snapshot(snap, w, h)
+    node = snap.to_node()
+    if node is None or w == 0 or h == 0:
+        print("skipped", path, "(widget not drawable on this display)")
+        return
+    tex = renderer.render_texture(node, Graphene.Rect().init(0, 0, w, h))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tex.save_to_png(str(path))
+    print("wrote", path, f"{w}x{h}")
+
+
 def main() -> int:
     app = Application(non_unique=True)   # a running LinScreenCapture must not swallow the snapshot run
     settings = Settings.load(root=str(OUT / "_cfg"))  # isolated config: read but nothing persisted to ~
@@ -131,11 +147,78 @@ def main() -> int:
             if pop is not None:
                 pop._cancel()
             win.state.zoom = 2.0
+            GLib.timeout_add(700, step5f)
+            return False
+
+        def step5f():
+            render(win, OUT / "shell_document_zoomed.png")
+            win.state.zoom = 1.0
+            # review round 2: Ctrl+A marks every layer; Ctrl+C fills the clipboard tray (three copies kept)
+            ed = win.editor
+            win.activate_action("win.copy", None)
+            ed.select(win.document.layers[0].id)
+            from linscreencapture.model.undo import SetVisible
+            ed._commit(SetVisible(win.document.layers[1], False), select_new=False)
+            win.activate_action("win.copy", None)
+            ed._commit(SetVisible(win.document.layers[1], True), select_new=False)
+            ed._commit(SetVisible(win.document.layers[0], False), select_new=False)
+            win.activate_action("win.copy", None)
+            ed._commit(SetVisible(win.document.layers[0], True), select_new=False)
+            win.activate_action("win.select-all", None)
+            GLib.timeout_add(700, step5g)
+            return False
+
+        def step5g():
+            render(win, OUT / "shell_select_all_tray.png")
+            tray = win.tool_rail.tray
+            tray.slots[0].popup()
+            GLib.timeout_add(600, step5h)
+            return False
+
+        def step5h():
+            tray = win.tool_rail.tray
+            render_widget(tray.preview.get_child(), OUT / "shell_clip_preview.png", win.get_native().get_renderer())
+            tray.preview.popdown()
+            # the eraser clears to transparent: the stage checkerboard shows through
+            from linscreencapture.model.undo import AddLayer
+            from linscreencapture.model.annotations import Annotation
+            ed = win.editor
+            st = ed.style_for("eraser")
+            ed._commit(AddLayer(Annotation("eraser", style=st, points=[(120, 650), (260, 600), (420, 660), (600, 610)])))
+            win.state.tool = "eraser"
+            GLib.timeout_add(700, step5i)
+            return False
+
+        def step5i():
+            render(win, OUT / "shell_eraser.png")
+            # the Area tool: a closed point chain around the mock window's sidebar
+            from linscreencapture.model.annotations import Annotation
+            win.state.tool = "area_points"
+            win.editor.set_area(Annotation("cutout", 600, 330, 780, 720, shape="points",
+                                           points=[(610, 330), (770, 330), (780, 520), (700, 720), (600, 640)]))
+            GLib.timeout_add(700, step5i2)
+            return False
+
+        def step5i2():
+            render(win, OUT / "shell_area_chain.png")
+            win.editor.cancel_area()
+            win.state.tool = "select"
+            win.activate_action("win.library", None)
+            GLib.timeout_add(900, step5j)
+            return False
+
+        def step5j():
+            win.activate_action("win.library-select-all", None)
+            GLib.timeout_add(500, step5k)
+            return False
+
+        def step5k():
+            render(win, OUT / "shell_library_multiselect.png")
+            win.activate_action("win.library", None)
             GLib.timeout_add(700, step6)
             return False
 
         def step6():
-            render(win, OUT / "shell_document_zoomed.png")
             a.activate_action("preferences", None)
             GLib.timeout_add(900, step7)
             return False

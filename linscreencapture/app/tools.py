@@ -6,7 +6,8 @@ from dataclasses import replace
 from ..model.annotations import Annotation, Style, snap45, constrain_square, callout_box, step_radius
 
 DRAG_TOOLS = ("arrow", "line", "box", "circle", "fill", "blur", "pixelate", "callout", "crop")
-STROKE_TOOLS = ("pen", "marker")
+STROKE_TOOLS = ("pen", "marker", "eraser")
+AREA_TOOLS = {"area_box": "box", "area_round": "round", "area_points": "points"}   # tool -> Annotation.shape
 CLICK_TOOLS = ("text", "step")
 MIN_DRAG = 3.0
 

@@ -2,7 +2,8 @@
 
 Pure Python: cairo, Pango (via GI, no GTK), numpy and Pillow only, so it runs headless.
 
-Kinds: arrow, line, box, circle, text, pen, marker, step, callout, fill, blur, pixelate.
+Kinds: arrow, line, box, circle, text, pen, marker, eraser, step, callout, fill, blur, pixelate, image.
+The eraser is a stroke that clears what lies beneath it (DEST_OUT), so erased pixels become transparent.
 Coordinates are document pixels. ``draw(annotation, cr, target)`` paints one annotation onto a
 cairo context whose target image surface is ``target`` (needed by blur and pixelate, which sample
 what is already painted beneath them, exactly as 1.4 did).
@@ -18,12 +19,13 @@ gi.require_version("Pango", "1.0")
 gi.require_version("PangoCairo", "1.0")
 from gi.repository import Pango, PangoCairo  # noqa: E402
 
-KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "step", "callout", "fill", "blur", "pixelate", "image")
+KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "fill", "blur", "pixelate", "image", "cutout")
+AREA_SHAPES = ("box", "round", "points")          # the Area tool's three ways of marking a region
 SHAPE_KINDS = ("arrow", "line", "box", "circle")          # share the "Shapes" settings
 REDACT_KINDS = ("blur", "pixelate")
-STROKE_KINDS = ("line", "pen", "marker")
+STROKE_KINDS = ("line", "pen", "marker", "eraser")
 NAMES = {"arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text", "pen": "Pen",
-         "marker": "Marker", "step": "Step", "callout": "Callout", "fill": "Fill", "blur": "Blur", "pixelate": "Pixelate", "image": "Image"}
+         "marker": "Marker", "eraser": "Eraser", "step": "Step", "callout": "Callout", "fill": "Fill", "blur": "Blur", "pixelate": "Pixelate", "image": "Image", "cutout": "Cutout"}
 # the layer label names the tool that made the layer ("BLUR", "PIXELATE"), never a category like "REDACT"
 BADGE = {k: v.upper() for k, v in NAMES.items()}
 SHADOW_KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker")
@@ -74,6 +76,7 @@ class Annotation:
     text: str = ""
     points: list[tuple[float, float]] = field(default_factory=list)   # pen, marker
     number: int = 0                                                   # step
+    shape: str = ""                                                   # cutout: box | round | points (see area_path)
     surface: object = field(default=None, repr=False, compare=False)  # image: a cairo surface drawn into the rect
 
     def __post_init__(self) -> None:
@@ -94,7 +97,7 @@ class Annotation:
     def bounding_box(self) -> tuple[float, float, float, float]:
         """(x, y, w, h) that fully contains the painted pixels, shadow included."""
         lw = self.style.width
-        if self.kind in ("pen", "marker") and self.points:
+        if self.kind in ("pen", "marker", "eraser", "cutout") and self.points:
             xs = [p[0] for p in self.points]; ys = [p[1] for p in self.points]
             x, y, w, h = min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
             pad = (lw * 4 if self.kind == "marker" else lw) / 2 + 1
@@ -125,7 +128,7 @@ class Annotation:
         """Plain data (the image surface of an ``image`` kind is not included; pass it to ``from_dict``)."""
         return {"kind": self.kind, "x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2,
                 "style": asdict(self.style), "text": self.text,
-                "points": [list(p) for p in self.points], "number": self.number}
+                "points": [list(p) for p in self.points], "number": self.number, "shape": self.shape}
 
     def copy(self) -> "Annotation":
         return Annotation.from_dict(self.to_dict(), surface=self.surface)
@@ -217,6 +220,12 @@ def draw(a: Annotation, cr: cairo.Context, target: cairo.ImageSurface | None = N
         return
     alpha = max(0.0, min(1.0, a.style.opacity))
     if alpha <= 0.0:
+        return
+    if a.kind == "eraser":
+        _erase(a, cr, alpha)
+        return
+    if a.kind == "cutout":
+        _cutout(a, cr, alpha)
         return
     cr.save()
     if alpha < 1.0:
@@ -405,6 +414,69 @@ def _paint_pen(a: Annotation, cr: cairo.Context) -> None:
     _stroke_points(a, cr)
 
 
+def _erase(a: Annotation, cr: cairo.Context, alpha: float) -> None:
+    """Clear the pixels under the stroke: DEST_OUT with the tool opacity as the erase strength."""
+    if not a.points:
+        return
+    cr.save()
+    cr.set_operator(cairo.OPERATOR_DEST_OUT)
+    cr.set_source_rgba(0, 0, 0, alpha)
+    cr.set_line_width(a.style.width)
+    cr.set_line_cap(cairo.LINE_CAP_ROUND); cr.set_line_join(cairo.LINE_JOIN_ROUND)
+    _stroke_points(a, cr)
+    cr.restore()
+
+
+def area_path(cr: cairo.Context, a: Annotation) -> bool:
+    """Trace the region an Area annotation (``shape`` box | round | points) encloses; False if degenerate."""
+    if a.shape == "points":
+        if len(a.points) < 3:
+            return False
+        cr.new_sub_path()
+        cr.move_to(*a.points[0])
+        for p in a.points[1:]:
+            cr.line_to(*p)
+        cr.close_path()
+        return True
+    x, y, w, h = a.rect
+    if w < 1 or h < 1:
+        return False
+    if a.shape == "round":
+        return _ellipse_path(a, cr)
+    cr.rectangle(x, y, w, h)
+    return True
+
+
+def _cutout(a: Annotation, cr: cairo.Context, alpha: float) -> None:
+    """Clear the pixels inside the area: DEST_OUT with the opacity as the strength."""
+    cr.save()
+    cr.set_operator(cairo.OPERATOR_DEST_OUT)
+    cr.set_source_rgba(0, 0, 0, alpha)
+    if area_path(cr, a):
+        cr.fill()
+    cr.restore()
+
+
+def _paint_cutout_ghost(a: Annotation, cr: cairo.Context) -> None:
+    cr.save()
+    cr.set_source_rgba(1, 1, 1, 0.45)
+    if area_path(cr, a):
+        cr.fill()
+    cr.restore()
+
+
+def _paint_eraser_ghost(a: Annotation, cr: cairo.Context) -> None:
+    """How an eraser stroke is shown where it cannot clear (previews, thumbnails): a translucent band."""
+    if not a.points:
+        return
+    cr.save()
+    cr.set_source_rgba(1, 1, 1, 0.55)
+    cr.set_line_width(a.style.width)
+    cr.set_line_cap(cairo.LINE_CAP_ROUND); cr.set_line_join(cairo.LINE_JOIN_ROUND)
+    _stroke_points(a, cr)
+    cr.restore()
+
+
 def _paint_marker(a: Annotation, cr: cairo.Context) -> None:
     if not a.points:
         return
@@ -485,8 +557,8 @@ def _paint_image(a: Annotation, cr: cairo.Context) -> None:
 
 
 _PAINTERS = {"arrow": _paint_arrow, "line": _paint_line, "box": _paint_box, "circle": _paint_circle,
-             "text": _paint_text, "pen": _paint_pen, "marker": _paint_marker, "step": _paint_step,
-             "callout": _paint_callout, "fill": _paint_fill, "image": _paint_image}
+             "text": _paint_text, "pen": _paint_pen, "marker": _paint_marker, "eraser": _paint_eraser_ghost, "step": _paint_step,
+             "callout": _paint_callout, "fill": _paint_fill, "image": _paint_image, "cutout": _paint_cutout_ghost}
 
 
 # ---------------------------------------------------------------- redaction (pixel ops on the target)

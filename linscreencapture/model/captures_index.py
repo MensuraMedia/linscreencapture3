@@ -61,8 +61,11 @@ class CapturesIndex(GObject.Object):
     def _apply(self, entries, gen: int) -> bool:
         if gen != self._gen:
             return False
-        self.store.remove_all()
-        for e in entries:
-            self.store.append(e)
+        # an unchanged folder keeps the store (and with it the Library's selection) untouched
+        current = [(self.store.get_item(i).path, self.store.get_item(i).mtime) for i in range(self.store.get_n_items())]
+        if current != [(e.path, e.mtime) for e in entries]:
+            self.store.remove_all()
+            for e in entries:
+                self.store.append(e)
         self.emit("scanned", len(entries))
         return False

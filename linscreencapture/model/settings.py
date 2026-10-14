@@ -21,7 +21,8 @@ NEW_DIR = "linscreencapture"
 LEGACY_DIR = "linshot"
 FILE = "settings.conf"
 
-TOOLS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "step", "callout", "fill")
+TOOLS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "fill")
+_DEFAULT_WIDTHS = {"eraser": 24.0}   # the eraser is a broad band by default
 PREFIXES = ("LinScreenCapture_", "Screenshot_")
 NUMBERING = ("sequence", "timestamp")
 FORMATS = ("png", "jpeg", "webp")
@@ -72,7 +73,7 @@ class ToolStyle:
 
 
 def _default_tools() -> dict[str, ToolStyle]:
-    return {t: ToolStyle(opacity=0.4 if t == "marker" else 1.0) for t in TOOLS}
+    return {t: ToolStyle(width=_DEFAULT_WIDTHS.get(t, 4.0), opacity=0.4 if t == "marker" else 1.0) for t in TOOLS}
 
 
 @dataclass
@@ -196,7 +197,7 @@ class Settings:
         for t in TOOLS:
             ts = self.tools[t]
             ts.colour = parse_colour(g.str("Tools", f"colour_{t}", ts.colour)) or ts.colour
-            ts.width = max(0.5, min(40.0, g.float("Tools", f"width_{t}", ts.width)))
+            ts.width = max(0.5, min(80.0, g.float("Tools", f"width_{t}", ts.width)))
             ts.shadow = g.bool("Tools", f"shadow_{t}", ts.shadow)
             ts.shadow_intensity = max(0.0, min(1.0, g.float("Tools", f"shadow_intensity_{t}", ts.shadow_intensity)))
             ts.fill = g.bool("Tools", f"fill_{t}", ts.fill)

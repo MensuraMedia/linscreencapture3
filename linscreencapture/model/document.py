@@ -171,9 +171,10 @@ class Document:
             raise ValueError("no path to save to")
         fmt = (fmt or os.path.splitext(path)[1][1:] or "png").upper().replace("JPG", "JPEG")
         img = pil_from_surface(self.flatten())
-        if fmt == "JPEG":
-            img = img.convert("RGB")
-            img.save(path, "JPEG", quality=quality)
+        if fmt == "JPEG":                          # no alpha in JPEG: transparent pixels land on white
+            flat = Image.new("RGB", img.size, (255, 255, 255))
+            flat.paste(img, mask=img.getchannel("A"))
+            flat.save(path, "JPEG", quality=quality)
         elif fmt == "WEBP":
             img.save(path, "WEBP", quality=quality)
         else:

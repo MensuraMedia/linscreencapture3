@@ -55,6 +55,29 @@ class RemoveLayer:
 
 
 @dataclass
+class RemoveLayers:
+    """Delete several layers (Ctrl+A then Delete) as one undo step."""
+    layers: list
+    label: str = "Delete all layers"
+    _indices: list | None = None
+
+    def apply(self, doc: Document) -> None:
+        self._indices = []
+        for layer in self.layers:
+            if layer in doc.layers:
+                self._indices.append((doc.layers.index(layer), layer))
+        for _i, layer in sorted(self._indices, key=lambda t: -t[0]):
+            doc.remove_layer(layer)
+
+    def revert(self, doc: Document) -> None:
+        for index, layer in sorted(self._indices or [], key=lambda t: t[0]):
+            doc.layers.insert(index, layer)
+        from .annotations import renumber_steps
+        renumber_steps(l.annotation for l in doc.layers)
+        doc.dirty = True
+
+
+@dataclass
 class MoveLayer:
     layer: Layer
     index: int
