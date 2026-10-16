@@ -76,6 +76,14 @@ The nine design artboards (`screenshots/01`–`09`) remain in the repository as 
 - Backends chosen at start-up: XDG desktop portal (Wayland and X11), python-xlib on X11, `gnome-screenshot` / `grim` as a last resort.
 - One resident instance; the system PrintScreen binding and `linscreencapture --capture` activate it over D-Bus in under 300 ms.
 
+**Background agent**
+
+- The application runs as a small background agent: closing the studio only hides it, and the agent keeps running with no window until you choose **Quit** (Ctrl+Q or the tray menu).
+- **PrintScreen** (`linscreencapture --capture`) opens the region selector. The region is copied to the clipboard and saved to the save folder, and the studio stays as it was. A hidden studio stays hidden. An open studio comes back with its document untouched, and the capture goes into its clipboard tray. Settings → System → *PrintScreen opens the editor* switches back to the editor flow.
+- A tray icon (XApp on Cinnamon, MATE and Xfce; Ayatana AppIndicator elsewhere) offers *Capture region to clipboard*, *Open editor* and *Quit*. A left click opens the editor.
+- `linscreencapture --background` starts the agent without a window. Settings → System → *Start at login* writes `~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop`, which does this at login.
+- If a PrintScreen capture fails while no window is shown, a desktop notification reports the error.
+
 **Annotate**
 
 - Select, Move, Arrow, Line, Box, Circle, Text, Pen, Marker, Step number, Callout, Fill.
@@ -118,7 +126,7 @@ The nine design artboards (`screenshots/01`–`09`) remain in the repository as 
 
 | Shortcut | Action |
 | --- | --- |
-| PrintScreen (system) | Region capture |
+| PrintScreen (system) | Region capture to the clipboard and the save folder (no editor; see *Background agent*) |
 | Ctrl+N / Ctrl+Shift+N | Region capture / Full-screen capture |
 | Ctrl+S / Ctrl+Shift+S | Save / Save As |
 | Ctrl+C / Ctrl+V | Copy composition or selection / Paste image as a layer |
@@ -139,7 +147,8 @@ linscreencapture/
   app/        Adw.Application + GActions, EditorController, ViewState
   ui/         StudioWindow, rails, stage, capture overlay, preferences, widgets, style.css
   model/      Document, Annotations, UndoStack, Settings, CapturesIndex   (pure Python)
-  services/   CaptureService, Clipboard, FileStore, HotkeyRegistrar, IconLoader
+  services/   CaptureService, Clipboard, FileStore, Autostart, IconLoader (HotkeyRegistrar: Phase 6)
+  tray.py     status-icon helper: a separate GTK 3 process (python3 -m linscreencapture.tray)
   backends/   portal, x11, cli
 data/         icons (Phosphor, -symbolic), gresource.xml, .desktop
 docs/         GUI_SPEC.md, mockups/
@@ -159,6 +168,16 @@ cd linscreencapture3
 make resources                 # compiles data/ + style.css into linscreencapture/linscreencapture.gresource
 python3 -m linscreencapture    # or: pip install -e .[dev] && linscreencapture
 ```
+
+Background agent on Linux Mint Cinnamon:
+
+```bash
+sudo apt install gir1.2-xapp-1.0          # tray icon (gir1.2-ayatanaappindicator3-0.1 on other desktops)
+make launcher                             # menu entry for this checkout
+linscreencapture --background             # or enable Settings → System → Start at login
+```
+
+Bind PrintScreen to `linscreencapture --capture` (Cinnamon: System Settings → Keyboard → Shortcuts → Custom shortcuts, after removing PrintScreen from the built-in screenshot entries). Automatic registration (HotkeyRegistrar) arrives with the rest of Phase 6. Set `LSC_NO_TRAY=1` to run the agent without the icon.
 
 Start-up and capture diagnostics: `python3 -m linscreencapture --debug` (or `LSC_DEBUG=1`) prints timestamped lines for toolkit versions, resources, settings, backend order, window build time and every capture step, and routes GTK/GLib messages into the same stream.
 
@@ -186,7 +205,7 @@ firefox --headless --profile /tmp/ffp --no-remote --window-size=1360,840 \
 | 3 | Capture | Region, window, screen on X11 and Wayland; clipboard and file written before the editor opens | **done** (X11 verified; portal untested) |
 | 4 | Annotation tools and layers | Every tool is a layer: drawn, selected, moved, undone | **done** |
 | 5 | Image operations and files | Crop, resize, rotate, brightness, flatten, save, paste, library delete; old C sources removed | **done** |
-| 6 | System integration | Hotkey registrar (GNOME-safe), autostart, delayed, pin, scrolling capture, preferences | next |
+| 6 | System integration | Hotkey registrar (GNOME-safe), autostart, delayed, pin, scrolling capture, preferences | **in progress**: background agent, tray icon, quiet PrintScreen capture, autostart and the System page are done; registrar, countdown, pin and scrolling are still to do |
 | 7 | Polish and release | Navigator, shortcuts window, toasts, golden-image tests, packaging | |
 
 ## Previous version

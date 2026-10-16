@@ -1,7 +1,7 @@
 # LinScreenCapture 3 — feature reference
 
-Complete description of everything the application does as of 2026-10-13 (Phases 1–5 of 7 plus two review
-rounds). Every item below exists in the code on branch `feat/phase5` and is covered by `make test` (105 tests,
+Complete description of everything the application does as of 2026-10-16 (Phases 1–5 of 7, two review
+rounds and the Phase 6 background agent on `feat/background-agent`). Every item below exists in the code on branch `feat/phase5` and is covered by `make test` (105 tests,
 live display) or a render in `screenshots/dev/`. Planned work (Phase 6: hotkeys, countdown, pin, scrolling
 capture; Phase 7: polish and release) and the backlog are in `HANDOFF.md` §3 and §8; known limits in
 `KNOWN_ISSUES.md`; the GUI specification in `docs/GUI_SPEC.md`.
@@ -21,7 +21,10 @@ Contents: 1 Launching · 2 Window and chrome · 3 Left rail · 4 Header strip ·
 | Function | How | Module |
 | --- | --- | --- |
 | Start the studio | `python3 -m linscreencapture`, the `linscreencapture` console script, or the **LinScreenCapture3** menu entry installed by `make launcher` (runs `tools/launch.sh` from the checkout) | `__main__.py`, `tools/launch.sh`, `data/linscreencapture3-dev.desktop.in` |
-| Capture immediately | `linscreencapture --capture` (`-c`): a second instance forwards the request to the running one over D-Bus; at first start the window stays hidden until the capture is done, then appears with the result. The installed `.desktop` file exposes it as the "Capture a region" action | `app/application.py` |
+| Capture immediately | `linscreencapture --capture` (`-c`), the PrintScreen binding: a second instance forwards `app.hotkey-capture` to the running agent over D-Bus; started cold, the process becomes the agent with no window. The capture is **quiet**: region → clipboard + save folder, studio left as it was (§11). With *PrintScreen opens the editor* on, the result opens in the editor as before. The `.desktop` file exposes it as the "Capture a region" action | `app/application.py` |
+| Background agent | the primary instance `hold()`s itself while `keep_running` is on: closing the studio hides it (`hide_on_close`, document kept), Quit (**Ctrl+Q**, tray) ends the process. `--background` (`-b`) starts the agent with no window; a second `--background` exits quietly | `app/application.py` |
+| Tray icon | `python3 -m linscreencapture.tray`: a separate GTK 3 process (GTK 4 has no status icon and cannot share a process with GTK 3), started and stopped by the agent, exits when the agent's bus name vanishes. XApp.StatusIcon first, AyatanaAppIndicator3 as the fallback. Menu: *Capture region to clipboard* (`app.hotkey-capture`), *Open editor* (`app.show-editor`), *Quit* (`app.quit`); left click = Open editor. `LSC_NO_TRAY=1` disables it | `tray.py` |
+| Autostart | `~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop` running `<linscreencapture on PATH> --background` (else `python3 -m linscreencapture --background` with `Path=` the checkout); written or removed by Settings → System → *Start at login*, whose switch reads the file | `services/autostart.py` |
 | Single instance | `Adw.Application`, id `com.mensuramedia.LinScreenCapture`; a second launch raises the window. Tools and probes build `Application(non_unique=True)` so they never activate a running copy | `app/application.py` |
 | Diagnostics | `--debug` (`-d`) or `LSC_DEBUG=1`: timestamped log of versions (Python, PyGObject, GTK, libadwaita), session type, resource and icon count, stylesheet, settings file and values, backend order, action counts, window build time and every capture step; GTK/GLib messages go to the same stream under `toolkit` | `app/logging_setup.py` |
 | Window memory | size, maximised state and the collapsed state of both rails are saved on close and restored on the next start | `model/settings.py`, `StudioWindow._on_close` |
@@ -235,6 +238,13 @@ A full-stage page of the save folder, newest first, toggled by the Library butto
 | Readouts | size chip under the box (`W × H`); pointer position and the colour under it bottom-left |
 | Multi-monitor | one overlay window per monitor sharing one session; a selection cannot span monitors; integer HiDPI scale factors per monitor |
 
+
+**Quiet capture** (`capture(mode, quiet=True)`, from `app.hotkey-capture`): always Region; ignores the window's capture
+mode and Delayed toggle; always copies to the clipboard (even with *Copy to clipboard* off); the 300 ms settle is
+skipped when no studio is on screen. Afterwards a hidden studio stays hidden; a visible one is presented again with a
+toast and its document untouched (the capture still enters the clipboard tray). Esc writes nothing. Errors with no
+studio on screen become a desktop notification (`Application.send_notification`).
+
 ## 12. Settings (`model/settings.py`, dialog `ui/preferences.py`)
 
 File `~/.config/linscreencapture/settings.conf` (GLib key file), groups `[Window] [Capture] [System] [Tools]`.
@@ -254,8 +264,15 @@ and numbering derived from `filename_format`, tool widths and shadows, blur bloc
 | Start with the left / right rail collapsed | `left_collapsed`, `right_collapsed` | bool (applied live) |
 | Dashed frame around the selected layer | `selection_frame` | bool, default off (handles only) |
 
+| Dialog row (System page) | Key | Values |
+| --- | --- | --- |
+| Keep running in the background | `[System] keep_running` | bool, default on; applies from the next window (turning it off takes effect at the next start) |
+| Tray icon | `[System] tray_icon` | bool, default on; starts or stops the helper live |
+| Start at login | `[System] autostart` | bool; writes or removes the autostart entry (§1), and the switch reads the file |
+| PrintScreen opens the editor | `[System] hotkey_opens_editor` | bool, default off (quiet capture, §11) |
+
 Keys without a dialog row yet (Phase 6 pages): `backend` (auto · portal · x11 · cli), `include_pointer`,
-`pin_opacity`, `reopen_last`; `[System]` `autostart`, `hotkey`, `register_hotkey`. `[Tools]` keys are written by
+`pin_opacity`, `reopen_last`; `[System]` `hotkey`, `register_hotkey`. `[Tools]` keys are written by
 the header strip and the palette: per tool `colour_*`, `width_*`, `shadow_*`, `shadow_intensity_*`, `fill_*`,
 `opacity_*` for arrow, line, box, circle, text, pen, marker, eraser, step, callout, fill; shared `universal`,
 `blur_block`, `blur_radius`, `text_font_family`, `text_font_size`, `text_bold`, `text_italic`, `step_size`.

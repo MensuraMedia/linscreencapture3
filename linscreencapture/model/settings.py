@@ -2,7 +2,7 @@
 
 Stored as a GLib key file at ``~/.config/linscreencapture/settings.conf`` in four groups:
 ``[Window]`` geometry and rail state, ``[Capture]`` saving and capture options, ``[System]``
-hotkey and autostart, ``[Tools]`` per-tool colour, width and shadow plus text and blur options.
+hotkey, autostart and the background agent, ``[Tools]`` per-tool colour, width and shadow plus text and blur options.
 
 The legacy 1.x file ``~/.config/linshot/settings.conf`` (single ``[Settings]`` group) is read once
 when the new file does not exist; it is copied, never moved or modified. No GTK here.
@@ -102,6 +102,9 @@ class Settings:
     autostart: bool = False
     hotkey: str = "Print"
     register_hotkey: bool = False
+    keep_running: bool = True          # background agent: closing the window hides it; Quit ends the agent
+    tray_icon: bool = True             # the agent's status icon (Capture · Open editor · Quit)
+    hotkey_opens_editor: bool = False  # PrintScreen / --capture: False = region to clipboard + file, no editor
     # [Tools]
     tools: dict[str, ToolStyle] = field(default_factory=_default_tools)
     universal: bool = False
@@ -196,6 +199,9 @@ class Settings:
         self.autostart = g.bool("System", "autostart", self.autostart)
         self.hotkey = g.choice("System", "hotkey", HOTKEYS, self.hotkey)
         self.register_hotkey = g.bool("System", "register_hotkey", self.register_hotkey)
+        self.keep_running = g.bool("System", "keep_running", self.keep_running)
+        self.tray_icon = g.bool("System", "tray_icon", self.tray_icon)
+        self.hotkey_opens_editor = g.bool("System", "hotkey_opens_editor", self.hotkey_opens_editor)
         for t in TOOLS:
             ts = self.tools[t]
             ts.colour = parse_colour(g.str("Tools", f"colour_{t}", ts.colour)) or ts.colour
@@ -267,6 +273,9 @@ class Settings:
         kf.set_boolean("System", "autostart", bool(self.autostart))
         kf.set_string("System", "hotkey", self.hotkey)
         kf.set_boolean("System", "register_hotkey", bool(self.register_hotkey))
+        kf.set_boolean("System", "keep_running", bool(self.keep_running))
+        kf.set_boolean("System", "tray_icon", bool(self.tray_icon))
+        kf.set_boolean("System", "hotkey_opens_editor", bool(self.hotkey_opens_editor))
         for t in TOOLS:
             ts = self.tools[t]
             kf.set_string("Tools", f"colour_{t}", ts.colour)

@@ -1,4 +1,6 @@
-"""Settings dialog. Phase 3 ships the Capture page; System and Shortcuts pages arrive in Phase 6."""
+"""Settings dialog: the Capture page and the System page (background agent, PrintScreen, autostart).
+
+The hotkey preset, its registration and the Shortcuts page arrive with the rest of Phase 6."""
 from __future__ import annotations
 import os
 
@@ -14,11 +16,13 @@ LABELS = {
 
 
 class PreferencesDialog(Adw.PreferencesDialog):
-    def __init__(self, settings: Settings, on_change=None):
+    def __init__(self, settings: Settings, on_change=None, autostart_root: str | None = None):
         super().__init__(title="Settings", search_enabled=False)
         self.settings = settings
         self.on_change = on_change
+        self.autostart_root = autostart_root
         self.add(self._capture_page())
+        self.add(self._system_page())
 
     # -- pages ------------------------------------------------------------
     def _capture_page(self) -> Adw.PreferencesPage:
@@ -54,6 +58,22 @@ class PreferencesDialog(Adw.PreferencesDialog):
         page.add(window)
         return page
 
+    def _system_page(self) -> Adw.PreferencesPage:
+        page = Adw.PreferencesPage(title="System", icon_name="lsc-gear-symbolic")
+        from ..services import autostart
+        self.settings.autostart = autostart.is_enabled(self.autostart_root)   # the entry on disk is the truth
+        agent = Adw.PreferencesGroup(title="Background agent",
+                                     description="PrintScreen runs a region capture that is saved and copied to the clipboard")
+        agent.add(self._switch("Keep running in the background",
+                               "Closing the window hides it; Quit (Ctrl+Q or the tray menu) ends the agent", "keep_running"))
+        agent.add(self._switch("Tray icon", "Capture · Open editor · Quit", "tray_icon"))
+        self.autostart_row = self._switch("Start at login", "Starts the agent without a window", "autostart")
+        agent.add(self.autostart_row)
+        agent.add(self._switch("PrintScreen opens the editor",
+                               "Off: the capture goes to the clipboard and the save folder only", "hotkey_opens_editor"))
+        page.add(agent)
+        return page
+
     # -- row builders -----------------------------------------------------
     def _combo(self, title: str, labels, values, field: str, subtitle: str | None = None) -> Adw.ComboRow:
         row = Adw.ComboRow(title=title, model=Gtk.StringList.new(list(labels)))
@@ -84,6 +104,12 @@ class PreferencesDialog(Adw.PreferencesDialog):
         if getattr(self.settings, field) == value:
             return
         setattr(self.settings, field, value)
+        if field == "autostart":
+            from ..services import autostart
+            try:
+                autostart.set_enabled(bool(value), self.autostart_root)
+            except OSError as exc:
+                print(f"autostart not changed: {exc}")
         try:
             self.settings.save()
         except Exception as exc:  # noqa: BLE001

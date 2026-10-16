@@ -213,6 +213,14 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
 - Area tool follow-ups: move / restyle the marked region as a group, feather the edge, invert the area, Ctrl+X cut.
 - Select all (Ctrl+A) follow-ups: move or restyle all layers together.
 
+0. **Done 2026-10-16 on `feat/background-agent`** (branched from `feat/phase5`) — background agent: `--background`,
+   `hold()` while `keep_running`, `hide_on_close`, `app.hotkey-capture` (quiet region → clipboard + file, studio
+   untouched) and `app.show-editor`, the GTK 3 tray helper `linscreencapture/tray.py` (XApp / Ayatana, own process,
+   exits with the agent's bus name), `services/autostart.py`, the Settings **System** page (keep running, tray,
+   start at login, PrintScreen opens the editor), `tests/test_agent.py` (9 tests). On the dev machine the Cinnamon
+   custom keybinding `custom0` binds `Print` to `~/.local/bin/linscreencapture --capture` (a wrapper around
+   `tools/launch.sh`), and autostart is enabled. Open items: the registrar below should write that binding itself;
+   `install.sh`/`INSTALL.md` still describe the 1.4 C build and need rewriting for v3.
 1. `services/hotkey_registrar.py`: port `keybinding_manager.c` behaviour from the original repository (Cinnamon
    gsettings custom keybindings, GNOME **append to** `custom-keybindings` and clear `show-screenshot-ui`, XFCE
    xfconf, MATE marco, KDE/other: document the manual path). Exec = `linscreencapture --capture`.

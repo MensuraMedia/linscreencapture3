@@ -6,3 +6,4 @@ No pending items.
 - s049 i18n strategy (docs/s049_i18n_strategy.md) on branch docs/i18n-strategy — awaiting operator review before any string-wrapping pass (wrap before Phase 5 per plan).
 - Branch docs/app-screenshots: 3 commits unpushed (cbaed3b, eba9388, e9d017c) — awaiting operator review.
 - Snapshot tool caveat: on a fresh clone, `make snapshot` falls back to the real Pictures folder for the Library render until the tool defaults the folder to screenshots/fixtures/.
+- 2026-10-16 Branch feat/background-agent (from feat/phase5): background agent, tray helper, quiet PrintScreen capture, autostart, System settings page. Pushed, not merged; awaiting operator on-screen sign-off. Follow-ups: the HotkeyRegistrar should write the Cinnamon binding itself (it is currently set by hand: custom0 → ~/.local/bin/linscreencapture --capture); rewrite install.sh/INSTALL.md for v3 (they still build 1.4 C from the old repo).

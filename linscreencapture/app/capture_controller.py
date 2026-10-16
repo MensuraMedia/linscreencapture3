@@ -1,4 +1,9 @@
-"""Orchestrates a capture: hide the studio, freeze the screen, pick a region, save, copy, show."""
+"""Orchestrates a capture: hide the studio, freeze the screen, pick a region, save, copy, show.
+
+A *quiet* capture (PrintScreen, ``app.hotkey-capture``) is always a plain region capture, is always copied to the
+clipboard, and leaves the studio as it found it: hidden stays hidden, a visible studio comes back without the result
+replacing its document (the capture still lands in the clipboard tray). Failures then go to a desktop notification.
+"""
 from __future__ import annotations
 import logging
 import os
@@ -23,12 +28,15 @@ class CaptureController:
         self.app = app
         self.service = service
         self.busy = False
+        self._quiet = False
+        self._was_visible = False
 
     # -- entry points -----------------------------------------------------
-    def capture(self, mode: str | None = None) -> None:
+    def capture(self, mode: str | None = None, quiet: bool = False) -> None:
         win = self.app.props.active_window
         if self.busy:
             return
+        self._quiet = quiet
         settings = self.app.settings
         if self.service is None:
             self.service = CaptureService(settings.backend)
@@ -36,10 +44,10 @@ class CaptureController:
         delayed = mode == "delayed"                 # app.capture-delayed: the current mode, delayed
         if delayed:
             mode = None
-        if win is not None:
+        if win is not None and not quiet:
             toggle = win.lookup_action("capture-delayed")   # the rail's Delayed toggle (off again on click)
             delayed = delayed or bool(toggle and toggle.get_state().get_boolean())
-        if mode is None and win is not None:
+        if mode is None and win is not None and not quiet:
             action = win.lookup_action("capture-mode")
             mode = action.get_state().get_string() if action else "region"
         mode = mode or "region"
@@ -57,7 +65,8 @@ class CaptureController:
             if delay:
                 win.toast(f"Capturing in {delay} s")
             win.set_visible(False)
-        GLib.timeout_add(HIDE_SETTLE_MS + delay * 1000, self._grab)
+        settle = HIDE_SETTLE_MS if self._was_visible or not quiet else 0   # nothing on screen to repaint away
+        GLib.timeout_add(settle + delay * 1000, self._grab)
 
     # -- steps -------------------------------------------------------------
     def _grab(self) -> bool:
@@ -100,7 +109,7 @@ class CaptureController:
         except Exception as exc:  # noqa: BLE001
             self._fail(f"Could not save: {exc}")
             return
-        copied = clipboard.copy_surface(surface) if settings.copy_to_clipboard else False
+        copied = clipboard.copy_surface(surface) if (settings.copy_to_clipboard or self._quiet) else False
         if copied and win is not None and getattr(win, "clips", None) is not None:
             win.clips.push(surface, doc.name)          # the left rail's clipboard tray
         LOG.info("saved %s (%dx%d)%s in %.0f ms", doc.path, doc.width, doc.height,
@@ -109,6 +118,12 @@ class CaptureController:
 
     def _done(self, win, doc: Document | None, copied: bool = False) -> None:
         self.busy = False
+        if self._quiet:
+            if win is not None and self._was_visible:
+                win.present()
+                if doc is not None:
+                    win.toast(f"Saved {doc.name}" + (" · copied to clipboard" if copied else ""))
+            return
         if win is None:
             return
         if doc is not None:
@@ -120,6 +135,12 @@ class CaptureController:
     def _fail(self, message: str) -> None:
         self.busy = False
         win = self.app.props.active_window
+        if self._quiet and not self._was_visible:
+            from gi.repository import Gio
+            note = Gio.Notification.new("LinScreenCapture")
+            note.set_body(message)
+            self.app.send_notification("capture-failed", note)
+            return
         if win is not None:
             win.present()
             win.toast(message, timeout=5)
