@@ -6,12 +6,12 @@ import os
 
 from gi.repository import Adw, Gio, Gtk, GLib
 
-from ..model.settings import Settings, PREFIXES, NUMBERING, FORMATS, SELECTION_STYLES
+from ..model.settings import Settings, PREFIXES, NUMBERING, FORMATS, HOTKEYS
 
 LABELS = {
     "numbering": ("Sequence (LinScreenCapture_12)", "Timestamp (2026-10-09_21-14-05)"),
     "format": ("PNG", "JPEG", "WebP"),
-    "selection_style": ("Free-form box with resize handles · adjust, then Enter", "Simple box · captures when you release"),
+    "hotkey": ("Off", "PrintScreen", "Ctrl+PrintScreen", "Shift+PrintScreen", "Ctrl+Shift+S", "Ctrl+Alt+S"),
 }
 
 
@@ -45,9 +45,6 @@ class PreferencesDialog(Adw.PreferencesDialog):
         page.add(saving)
 
         capture = Adw.PreferencesGroup(title="Capture")
-        capture.add(self._combo("Selection box", LABELS["selection_style"], SELECTION_STYLES, "selection_style",
-                                subtitle="How the region is chosen in the capture overlay"))
-        capture.add(self._switch("Copy to clipboard", "Every capture is also copied, even if you never save", "copy_to_clipboard"))
         capture.add(self._spin("Delayed capture", "Seconds to wait for the Delayed mode", "delay_seconds", 0, 60))
         page.add(capture)
 
@@ -70,8 +67,16 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self.autostart_row = self._switch("Start at login", "Starts the agent without a window", "autostart")
         agent.add(self.autostart_row)
         agent.add(self._switch("PrintScreen opens the editor",
-                               "Off: the capture goes to the clipboard and the save folder only", "hotkey_opens_editor"))
+                               "Off: the capture goes to the clipboard, the save folder and the studio without popping it up",
+                               "hotkey_opens_editor"))
         page.add(agent)
+
+        hotkey = Adw.PreferencesGroup(title="Capture hotkey",
+                                      description="Runs the fast Region capture from anywhere, including inside this window")
+        hotkey.add(self._combo("Key", LABELS["hotkey"], HOTKEYS, "hotkey"))
+        hotkey.add(self._switch("Register with the desktop",
+                                "Cinnamon: written as a custom shortcut and re-applied at every start", "register_hotkey"))
+        page.add(hotkey)
         return page
 
     # -- row builders -----------------------------------------------------

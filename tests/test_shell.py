@@ -228,7 +228,8 @@ def test_capture_actions_exist(app, window):
     for name in ("capture", "capture-region", "capture-window", "capture-screen", "capture-delayed"):
         assert app.lookup_action(name) is None  # the plain test app has no capture actions
     from linscreencapture.app.application import CAPTURE_ACTIONS, ACCELS
-    assert set(CAPTURE_ACTIONS) == {"capture", "capture-region", "capture-window", "capture-screen", "capture-delayed"}
+    assert set(CAPTURE_ACTIONS) == {"capture", "capture-region", "capture-region-plus", "capture-window", "capture-screen",
+                                    "capture-delayed"}
     assert ACCELS["app.capture"] == ["<Control>n"]
     # no accelerator may be a bare letter or an editing chord: those are routed in the bubble phase
     for accels in ACCELS.values():
@@ -262,9 +263,9 @@ def test_preferences_dialog_builds_and_saves(window):
     dlg = PreferencesDialog(window.settings, on_change=lambda f, v: changes.append((f, v)))
     dlg.present(window)
     pump(200)
-    dlg._set("selection_style", "simple")
-    assert changes == [("selection_style", "simple")] and window.settings.path.is_file()
-    assert "selection_style=simple" in window.settings.path.read_text()
+    dlg._set("numbering", "sequence" if window.settings.numbering == "timestamp" else "timestamp")
+    assert changes and changes[0][0] == "numbering" and window.settings.path.is_file()
+    assert f"numbering={window.settings.numbering}" in window.settings.path.read_text()
     dlg.close()
     pump(50)
 

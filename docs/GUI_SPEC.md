@@ -229,11 +229,12 @@ StudioWindow (Gtk.ApplicationWindow, css .studio)
 
 | Group | Control | Icon (regular) | Action | Collapsed |
 | --- | --- | --- | --- | --- |
-| Capture | Region | `selection.svg` | `app.capture-region` | yes |
-| Capture | Window | `app-window.svg` | `app.capture-window` | no |
-| Capture | Full screen | `monitor.svg` | `app.capture-screen` | yes |
-| Capture | Scrolling | `arrows-vertical.svg` | `app.capture-scrolling` (disabled until M7) | no |
-| Capture | Delayed 3 s | `timer.svg` | `app.capture-delayed` | yes |
+| Capture | Region | `selection.svg` | `win.capture-mode::region` (capture on release) | yes |
+| Capture | Region Plus | `bounding-box.svg` | `win.capture-mode::region-plus` (handles, Enter) | no |
+| Capture | Window | `app-window.svg` | `win.capture-mode::window` | no |
+| Capture | Full screen | `monitor.svg` | `win.capture-mode::screen` | yes |
+| Capture | Scrolling | `arrows-vertical.svg` | `win.capture-mode::scrolling` (Phase 6 placeholder) | no |
+| Capture | Delayed | `timer.svg` | `win.capture-delayed` (boolean toggle, `delay_seconds`) | yes |
 | Capture | Pin to screen | `push-pin.svg` | `app.pin` | no |
 | Tools | Select | `cursor.svg` | `win.tool::select` | no |
 | Tools | Arrow | `arrow-up-right.svg` | `win.tool::arrow` | yes |
@@ -269,7 +270,7 @@ Collapsed-subset rule: the active tool is always visible; if not in the subset i
 | Title block | 14 px/500 name, line-height 18; 12 px muted subtitle `Edit · {w}×{h} · {format} · {n} layer(s) · {saved|unsaved}`; min-width 150 |
 | Status chip | 26 px, padding 0 10, radius 6, surface, border; 7 px dot; 12 px text; Ready/Captured (ok), Capturing (attention), Error (error) |
 | Zoom pill | 30 px, padding 0 6, gap 8, radius 6, surface, border; `minus`, mono 12 px value min-width 40, `plus`, `arrows-in` |
-| Capture button | 30 px, padding 0 14, radius 6, accent fill, on-accent 13 px/500, gap 8, `camera`; hover accent-hover; fires `app.capture-region` |
+| Capture button | 30 px, padding 0 14, radius 6, accent fill, on-accent 13 px/500, gap 8, `camera`; hover accent-hover; fires `app.capture` (the rail's current mode). Since 2026-10-09 it is a 30 px accent icon at the top of the left rail (section 11) |
 
 **Stage.** `#242424`; document centred when smaller than the viewport, scrollable when larger; 8 px rounded clip and shadow `0 20px 60px rgba(0,0,0,.45)` painted in the draw function. HUD: 28 px, padding 0 10, radius 6, `rgba(38,42,48,.9)`, border, mono 12 px, 16 px from bottom-left. Cursors: crosshair for drawing, text for Text, move for Move/Select-over-annotation. In-progress shapes preview at 60 % opacity.
 
@@ -285,9 +286,9 @@ Collapsed-subset rule: the active tool is always visible; if not in the subset i
 | Default palette | `#e5484d #f76b15 #ffb224 #46a758 #00a2c7 #0091ff #6e56cf #d6409f #e58fb1 #ffffff #85909b #1b1b1b`; collapsed rail shows the first six as 30×22 chips, current ringed |
 | Navigator | 116 px, radius 8, `#0f1115`, border; thumbnail centred, viewport as 1.5 px accent rectangle; drag scrolls |
 
-**Capture overlay.** One fullscreen undecorated `Gtk.Window` per monitor showing the frozen screen; 40 % black veil outside the selection; crosshair; selection rectangle with 1 px accent border and corner handles; `w × h` label 8 px below in mono 12 px on a surface chip. Drag selects; click in Window mode picks the window under the pointer; Enter confirms, ESC cancels, arrows nudge 1 px (Shift 10 px), Space moves the rectangle while dragging.
+**Capture overlay.** One fullscreen undecorated `Gtk.Window` per monitor showing the frozen screen; 45 % black veil outside the selection; crosshair; selection rectangle with 1 px accent border; `w × h` label 8 px below in mono 12 px on a surface chip; mode bar Region · Region Plus · Window · Full screen. Region captures on mouse release with no handles. Region Plus draws eight handles; arrows nudge 1 px (Shift 10 px) and Enter or a double-click confirms. Click in Window mode picks the window under the pointer; ESC cancels; Space moves the rectangle while dragging. Authoritative: `docs/CAPTURE.md` §8.
 
-**Preferences dialog** (`Adw.PreferencesDialog`): Capture page (save folder, prefix, numbering, copy to clipboard, delay seconds, pin opacity); System page (hotkey preset selector with the five old presets, autostart, rail defaults, Ubuntu font toggle; theme fixed to dark).
+**Preferences dialog** (`Adw.PreferencesDialog`): Capture page (save folder, prefix, numbering, format, delay seconds, window switches; pin opacity planned); System page (Background agent: keep running, tray icon, start at login, PrintScreen opens the editor; Capture hotkey: key preset Off · PrintScreen · Ctrl+PrintScreen · Shift+PrintScreen · Ctrl+Shift+S · Ctrl+Alt+S and *Register with the desktop*; theme fixed to dark). There is no clipboard switch: every capture is copied.
 
 ## 7. Icon library integration
 
@@ -505,7 +506,7 @@ Clipboard and file are written before the editor appears; ESC leaves no trace.
 
 | Shortcut | Action |
 | --- | --- |
-| PrintScreen (system) | `app.capture-region` |
+| PrintScreen (system) | `app.hotkey-capture` (via `linscreencapture --capture`) |
 | Ctrl+N / Ctrl+Shift+N | Region capture / Full-screen capture |
 | Ctrl+S / Ctrl+Shift+S | Save / Save As |
 | Ctrl+C / Ctrl+V | Copy composition or selection / Paste image as new layer |
@@ -607,3 +608,29 @@ history and tray are parametrised). An **Area** tool joins the second tool row w
 Round area (O) and Point chain (J: click points, close on the first point or by double-click) — marking a region
 that Ctrl+C copies, Enter crops to (outside the shape cleared) and Delete clears to transparent as a `CUTOUT` layer.
 The naming (area, point chain, mark) is deliberately distinct from other image editors' selection vocabulary.
+
+### Amendment 2026-10-16 — capture behaviour
+
+Branch `feat/background-agent`. `docs/CAPTURE.md` is the authoritative description of capture from this date; this
+amendment only summarises it.
+
+1. The capture hotkey (PrintScreen by default, a preset in Settings → System) works everywhere, including inside the
+   studio. It runs `linscreencapture --capture`, which activates `app.hotkey-capture` over D-Bus, and is always the
+   fast Region capture with no delay.
+2. Two region modes: **Region** captures the moment the mouse is released, with no handles; **Region Plus**
+   (`bounding-box` icon, `win.capture-mode::region-plus`, `app.capture-region-plus`) keeps eight handles and arrow
+   nudging, and Enter or a double-click confirms. Window and Full screen are unchanged; Scrolling and Pin remain
+   Phase 6.
+3. Every capture, from every route (hotkey, tray, Capture button, Ctrl+N, Ctrl+Shift+N), goes to the clipboard first
+   (`image/png` plus a `GdkTexture` value as one union provider, then `Gdk.Clipboard.store_async` to the clipboard
+   manager), then to the save folder, then into the studio and its clipboard tray. A hotkey capture does not pop the
+   studio up: a hidden studio stays hidden, a visible one is shown again with the capture; *PrintScreen opens the
+   editor* presents it every time.
+4. `[Capture] copy_to_clipboard` and `[Capture] selection_style` are retired, with their dialog rows. The System page
+   holds the Background agent group and the Capture hotkey group (key preset, *Register with the desktop*).
+5. `services/hotkey_registrar.py` writes the Cinnamon custom keybinding (reusing our `customN`, never another
+   application's), frees the key from Cinnamon's six built-in screenshot bindings and reloads Cinnamon through
+   `org.Cinnamon.Eval`; it is re-applied at every agent start while registration is on. Other desktops need a manual
+   binding.
+6. Backends: libX11 `XGetImage` through ctypes first on X11 (about 50 ms), the portal first on Wayland, the CLI tools
+   last. The python-xlib grab named in section 4 is used only for the window list.

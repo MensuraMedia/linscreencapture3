@@ -1,10 +1,21 @@
 # HANDOFF — LinScreenCapture 3 (linscreencapture3)
 
-Written 2026-10-08 after Phase 1, kept current through Phase 3 and the review rounds of 2026-10-09. Read this first; it says where everything is, what was
+Written 2026-10-08 after Phase 1, kept current through Phase 6 work of 2026-10-16. Read this first; it says where everything is, what was
 decided, and what to do next. The spec (`docs/GUI_SPEC.md`) is authoritative for the GUI;
 this file is authoritative for process and state.
 
-## 0. Where things stand (2026-10-09)
+## 0. Where things stand (2026-10-16)
+
+Current: Phases 1–5 done; **Phase 6 in progress** on branch `feat/background-agent` (from `feat/phase5`), uncommitted
+work on top of the pushed agent commits. Done in Phase 6 so far: background agent, tray helper, hotkey capture,
+autostart, Settings **System** page, Cinnamon hotkey registrar (`services/hotkey_registrar.py`), the **Region Plus**
+mode, and the clipboard fix (captures offered no image format on X11). Capture behaviour is specified in
+`docs/CAPTURE.md`, which is authoritative. Tests: 117 pass; 2 cosmetic window-geometry failures under Xvfb
+(`test_window_geometry`, `test_close_saves_settings`: 1350 vs 1360 px) predate the branch. Next: countdown chip, pin,
+scrolling capture, registrar for other desktops, the rest of the System page and the Shortcuts page (§8), then the
+operator's on-screen sign-off.
+
+History (2026-10-09):
 
 Phases 1–5 are done: shell, model + settings migration, capture (X11 verified live; portal and CLI backends
 written), annotation tools with live layers and undo, image operations and file flows. The legacy C sources are
@@ -52,7 +63,7 @@ performance budget are in the spec, section 5). Local-only tool; no cloud, no te
 | Repo | `/home/user/projects/linscreencapture3`, remote `origin` = `github.com/MensuraMedia/linscreencapture3` (branch `main`); `upstream` = the 1.4 repo `MensuraMedia/linscreencapture` |
 | Last pushed commit | see `git log --oneline -1`; everything is committed and pushed at the time of writing |
 | Run | `make resources && python3 -m linscreencapture` (add `--debug` or `LSC_DEBUG=1` for timestamped start-up, toolkit and capture logging via `app/logging_setup.py`) (or the menu entry **LinScreenCapture3**, installed by `make launcher`) |
-| Test | `make test` → 94 tests (31 headless in `tests/model`, 16 shell tests (`tests/`). No Xvfb on this machine: tests and `make snapshot` run on the live display and flash a window |
+| Test | `make test` → 119 tests on 2026-10-16 (117 pass; §0), headless model tests in `tests/model`, shell and agent tests in `tests/`. `make test` runs under `xvfb-run` (installed); without it, tests and `make snapshot` run on the live display and flash a window |
 | Renders | `make snapshot` → `screenshots/dev/shell_*.png` (default, open, collapsed, library, text tool, document, document zoomed, settings); `tools/snapshot_overlay.py` renders the live capture overlay to `screenshots/dev/overlay.png` (git-ignored: it contains the real screen) for comparison with `screenshots/01_*.png` and `02_*.png` |
 | Design canvas | https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA (9 artboards; sources in `docs/mockups/`, generator `docs/mockups/gen_mockups.py`) |
 | Spec | `docs/GUI_SPEC.md` (repo copy) and the living doc https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732 |
@@ -75,7 +86,7 @@ Each phase is gated on the operator's sign-off of the previous one.
 | 3 | Capture | backends (portal, X11 bulk copy, CLI), `CaptureService`, overlay window, `FileStore`, clipboard, `--capture` activation, live subtitle | **done** (commit "Phase 3: capture") — awaiting sign-off |
 | 4 | Annotation tools and layers | stage draws the document; all tools; handles; Layers panel live; colour and props wired | **done** (commit "Phase 4: annotation tools") — awaiting sign-off |
 | 5 | Image operations and files | crop/resize/rotate/brightness, flatten, save/save-as/paste, unsaved prompts, Library delete, eyedropper; legacy C sources removed | **done** (commit "Phase 5") — awaiting sign-off |
-| 6 | System integration | hotkey registrar (GNOME append fix), autostart, delayed countdown chip, pin to screen, scrolling capture, Settings System + Shortcuts pages | next |
+| 6 | System integration | hotkey registrar (GNOME append fix), autostart, delayed countdown chip, pin to screen, scrolling capture, Settings System + Shortcuts pages | **in progress** on `feat/background-agent`: agent, tray, hotkey capture, autostart, System page (partial), Cinnamon registrar, Region Plus, clipboard fix done; countdown, pin, scrolling, other-desktop registrar, Shortcuts page to do |
 | 7 | Polish and release | navigator live, shortcuts window, about, toasts, golden-image tests, packaging, tag 3.0.0 | |
 
 The full phase table with gate criteria is in `docs/GUI_SPEC.md` section 10 and the README roadmap.
@@ -103,9 +114,11 @@ The full phase table with gate criteria is in `docs/GUI_SPEC.md` section 10 and 
     the stage paints the capture pixel-exact with square corners (shadow outside only); the navigator is live
     (thumbnail + viewport rectangle, click/drag scrolls) and has no title; Library sits just above the Actions
     hairline in both rail states; right rail order is Colour, View, Edit, Layers, navigator, Settings.
-11. Settings dialog (`ui/preferences.py`, Capture page only until Phase 6): save folder, prefix, numbering, format,
-    **Selection box** (free-form with resize handles then Enter, or simple: captures on release),
-    copy to clipboard, delay, start-collapsed switches. `Settings.selection_style` drives `OverlaySession.simple`.
+11. Settings dialog (`ui/preferences.py`): **Capture** page (save folder, prefix, numbering, format, delay, window
+    switches) and **System** page (Background agent: keep running, tray, start at login, PrintScreen opens the
+    editor; Capture hotkey: key preset, register with the desktop). Retired 2026-10-16: `copy_to_clipboard` (every
+    capture is copied) and `selection_style` (replaced by the Region and Region Plus modes; `OverlaySession.simple`
+    now follows the mode).
 12. Shortcut routing (2026-10-13): tool letters and editing chords are routed in the bubble phase by
     `app/shortcuts.py`; accelerators are global chords only. Product name is **LinScreenCapture 3**, version 3.0.0.dev1.
 
@@ -136,11 +149,12 @@ linscreencapture/
   ui/popovers.py         Resize, Rotate and Brightness popovers
   ui/stage.py            empty state, Library page, document canvas (flatten cache, zoom, rounded + shadow), Ctrl+scroll zoom, fit_zoom()
   ui/capture_overlay.py  OverlaySession (shared state, physical root px) + OverlayWindow per monitor: veil, handles, crosshair, chips, mode bar, keys
-  app/capture_controller.py hide studio → settle → backend → overlay/region or screen → crop → save → clipboard → load_document
+  app/capture_controller.py hide studio → settle → backend → overlay or screen → crop → clipboard → save → ensure_window + load_document (docs/CAPTURE.md §5)
   backends/              base (protocol, crop), x11 (libX11 XGetImage via ctypes; python-xlib for the window list), portal (D-Bus Screenshot), cli
   services/capture_service.py backend order by session/preference, one fall-through per backend, thread → main loop
   services/selection.py  pure selection geometry (handles, hit, resize, move, clamp, square)
-  services/file_store.py save_capture(), duplicate_file(); services/clipboard.py copy_surface() via Gdk.MemoryTexture + ContentProvider
+  services/file_store.py save_capture(), duplicate_file(); services/clipboard.py copy_surface(): union of image/png bytes + GdkTexture value, then store_async
+  services/hotkey_registrar.py Cinnamon custom keybinding for Settings.hotkey (register / unregister / reload_cinnamon)
   app/shortcuts.py       capture-phase ShortcutRouter: tool letters (incl. E eraser, H hand), Ctrl chords, Ctrl+A, Space pan, Library routing
   ui/studio_window.py    composes everything; win.* actions; breakpoint; close saves settings
 tools/sync_icons.py, tools/snapshot_shell.py, tools/launch.sh
@@ -167,6 +181,13 @@ data/ icons, gresource.xml, .desktop files
   `focus_on_click=False`. Guarded by `test_undo_works_with_focus_in_a_header_spin`.
 - `Gdk.ContentFormats.contain_gtype(Gdk.Texture)` is **false for a local copy**: the clipboard offers the concrete
   subclass (`GdkMemoryTexture`). Walk `get_gtypes()` with `GType.is_a` (see `StudioWindow._holds_image`).
+- `ContentProvider.new_for_value(memory_texture)` alone offers only the GType `GdkMemoryTexture`, which GDK cannot
+  serialize: on X11 other applications saw no image target and pasted nothing, while the app toasted "copied"
+  (fixed 2026-10-16). Offer `image/png` bytes explicitly, type the texture value as `GdkTexture`, and call
+  `store_async` (`services/clipboard.py`). Check with `xclip -selection clipboard -t TARGETS -o`.
+- Cinnamon caches custom keybindings: a dconf write changes nothing until `org.Cinnamon.Eval` reruns
+  `setup_custom_keybindings` (`hotkey_registrar.reload_cinnamon`). A leftover 1.4 `linshot --capture` holding an
+  XGrabKey swallowed PrintScreen on 2026-10-16; `docs/CAPTURE.md` §4 has the diagnosis steps.
 - Stacked offset copies as a shadow (1.4 style, three passes) show as hard bands on dark captures. Annotation
   shadows are a Pillow-blurred silhouette cached on the annotation; the stage shadow is four linear and four radial
   gradients.
@@ -214,19 +235,24 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
 - Select all (Ctrl+A) follow-ups: move or restyle all layers together.
 
 0. **Done 2026-10-16 on `feat/background-agent`** (branched from `feat/phase5`) — background agent: `--background`,
-   `hold()` while `keep_running`, `hide_on_close`, `app.hotkey-capture` (quiet region → clipboard + file, studio
-   untouched) and `app.show-editor`, the GTK 3 tray helper `linscreencapture/tray.py` (XApp / Ayatana, own process,
+   `hold()` while `keep_running`, `hide_on_close`, `app.hotkey-capture` (fast Region → clipboard first, then file,
+   then the studio without popping it up) and `app.show-editor`, the GTK 3 tray helper `linscreencapture/tray.py` (XApp / Ayatana, own process,
    exits with the agent's bus name), `services/autostart.py`, the Settings **System** page (keep running, tray,
-   start at login, PrintScreen opens the editor), `tests/test_agent.py` (9 tests). On the dev machine the Cinnamon
-   custom keybinding `custom0` binds `Print` to `~/.local/bin/linscreencapture --capture` (a wrapper around
-   `tools/launch.sh`), and autostart is enabled. Open items: the registrar below should write that binding itself;
-   `install.sh`/`INSTALL.md` still describe the 1.4 C build and need rewriting for v3.
-1. `services/hotkey_registrar.py`: port `keybinding_manager.c` behaviour from the original repository (Cinnamon
-   gsettings custom keybindings, GNOME **append to** `custom-keybindings` and clear `show-screenshot-ui`, XFCE
-   xfconf, MATE marco, KDE/other: document the manual path). Exec = `linscreencapture --capture`.
-2. Settings dialog **System** page: hotkey preset (`Settings.hotkey`), register switch (`register_hotkey`),
-   autostart (`~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop`), backend choice, include pointer,
-   pin opacity, reopen last; **Shortcuts** page listing both shortcut tiers.
+   start at login, PrintScreen opens the editor), `tests/test_agent.py`. Later the same day: the **Region Plus** mode
+   (handles, arrows, Enter/double-click; Region now captures on release), every capture copied to the clipboard
+   first (PNG + texture union, `store_async` to the clipboard manager; the old texture-only provider gave other
+   applications nothing to paste on X11), `[Capture] copy_to_clipboard` and `selection_style` retired, and the
+   Cinnamon hotkey registrar (item 1). On the dev machine the hotkey is Ctrl+PrintScreen, bound through the
+   registrar to `~/.local/bin/linscreencapture --capture` (a wrapper around `tools/launch.sh`); autostart is enabled.
+   Full description: `docs/CAPTURE.md`.
+1. `services/hotkey_registrar.py`: **done for Cinnamon** (2026-10-16; reuses our `customN`, never overwrites another
+   application's slot, frees the six built-in screenshot keys, reloads through `org.Cinnamon.Eval`; re-applied at
+   every agent start while `register_hotkey` is on; `docs/CAPTURE.md` §4). Still to port from `keybinding_manager.c`:
+   GNOME **append to** `custom-keybindings` and clear `show-screenshot-ui`, XFCE xfconf, MATE marco; KDE/other:
+   the manual path (documented in `INSTALL.md`).
+2. Settings dialog **System** page: **partly done** — hotkey preset (`Settings.hotkey`), register switch
+   (`register_hotkey`), keep running, tray, autostart and *PrintScreen opens the editor* rows exist. Still to add:
+   backend choice, include pointer, pin opacity, reopen last; and the **Shortcuts** page listing both shortcut tiers.
 3. Delayed capture: countdown chip in the header (the `StatusChip` widget is ready) instead of a toast. The
    rail's Delayed button is already a boolean toggle (`win.capture-delayed`) that applies to any mode.
 4. Pin to screen (`app.pin`): borderless always-on-top window at `pin_opacity`, Esc/double-click closes.
@@ -260,15 +286,17 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
 
 ## 9. Capture notes (Phase 3)
 
-- Flow (`CaptureController`): hide the studio → 300 ms settle (+ delay seconds for Delayed) → `CaptureService.capture_screen`
-  (thread) → mode `screen`: finish; `region`/`window`: `OverlaySession.show()` one window per monitor → `crop` →
-  `save_capture` (next name in the save folder) → clipboard (if enabled) → `load_document` → present + toast.
-  `--capture` at start-up creates the window hidden and shows it with the result.
+- Flow (`CaptureController`, revised 2026-10-16; authoritative: `docs/CAPTURE.md` §5): hide the studio → 300 ms settle
+  (0 ms when nothing is on screen; + delay seconds for Delayed, in-app only) → `CaptureService.capture_screen` (thread)
+  → mode `screen`: finish; `region`/`region-plus`/`window`: `OverlaySession.show()` one window per monitor → `crop` →
+  **clipboard first** (always) → `save_capture` → `ensure_window()` + `load_document` + clipboard tray → present + toast
+  only when `presents` (not a hotkey capture, or the studio was visible, or `hotkey_opens_editor`).
 - Backend order: preference from Settings, else X11 → portal → CLI on X11 sessions and portal → X11 → CLI on Wayland;
   each is tried once; the last error is reported. X11 copies the root `GetImage` bytes in one numpy copy (BGRX → ARGB32).
 - Overlay coordinates are physical root pixels; each monitor window converts with its origin and scale factor.
   Window mode uses `_NET_CLIENT_LIST_STACKING` (+ `_NET_FRAME_EXTENTS`) on X11; without a window list it falls back
-  to region. Keys: Enter, Esc, Space (move while dragging), arrows (±1/±10), Shift (square), Ctrl+A, double-click.
+  to region. Region captures on mouse release; Region Plus adds handles and arrows (±1/±10) and confirms with Enter or
+  a double-click. Both: Esc, Space (move while dragging), Shift (square), Ctrl+A.
 - Known limits: a selection cannot span monitors; HiDPI assumes integer scale factors; the portal path is untested here
   (no Wayland session on the dev machine).
 

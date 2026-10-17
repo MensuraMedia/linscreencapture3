@@ -22,7 +22,7 @@ from ..app.shortcuts import ShortcutRouter
 
 MIN_WIDTH, MIN_HEIGHT = 960, 600
 AUTO_COLLAPSE_BELOW = 1100
-CAPTURE_MODES = ("region", "window", "screen", "scrolling")
+CAPTURE_MODES = ("region", "region-plus", "window", "screen", "scrolling")
 
 # action -> phase that implements it (placeholders show a toast until then)
 PLACEHOLDERS = {"duplicate-file": 7}
@@ -282,12 +282,11 @@ class StudioWindow(Gtk.ApplicationWindow):
             except Exception as exc:  # noqa: BLE001
                 self.toast(f"Could not read {entries[0].name}: {exc}", timeout=5)
                 return
-            providers.insert(0, Gdk.ContentProvider.new_for_value(clipboard.texture_from_surface(surface)))
-            display.get_clipboard().set_content(Gdk.ContentProvider.new_union(providers))
+            clipboard.set_providers(clipboard.image_providers(surface) + providers)
             self.clips.push(surface, entries[0].name)
             self.toast(f"Copied {entries[0].name} to the clipboard")
         else:
-            display.get_clipboard().set_content(Gdk.ContentProvider.new_union(providers))
+            clipboard.set_providers(providers)
             self.toast(f"Copied {len(entries)} files to the clipboard (paste them in a file manager)")
 
     def _library_duplicate(self) -> None:

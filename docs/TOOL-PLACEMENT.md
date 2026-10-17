@@ -7,7 +7,7 @@ hand**, the **right rail manages the result** (layers, colour, view, output).
 
 | Control | Was | Now | Does |
 | --- | --- | --- | --- |
-| Capture | header, top-left | top of the left rail, full-width accent button (icon when collapsed) | `app.capture-region` in the selected mode |
+| Capture | header, top-left | top of the left rail, 30 px accent icon in both rail states (review round 2026-10-09) | `app.capture`: captures in the rail's current mode (`docs/CAPTURE.md` §3) |
 | Tool properties | right rail, Props tab | header centre strip, follows the active tool | width, shadow, intensity, fill, font, size, bold, italic, blur mode/block, hints |
 | Zoom −/value/+/Fit | header right | right rail, `VIEW` | `win.zoom-out/in/fit`; the stage HUD mirrors the value |
 | Copy, Flatten | left rail Actions | right rail, `EDIT` | `win.copy`, `win.flatten` |
@@ -18,8 +18,8 @@ hand**, the **right rail manages the result** (layers, colour, view, output).
 
 ## Left rail
 
-Top row: **Capture** + collapse caret `<`. `CAPTURE`: Region, Window, Full screen, Scrolling, Delayed, Pin
-(one mode active). `TOOLS`: Select, Arrow, Line, Box, Circle, Text, Pen, Marker; then Blur, Pixelate, Fill,
+Top row: **Capture** + collapse caret `<`. `CAPTURE`: Region, Region Plus (added 2026-10-16), Window, Full screen,
+Scrolling, Delayed, Pin (one mode active; Delayed is a toggle on top of the mode). `TOOLS`: Select, Arrow, Line, Box, Circle, Text, Pen, Marker; then Blur, Pixelate, Fill,
 Step, Callout, Crop, Resize, Rotate, Brightness, Move, Duplicate. `ACTIONS`: Discard, Library, Save. Collapsed:
 caret `>`, Capture icon, three modes, seven tools (active always present), Discard, Save.
 

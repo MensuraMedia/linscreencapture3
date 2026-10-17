@@ -31,7 +31,10 @@ def _tool(icon: str, label: str, tool: str, collapsed: bool, group: str) -> Item
 
 
 CAPTURE = (
-    Item("selection", "Region", "win.capture-mode", "region", True, True, (), "capture", "Ctrl+N captures"),
+    Item("selection", "Region · draw a box, release to capture", "win.capture-mode", "region", True, True, (), "capture",
+         "Ctrl+N captures"),
+    Item("bounding-box", "Region Plus · box with handles, Enter to capture", "win.capture-mode", "region-plus", False, True,
+         (), "capture"),
     Item("app-window", "Window", "win.capture-mode", "window", False, True, (), "capture"),
     Item("monitor", "Full screen", "win.capture-mode", "screen", True, True, (), "capture", "Ctrl+Shift+N"),
     Item("arrows-vertical", "Scrolling", "win.capture-mode", "scrolling", False, True, (), "capture"),

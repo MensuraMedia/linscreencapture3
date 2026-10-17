@@ -109,10 +109,11 @@ def test_parse_colour():
     assert parse_colour("blue") is None
 
 
-def test_selection_style_round_trip(tmp_path):
-    s = Settings(root=str(tmp_path))
-    assert s.selection_style == "handles"
-    s.selection_style = "simple"; s.save()
-    assert Settings.load(root=str(tmp_path)).selection_style == "simple"
-    s.path.write_text(s.path.read_text().replace("selection_style=simple", "selection_style=weird"))
-    assert Settings.load(root=str(tmp_path)).selection_style == "handles"
+def test_retired_capture_keys_are_dropped(tmp_path):
+    from linscreencapture.model.settings import Settings
+    s = Settings(root=str(tmp_path)); s.save()
+    s.path.write_text(s.path.read_text().replace("[Capture]", "[Capture]\ncopy_to_clipboard=false\nselection_style=handles"))
+    t = Settings.load(root=str(tmp_path)); t.save()
+    text = t.path.read_text()
+    assert "copy_to_clipboard" not in text and "selection_style" not in text
+

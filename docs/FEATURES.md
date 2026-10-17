@@ -1,10 +1,12 @@
 # LinScreenCapture 3 — feature reference
 
 Complete description of everything the application does as of 2026-10-16 (Phases 1–5 of 7, two review
-rounds and the Phase 6 background agent on `feat/background-agent`). Every item below exists in the code on branch `feat/phase5` and is covered by `make test` (105 tests,
-live display) or a render in `screenshots/dev/`. Planned work (Phase 6: hotkeys, countdown, pin, scrolling
-capture; Phase 7: polish and release) and the backlog are in `HANDOFF.md` §3 and §8; known limits in
-`KNOWN_ISSUES.md`; the GUI specification in `docs/GUI_SPEC.md`.
+rounds and the Phase 6 work so far on `feat/background-agent`). Every item below exists in the code on branch
+`feat/background-agent` and is covered by `make test` (119 tests: 117 pass, 2 cosmetic window-geometry failures under
+Xvfb) or a render in `screenshots/dev/`. Planned work (Phase 6: countdown, pin, scrolling capture, registrar for other
+desktops; Phase 7: polish and release) and the backlog are in `HANDOFF.md` §3 and §8; known limits in
+`KNOWN_ISSUES.md`; the GUI specification in `docs/GUI_SPEC.md`. Capture, hotkey and clipboard behaviour is specified
+in `docs/CAPTURE.md` (authoritative); §1, §11 and §12 here summarise it.
 
 Conventions: `win.*` are window actions, `app.*` application actions (`ui/studio_window.py`,
 `app/application.py`); a key in **bold** is a shortcut; "strip" is the tool-properties strip in the header.
@@ -21,9 +23,10 @@ Contents: 1 Launching · 2 Window and chrome · 3 Left rail · 4 Header strip ·
 | Function | How | Module |
 | --- | --- | --- |
 | Start the studio | `python3 -m linscreencapture`, the `linscreencapture` console script, or the **LinScreenCapture3** menu entry installed by `make launcher` (runs `tools/launch.sh` from the checkout) | `__main__.py`, `tools/launch.sh`, `data/linscreencapture3-dev.desktop.in` |
-| Capture immediately | `linscreencapture --capture` (`-c`), the PrintScreen binding: a second instance forwards `app.hotkey-capture` to the running agent over D-Bus; started cold, the process becomes the agent with no window. The capture is **quiet**: region → clipboard + save folder, studio left as it was (§11). With *PrintScreen opens the editor* on, the result opens in the editor as before. The `.desktop` file exposes it as the "Capture a region" action | `app/application.py` |
+| Capture immediately | `linscreencapture --capture` (`-c`), the PrintScreen binding: a second instance forwards `app.hotkey-capture` to the running agent over D-Bus; started cold, the process becomes the agent with no window. Always the fast Region capture, from anywhere including the studio: clipboard first, then the save folder, then the studio, which is not popped up (hidden stays hidden, visible is shown again with the capture; §11). With *PrintScreen opens the editor* on, the studio is presented every time. The `.desktop` file exposes it as the "Capture a region" action | `app/application.py` |
 | Background agent | the primary instance `hold()`s itself while `keep_running` is on: closing the studio hides it (`hide_on_close`, document kept), Quit (**Ctrl+Q**, tray) ends the process. `--background` (`-b`) starts the agent with no window; a second `--background` exits quietly | `app/application.py` |
 | Tray icon | `python3 -m linscreencapture.tray`: a separate GTK 3 process (GTK 4 has no status icon and cannot share a process with GTK 3), started and stopped by the agent, exits when the agent's bus name vanishes. XApp.StatusIcon first, AyatanaAppIndicator3 as the fallback. Menu: *Capture region to clipboard* (`app.hotkey-capture`), *Open editor* (`app.show-editor`), *Quit* (`app.quit`); left click = Open editor. `LSC_NO_TRAY=1` disables it | `tray.py` |
+| Hotkey registration | Settings → System → *Capture hotkey*: key preset and *Register with the desktop*. On Cinnamon the agent writes our `customN` custom keybinding (`<Primary>Print` style, a list), never overwrites another application's slot, frees the key from the six built-in screenshot bindings and reloads Cinnamon through `org.Cinnamon.Eval`; re-applied at every agent start while the switch is on. Other desktops: bind `linscreencapture --capture` by hand (`docs/CAPTURE.md` §4) | `services/hotkey_registrar.py` |
 | Autostart | `~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop` running `<linscreencapture on PATH> --background` (else `python3 -m linscreencapture --background` with `Path=` the checkout); written or removed by Settings → System → *Start at login*, whose switch reads the file | `services/autostart.py` |
 | Single instance | `Adw.Application`, id `com.mensuramedia.LinScreenCapture`; a second launch raises the window. Tools and probes build `Application(non_unique=True)` so they never activate a running copy | `app/application.py` |
 | Diagnostics | `--debug` (`-d`) or `LSC_DEBUG=1`: timestamped log of versions (Python, PyGObject, GTK, libadwaita), session type, resource and icon count, stylesheet, settings file and values, backend order, action counts, window build time and every capture step; GTK/GLib messages go to the same stream under `toolkit` | `app/logging_setup.py` |
@@ -51,7 +54,7 @@ Every button has a two-line tooltip: the caption, then its shortcut in small mut
 | Row | Controls | Actions |
 | --- | --- | --- |
 | Top | Capture (30 px accent icon, **Ctrl+N**) · collapse caret (**Ctrl+[**) | `app.capture` captures in the current mode |
-| CAPTURE | Region · Window · Full screen (**Ctrl+Shift+N**) · Scrolling · Delayed · Pin | `win.capture-mode` is a stateful choice (region, window, screen, scrolling); **Region is the mode at every launch**. **Delayed is a toggle** (`win.capture-delayed`, boolean, **off at every launch**): while on, captures in any mode wait `delay_seconds` first; clicking the timer again turns it off; a toast confirms each state and warns when the configured delay is 0 s. Scrolling and Pin are Phase 6 placeholders (toast) |
+| CAPTURE | Region · Region Plus · Window · Full screen (**Ctrl+Shift+N**) · Scrolling · Delayed · Pin | `win.capture-mode` is a stateful choice (region, region-plus, window, screen, scrolling); Region (`selection` icon) captures on mouse release, Region Plus (`bounding-box` icon) keeps handles until Enter or a double-click; **Region is the mode at every launch**. **Delayed is a toggle** (`win.capture-delayed`, boolean, **off at every launch**): while on, captures in any mode wait `delay_seconds` first; clicking the timer again turns it off; a toast confirms each state and warns when the configured delay is 0 s. Scrolling and Pin are Phase 6 placeholders (toast) |
 | TOOLS row 1 | Select **V** · Arrow **A** · Line **L** · Box **B** · Circle **C** · Text **T** · Pen **P** · Marker **M** · Eraser **E** · Hand **H** | `win.tool::<name>` (stateful; exactly one toggle checked) |
 | TOOLS row 2 | Box area **R** · Round area **O** · Point chain **J** · Blur **U** · Pixelate **X** · Fill · Step number **N** · Callout · Crop **K** · Resize · Rotate · Brightness · Move · Duplicate | tools via `win.tool`; Resize / Rotate / Brightness open popovers (`win.resize`, `win.rotate`, `win.adjust`); Duplicate (file) is a Phase 7 placeholder |
 | CLIPBOARD | a navigator-sized tray (116 px) with **one slot** holding the last copy the application made (accent border while that copy is still on the clipboard); hover shows `label · W×H · time`; a click opens a preview popover (sample ≤ 320×200, caption, then **Copy · Paste · Delete** centred below). Copy puts the sample back on the clipboard; Paste adds it to the open image as a layer (or opens it as a new image on an empty stage); Delete drops it from the tray and clears the system clipboard if it held that copy. Several slots are a roadmap item (HANDOFF §8); `ClipHistory.limit` and `clip_tray.SLOTS` already parametrise it | `ui/clip_tray.py`, `services/clip_history.py` |
@@ -210,14 +213,22 @@ A full-stage page of the save folder, newest first, toggled by the Library butto
 
 ## 11. Capture (`app/capture_controller.py`, `services/capture_service.py`, `backends/`, `ui/capture_overlay.py`)
 
-1. The studio window hides; the compositor gets 300 ms to repaint without it (plus `delay_seconds` while the
-   Delayed toggle is on). A toast announces a delayed capture.
+Summary of `docs/CAPTURE.md` §5 (authoritative).
+
+1. The mode: a hotkey capture (`app.hotkey-capture`) is always Region with no delay; otherwise the rail's mode, plus
+   `delay_seconds` while the Delayed toggle is on (a toast announces it). Scrolling and Pin toast "arrives in Phase 6".
+   A visible studio hides and the compositor gets 300 ms to repaint without it; with nothing on screen the wait is 0 ms.
 2. The screen is frozen by the first working backend: on X11 sessions x11 → portal → cli, on Wayland portal → x11
    → cli, or the backend chosen in Settings first; each is tried once and the last error is shown in a toast.
-3. Full screen: done. Region / Window: the overlay opens on every monitor.
-4. The region is cropped, saved to the save folder under the next name (§12), copied to the clipboard (if
-   enabled) and into the tray, loaded into the editor, and announced in a toast (`Saved … · copied to clipboard`).
-   Cancelling the overlay (Esc) writes nothing.
+3. Full screen: done. Region / Region Plus / Window: the overlay opens on every monitor.
+4. The frozen screen is cropped (no re-grab, no scaling) and copied to the clipboard **first**, on every route:
+   `image/png` plus a `GdkTexture` value, then `store_async` to the clipboard manager (`services/clipboard.py`).
+5. It is saved to the save folder under the next name (§12).
+6. `ensure_window()` builds the studio hidden if there is none; the capture is loaded as the document and pushed onto
+   the clipboard tray.
+7. The studio is presented with a toast (`Saved … · copied to clipboard`) only when `presents`: the capture was not a
+   hotkey capture, the studio was visible before, or *PrintScreen opens the editor* is on. Errors with no studio on
+   screen become a desktop notification. Cancelling the overlay (Esc) writes nothing.
 
 | Backend | Mechanism | Window list |
 | --- | --- | --- |
@@ -229,21 +240,20 @@ A full-stage page of the save folder, newest first, toggled by the Library butto
 
 | Function | Keys / mouse |
 | --- | --- |
-| Select a region | drag; **Shift** constrains to a square; **Space** while dragging moves the box instead of resizing |
-| Adjust (handles style) | 8 handles resize, drag inside moves, **arrows** nudge 1 px, **Shift+arrows** 10 px, **Ctrl+A** selects the whole screen |
-| Confirm / cancel | **Enter** or double-click inside the box; **Esc** |
-| Simple style (Settings → Selection box) | the capture happens on mouse release: no handles, no Enter |
+| Select a region | drag; **Shift** constrains to a square; **Space** while dragging moves the box instead of resizing; 45 % veil outside the box |
+| Region | the capture happens on mouse release: no handles |
+| Region Plus | 8 handles resize, drag inside moves, **arrows** nudge 1 px, **Shift+arrows** 10 px; **Enter** or a double-click inside the box captures |
+| Both modes | **Esc** cancels; **Ctrl+A** selects the whole screen (then **Enter** captures); **Enter** and a double-click inside the box also confirm in Region; a click without a drag clears the box |
 | Window mode | hovering highlights the window under the pointer with its title; a click captures it including its frame |
-| Mode bar | Region · Window · Full screen toggles at the top with key hints; a hint bar explains the current style |
+| Mode bar | Region · Region Plus · Window · Full screen toggles at the top with key hints; switching takes effect at once and the hints follow the mode |
 | Readouts | size chip under the box (`W × H`); pointer position and the colour under it bottom-left |
 | Multi-monitor | one overlay window per monitor sharing one session; a selection cannot span monitors; integer HiDPI scale factors per monitor |
 
-
-**Quiet capture** (`capture(mode, quiet=True)`, from `app.hotkey-capture`): always Region; ignores the window's capture
-mode and Delayed toggle; always copies to the clipboard (even with *Copy to clipboard* off); the 300 ms settle is
-skipped when no studio is on screen. Afterwards a hidden studio stays hidden; a visible one is presented again with a
-toast and its document untouched (the capture still enters the clipboard tray). Esc writes nothing. Errors with no
-studio on screen become a desktop notification (`Application.send_notification`).
+**Hotkey capture** (`capture("region", hotkey=True)`, from `app.hotkey-capture`: the desktop hotkey via
+`--capture`, the tray, the `.desktop` action): always Region, ignoring the rail's mode and the Delayed toggle. The
+capture goes to the clipboard, the save folder and the studio like any other; the studio is not popped up — a hidden
+studio holds the capture unseen, a visible one is shown again with it. *PrintScreen opens the editor* presents it
+every time. Details: `docs/CAPTURE.md` §1–§5.
 
 ## 12. Settings (`model/settings.py`, dialog `ui/preferences.py`)
 
@@ -258,8 +268,6 @@ and numbering derived from `filename_format`, tool widths and shadows, blur bloc
 | File name prefix | `prefix` | `LinScreenCapture_` · `Screenshot_` |
 | Numbering | `numbering` | `sequence` (`_1`, `_2`, … first free number) · `timestamp` (`_2026-10-09_21-14-05`) |
 | Format | `format` (+ `jpeg_quality`, default 92) | png · jpeg · webp |
-| Selection box | `selection_style` | `handles` (adjust, then Enter) · `simple` (captures on release) |
-| Copy to clipboard | `copy_to_clipboard` | bool |
 | Delayed capture | `delay_seconds` | 0–60 (used while the Delayed toggle is on) |
 | Start with the left / right rail collapsed | `left_collapsed`, `right_collapsed` | bool (applied live) |
 | Dashed frame around the selected layer | `selection_frame` | bool, default off (handles only) |
@@ -269,10 +277,15 @@ and numbering derived from `filename_format`, tool widths and shadows, blur bloc
 | Keep running in the background | `[System] keep_running` | bool, default on; applies from the next window (turning it off takes effect at the next start) |
 | Tray icon | `[System] tray_icon` | bool, default on; starts or stops the helper live |
 | Start at login | `[System] autostart` | bool; writes or removes the autostart entry (§1), and the switch reads the file |
-| PrintScreen opens the editor | `[System] hotkey_opens_editor` | bool, default off (quiet capture, §11) |
+| PrintScreen opens the editor | `[System] hotkey_opens_editor` | bool, default off (studio not popped up, §11) |
+| Key (Capture hotkey group) | `[System] hotkey` | Off (`none`) · `Print` (default) · `<Control>Print` · `<Shift>Print` · `<Control><Shift>s` · `<Control><Alt>s` |
+| Register with the desktop | `[System] register_hotkey` | bool, default off; on Cinnamon writes the binding now and at every agent start; off removes it (§1) |
+
+Retired on 2026-10-16 and removed from the file at the next save: `[Capture] copy_to_clipboard` (every capture is
+copied) and `[Capture] selection_style` (replaced by the Region and Region Plus modes).
 
 Keys without a dialog row yet (Phase 6 pages): `backend` (auto · portal · x11 · cli), `include_pointer`,
-`pin_opacity`, `reopen_last`; `[System]` `hotkey`, `register_hotkey`. `[Tools]` keys are written by
+`pin_opacity`, `reopen_last`. `[Tools]` keys are written by
 the header strip and the palette: per tool `colour_*`, `width_*`, `shadow_*`, `shadow_intensity_*`, `fill_*`,
 `opacity_*` for arrow, line, box, circle, text, pen, marker, eraser, step, callout, fill; shared `universal`,
 `blur_block`, `blur_radius`, `text_font_family`, `text_font_size`, `text_bold`, `text_italic`, `step_size`.
@@ -294,7 +307,8 @@ the header strip and the palette: per tool `colour_*`, `width_*`, `shadow_*`, `s
 | `services/capture_service.py` | backend order by session and preference, one fall-through per backend, worker thread → main loop |
 | `services/selection.py` | overlay selection geometry (handles, hit, resize, move, clamp, square) |
 | `services/file_store.py` | `save_capture()`, `duplicate_file()` |
-| `services/clipboard.py` | `texture_from_surface()`, `copy_surface()` (`Gdk.MemoryTexture` + `ContentProvider`) |
+| `services/clipboard.py` | `texture_from_surface()`, `image_providers()` (`image/png` bytes + a value typed `GdkTexture`), `set_providers()` (union, then `store_async` to the clipboard manager), `copy_surface()` |
+| `services/hotkey_registrar.py` | `supported()`, `register(hotkey)`, `unregister()`, `reload_cinnamon()`: the Cinnamon custom keybinding (`docs/CAPTURE.md` §4) |
 | `services/clip_history.py` | `ClipHistory`: the last copies (limit 1 today), digest dedupe, ≤ 320×200 preview textures, clipboard ownership tracking |
 | `services/icon_loader.py` | GResource registration, icon theme path, `icon(name, size)` |
 
@@ -309,7 +323,8 @@ while it is open.
 
 | Keys | Action |
 | --- | --- |
-| **Ctrl+N** · **Ctrl+Shift+N** | capture in the current mode · full-screen capture (PrintScreen registration is Phase 6; bind it to `linscreencapture --capture` in the desktop meanwhile) |
+| **Ctrl+N** · **Ctrl+Shift+N** | capture in the current mode · full-screen capture |
+| capture hotkey (desktop; PrintScreen by default) | the fast Region capture from anywhere (`app.hotkey-capture`); registered on Cinnamon by Settings → System, bound by hand elsewhere |
 | **V A L B C T P M E H** | Select, Arrow, Line, Box, Circle, Text, Pen, Marker, Eraser, Hand |
 | **R O J** | Box area, Round area, Point chain |
 | **U X N K** | Blur, Pixelate, Step number, Crop |

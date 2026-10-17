@@ -27,7 +27,6 @@ PREFIXES = ("LinScreenCapture_", "Screenshot_")
 NUMBERING = ("sequence", "timestamp")
 FORMATS = ("png", "jpeg", "webp")
 BACKENDS = ("auto", "portal", "x11", "cli")
-SELECTION_STYLES = ("handles", "simple")   # handles: adjust then Enter · simple: captures on release
 HOTKEYS = ("none", "Print", "<Control>Print", "<Shift>Print", "<Control><Shift>s", "<Control><Alt>s")
 
 # 1.4 defaults (main_window.c) so a migrated profile looks exactly as it did
@@ -91,13 +90,11 @@ class Settings:
     numbering: str = "sequence"
     format: str = "png"
     jpeg_quality: int = 92
-    copy_to_clipboard: bool = True
     delay_seconds: int = 3
     include_pointer: bool = False
     pin_opacity: int = 90
     backend: str = "auto"
     reopen_last: bool = True
-    selection_style: str = "handles"
     # [System]
     autostart: bool = False
     hotkey: str = "Print"
@@ -189,13 +186,11 @@ class Settings:
         self.numbering = g.choice("Capture", "numbering", NUMBERING, self.numbering)
         self.format = g.choice("Capture", "format", FORMATS, self.format)
         self.jpeg_quality = max(1, min(100, g.int("Capture", "jpeg_quality", self.jpeg_quality)))
-        self.copy_to_clipboard = g.bool("Capture", "copy_to_clipboard", self.copy_to_clipboard)
         self.delay_seconds = max(0, min(60, g.int("Capture", "delay_seconds", self.delay_seconds)))
         self.include_pointer = g.bool("Capture", "include_pointer", self.include_pointer)
         self.pin_opacity = max(10, min(100, g.int("Capture", "pin_opacity", self.pin_opacity)))
         self.backend = g.choice("Capture", "backend", BACKENDS, self.backend)
         self.reopen_last = g.bool("Capture", "reopen_last", self.reopen_last)
-        self.selection_style = g.choice("Capture", "selection_style", SELECTION_STYLES, self.selection_style)
         self.autostart = g.bool("System", "autostart", self.autostart)
         self.hotkey = g.choice("System", "hotkey", HOTKEYS, self.hotkey)
         self.register_hotkey = g.bool("System", "register_hotkey", self.register_hotkey)
@@ -252,6 +247,11 @@ class Settings:
                 kf.load_from_file(str(self.path), GLib.KeyFileFlags.KEEP_COMMENTS)
             except GLib.Error:
                 kf = GLib.KeyFile()
+        for retired in ("copy_to_clipboard", "selection_style"):   # 2026-10-16: every capture is copied; Region vs Region Plus
+            try:
+                kf.remove_key("Capture", retired)
+            except GLib.Error:
+                pass
         kf.set_integer("Window", "width", int(self.window_width))
         kf.set_integer("Window", "height", int(self.window_height))
         kf.set_boolean("Window", "maximized", bool(self.window_maximized))
@@ -263,13 +263,11 @@ class Settings:
         kf.set_string("Capture", "numbering", self.numbering)
         kf.set_string("Capture", "format", self.format)
         kf.set_integer("Capture", "jpeg_quality", int(self.jpeg_quality))
-        kf.set_boolean("Capture", "copy_to_clipboard", bool(self.copy_to_clipboard))
         kf.set_integer("Capture", "delay_seconds", int(self.delay_seconds))
         kf.set_boolean("Capture", "include_pointer", bool(self.include_pointer))
         kf.set_integer("Capture", "pin_opacity", int(self.pin_opacity))
         kf.set_string("Capture", "backend", self.backend)
         kf.set_boolean("Capture", "reopen_last", bool(self.reopen_last))
-        kf.set_string("Capture", "selection_style", self.selection_style)
         kf.set_boolean("System", "autostart", bool(self.autostart))
         kf.set_string("System", "hotkey", self.hotkey)
         kf.set_boolean("System", "register_hotkey", bool(self.register_hotkey))

@@ -33,8 +33,10 @@ python3 -m linscreencapture
 ```
 
 `make launcher` installs a **LinScreenCapture3** entry in your application menu that runs this checkout
-(`make unlauncher` removes it). `python3 -m linscreencapture --capture` starts a region capture straight away;
-`--debug` prints start-up and capture diagnostics.
+(`make unlauncher` removes it). `python3 -m linscreencapture --capture` runs the hotkey capture (`app.hotkey-capture`):
+the fast Region capture, copied to the clipboard, saved and loaded into the studio without popping it up; with no
+agent running, that process becomes the agent. `--background` starts the agent with no window; `--debug` prints
+start-up and capture diagnostics. Capture behaviour in full: [docs/CAPTURE.md](docs/CAPTURE.md).
 
 ## Install as a package
 
@@ -45,11 +47,20 @@ pip install -e .[dev]     # editable; `linscreencapture` is now on PATH
 
 A `.deb` package and a system-wide `.desktop` entry arrive with the 3.0 release (Phase 7).
 
-## PrintScreen hotkey
+## Capture hotkey
 
-Binding PrintScreen to `linscreencapture --capture` from inside the app arrives in Phase 6. Until then bind it in
-your desktop's keyboard settings (Cinnamon: Keyboard → Shortcuts → Custom; GNOME: Settings → Keyboard → Custom
-Shortcuts) and disable the desktop's own screenshot binding on that key.
+**Cinnamon:** open Settings → System, choose the key under *Capture hotkey* (Off, PrintScreen, Ctrl+PrintScreen,
+Shift+PrintScreen, Ctrl+Shift+S, Ctrl+Alt+S) and switch on *Register with the desktop*. The agent writes a Cinnamon
+custom shortcut running `linscreencapture --capture`, removes the key from Cinnamon's built-in screenshot bindings,
+makes Cinnamon reload, and re-applies the binding at every start. The command is the absolute path of
+`linscreencapture` on `PATH`, or `python3 -m linscreencapture --capture` with `PYTHONPATH` set to the checkout.
+Shortcuts that belong to other applications are never overwritten.
+
+**Other desktops** (GNOME, Xfce, MATE, KDE): bind `linscreencapture --capture` by hand in the desktop's keyboard
+settings (GNOME: Settings → Keyboard → Custom Shortcuts) and remove the desktop's own screenshot binding from that
+key; on GNOME also clear `org.gnome.shell.keybindings show-screenshot-ui`.
+
+A hotkey that does nothing: see [docs/CAPTURE.md](docs/CAPTURE.md) §4.
 
 ## Upgrading from LinScreenCapture 1.x
 

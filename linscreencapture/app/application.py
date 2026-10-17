@@ -2,8 +2,8 @@
 
 The primary instance is the agent. With ``Settings.keep_running`` it holds itself alive with no window (closing the
 studio only hides it) and starts the status-icon helper (``linscreencapture.tray``). ``--background`` starts the agent
-without a window; ``--capture`` (the PrintScreen binding) runs a hotkey capture: region, saved and copied to the
-clipboard, the studio left as it was, unless ``Settings.hotkey_opens_editor`` asks for the editor.
+without a window; ``--capture`` (the PrintScreen binding) runs a hotkey capture: the fast Region capture, copied to the
+clipboard, saved and loaded into the studio without popping it up (``Settings.hotkey_opens_editor`` pops it up).
 """
 from __future__ import annotations
 from gi.repository import Adw, Gio, GLib, Gtk
@@ -20,7 +20,7 @@ from . import logging_setup
 LOG = logging.getLogger("linscreencapture.app")
 
 APP_PLACEHOLDERS = {"capture-scrolling": 6, "pin": 6}
-CAPTURE_ACTIONS = {"capture": None, "capture-region": "region", "capture-window": "window",
+CAPTURE_ACTIONS = {"capture": None, "capture-region": "region", "capture-region-plus": "region-plus", "capture-window": "window",
                    "capture-screen": "screen", "capture-delayed": "delayed"}
 ACCELS = {
     # Global chords only. Tool letters and editing keys (Ctrl+C/V/Z/Y/D, Delete, Escape) are routed by
@@ -112,13 +112,15 @@ class Application(Adw.Application):
         LOG.debug("actions: %d app actions, %d accelerators", len(self.list_actions()), len(ACCELS))
         if s.keep_running or self._background or self._capture_on_start:
             self.become_agent()
+        if s.register_hotkey:
+            GLib.idle_add(lambda: (self.apply_hotkey(), False)[1])   # re-asserted at every start, as in 1.4
         LOG.debug("startup done in %.0f ms", (time.monotonic() - t0) * 1000)
 
     def do_activate(self) -> None:
-        if self._capture_on_start and not self.settings.hotkey_opens_editor:
+        if self._capture_on_start:
             self._capture_on_start = False
             self._background = False
-            self.hotkey_capture()                       # PrintScreen with no agent running: no window at all
+            self.hotkey_capture()                       # PrintScreen with no agent running: no window up front
             return
         if self._background:
             self._background = False
@@ -126,35 +128,28 @@ class Application(Adw.Application):
             return
         self.show_editor()
 
-    def show_editor(self) -> None:
+    def ensure_window(self):
+        """The studio window, built hidden when there is none yet (captures load into it even unseen)."""
         from ..ui.studio_window import StudioWindow
-        t0 = time.monotonic()
+        win = self.props.active_window
+        if win is None:
+            t0 = time.monotonic()
+            win = StudioWindow(self, self.settings)
+            if self._agent and self.settings.keep_running:
+                win.set_hide_on_close(True)             # the agent keeps the document; Quit ends it
+            LOG.debug("window: built in %.0f ms (%d win actions)", (time.monotonic() - t0) * 1000, len(win.list_actions()))
+        return win
+
+    def show_editor(self) -> None:
         existing = self.props.active_window
-        win = existing or StudioWindow(self, self.settings)
-        if existing is None and self._agent and self.settings.keep_running:
-            win.set_hide_on_close(True)                 # the agent keeps the document; Quit ends it
-        if existing is None:
-            LOG.debug("window: built in %.0f ms (%d win actions, rails %s/%s)", (time.monotonic() - t0) * 1000,
-                      len(win.list_actions()), "collapsed" if win.state.left_collapsed else "open",
-                      "collapsed" if win.state.right_collapsed else "open")
-        else:
+        win = self.ensure_window()
+        if existing is not None:
             LOG.debug("activate: raising the existing window")
-        if self._capture_on_start:
-            self._capture_on_start = False
-            self.capture_controller.capture("region")   # the window appears with the result
-        else:
-            win.present()
+        win.present()
 
     def hotkey_capture(self) -> None:
-        """PrintScreen: a region to the clipboard and the save folder; the studio stays as it was."""
-        if self.settings.hotkey_opens_editor:
-            if self.props.active_window is None:
-                self._capture_on_start = True
-                self.show_editor()
-            else:
-                self.capture_controller.capture("region")
-            return
-        self.capture_controller.capture("region", quiet=True)
+        """PrintScreen: the fast Region capture to the clipboard, the save folder and the studio (see docs/CAPTURE.md)."""
+        self.capture_controller.capture("region", hotkey=True)
 
     # -- agent -------------------------------------------------------------
     def become_agent(self) -> None:
@@ -180,6 +175,20 @@ class Application(Adw.Application):
         elif not want and self._tray is not None:
             self._tray.force_exit()
             self._tray = None
+
+    def apply_hotkey(self) -> None:
+        """Register ``Settings.hotkey`` with the desktop (or remove it when registration is switched off)."""
+        from ..services import hotkey_registrar as reg
+        if not reg.supported():
+            LOG.info("hotkey: no supported keybinding API on this desktop; bind `linscreencapture --capture` by hand")
+            return
+        try:
+            if self.settings.register_hotkey:
+                reg.register(self.settings.hotkey)
+            else:
+                reg.unregister()
+        except GLib.Error as exc:
+            LOG.warning("hotkey not registered: %s", exc.message)
 
     def do_shutdown(self) -> None:
         if self._tray is not None:
@@ -217,6 +226,8 @@ class Application(Adw.Application):
             return
         def changed(field, value):
             win.settings_changed(field, value)
+            if field in ("hotkey", "register_hotkey"):
+                self.apply_hotkey()
             if field in ("keep_running", "tray_icon"):
                 if self.settings.keep_running:
                     self.become_agent()

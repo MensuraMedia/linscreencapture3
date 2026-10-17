@@ -1,4 +1,8 @@
-"""Capture overlay: the frozen screen, a veil, a selection with handles, crosshair and chips.
+"""Capture overlay: the frozen screen, a veil, a selection box, crosshair and chips.
+
+Region (``simple``): draw a box and the capture happens the moment the mouse button is released, with no handles.
+Region Plus: the box keeps eight resize handles, arrow nudging and Space-move; Enter or a double-click confirms.
+Window: click a window. Full screen (mode bar): captures at once. Esc cancels everywhere. See ``docs/CAPTURE.md``.
 
 One ``OverlayWindow`` per monitor shares an ``OverlaySession``; coordinates in the session are
 physical root pixels (the frozen surface's pixels).
@@ -15,14 +19,17 @@ from ..services.selection import Selection, square_end, HANDLE
 from ..backends.base import WindowInfo
 
 ACCENT = (0x4c / 255, 0x9d / 255, 1.0)
-MODES = (("selection", "Region", "region"), ("app-window", "Window", "window"), ("monitor", "Full screen", "screen"))
+MODES = (("selection", "Region · release to capture", "region"),
+         ("bounding-box", "Region Plus · handles, then Enter", "region-plus"),
+         ("app-window", "Window", "window"), ("monitor", "Full screen", "screen"))
 
 
 class OverlaySession:
     def __init__(self, surface: cairo.ImageSurface, mode: str, windows: list[WindowInfo],
-                 on_done: Callable[[tuple[int, int, int, int] | None], None], simple: bool = False):
+                 on_done: Callable[[tuple[int, int, int, int] | None], None], simple: bool | None = None):
         self.surface = surface
-        self.simple = simple          # True: capture on release, no handles; False: adjust, then Enter
+        # simple — Region: capture on release, no handles; otherwise Region Plus: adjust, then Enter
+        self.simple = (mode != "region-plus") if simple is None else simple
         self.mode = mode if mode in ("region", "window") else "region"
         self.windows = windows
         self.on_done = on_done
@@ -69,11 +76,19 @@ class OverlaySession:
     def whole_screen(self) -> None:
         self.finish((0, 0, self.surface.get_width(), self.surface.get_height()))
 
+    @property
+    def mode_name(self) -> str:
+        """The mode as the mode bar names it: region, region-plus or window."""
+        return "region-plus" if (self.mode == "region" and not self.simple) else self.mode
+
     def set_mode(self, mode: str) -> None:
         if mode == "screen":
             self.whole_screen()
             return
-        self.mode = mode
+        self.simple = mode != "region-plus"
+        self.mode = "region" if mode == "region-plus" else mode
+        for ow in self.overlays:
+            ow.refresh_hints()
         self.selection = None
         self.redraw()
 
@@ -105,6 +120,8 @@ class OverlayWindow(Gtk.Window):
         self.area = Gtk.DrawingArea(hexpand=True, vexpand=True, can_focus=True, focusable=True)
         self.area.set_draw_func(self._draw)
         overlay = Gtk.Overlay(child=self.area)
+        self._hints_box: Gtk.Box | None = None
+        self._hint_label: Gtk.Label | None = None
         overlay.add_overlay(self._mode_bar())
         overlay.add_overlay(self._hint_bar())
         self.set_child(overlay)
@@ -149,7 +166,7 @@ class OverlayWindow(Gtk.Window):
         first = None
         for icon, label, mode in MODES:
             b = rail_button(icon, label, toggle=True)
-            b.set_active(mode == self.session.mode)
+            b.set_active(mode == self.session.mode_name)
             if first is None:
                 first = b
             else:
@@ -160,19 +177,42 @@ class OverlayWindow(Gtk.Window):
         sep.add_css_class("hairline")
         sep.set_margin_start(6); sep.set_margin_end(6)
         bar.append(sep)
+        self._hints_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        bar.append(self._hints_box)
+        self._fill_hints()
+        return bar
+
+    def _fill_hints(self) -> None:
+        box = self._hints_box
+        child = box.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            box.remove(child)
+            child = nxt
         hints = (("Esc", "cancel"), ("Space", "move"), ("Shift", "square")) if self.session.simple else \
             (("Enter", "capture"), ("Esc", "cancel"), ("Space", "move"), ("Shift", "square"))
         for key, what in hints:
-            k = Gtk.Label(label=key); k.add_css_class("kind"); bar.append(k)
-            w = Gtk.Label(label=what); w.add_css_class("sublabel"); w.set_margin_end(6); bar.append(w)
-        return bar
+            k = Gtk.Label(label=key); k.add_css_class("kind"); box.append(k)
+            w = Gtk.Label(label=what); w.add_css_class("sublabel"); w.set_margin_end(6); box.append(w)
+
+    @staticmethod
+    def _hint_text(simple: bool) -> str:
+        return "Release to capture" if simple else "Arrows nudge 1 px · Shift+Arrows 10 px · Enter or double-click captures"
+
+    def refresh_hints(self) -> None:
+        if self._hints_box is not None:
+            self._fill_hints()
+        if self._hint_label is not None:
+            self._hint_label.set_label(self._hint_text(self.session.simple))
+        self.area.queue_draw()
 
     def _hint_bar(self) -> Gtk.Box:
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, halign=Gtk.Align.END, valign=Gtk.Align.END,
                       margin_end=16, margin_bottom=16)
         bar.add_css_class("chip")
-        lbl = Gtk.Label(label="Release to capture" if self.session.simple else "Arrows nudge 1 px · Shift+Arrows 10 px · double-click captures")
+        lbl = Gtk.Label(label=self._hint_text(self.session.simple))
         lbl.add_css_class("sublabel")
+        self._hint_label = lbl
         bar.append(lbl)
         return bar
 
@@ -355,7 +395,10 @@ class OverlayWindow(Gtk.Window):
         elif keyval == Gdk.KEY_Down:
             s.nudge(0, step)
         elif keyval in (Gdk.KEY_a, Gdk.KEY_A) and state & Gdk.ModifierType.CONTROL_MASK:
-            s.selection = Selection(0, 0, s.surface.get_width(), s.surface.get_height()); s.redraw()
+            if s.simple:                       # Region is immediate: the whole screen, captured at once
+                s.whole_screen()
+            else:
+                s.selection = Selection(0, 0, s.surface.get_width(), s.surface.get_height()); s.redraw()
         else:
             return False
         return True
