@@ -72,7 +72,28 @@ The same machine had found the tray (`tray.py` prgname) and `WM_CLASS` bugs inde
 commits fixed both first, so that work was dropped in the rebase (kept locally as tag
 `backup/fix-tray-alttab-icons-pre-rebase`). On this machine every earlier build (1.4 `linshot3`, LinScreenCapture2,
 `gnome-screenshot`) was removed after a tar backup in `~/backups/`; `xvfb` is not installed here, so `make test`
-uses the live display. Pending: PR `fix/tray-alttab-icons` → `feat/phase5`.
+uses the live display. The app on this machine is installed with `./install.sh` (`~/.local`); re-run it after a pull.
+
+**Editor work, same day — branch `feat/editor-shadows-canvas`** (from `docs/editor-paste-shadow-concepts`, with
+`fix/tray-alttab-icons` merged in). Full account: `docs/CHANGES-2026-10-18.md`.
+
+- The arrow no longer fades while being drawn: the 60 % preview cap in `_draw_overlay` is gone; while drawing only
+  the shadow waits for release (a shadow blur per motion measured 16–21 ms on large shapes).
+- A Shadow switch on every marking tool: `SHADOW_KINDS` + `step`, `callout` (its switch was dead), `image`;
+  new switches in the Step and Image strip sets.
+- Pasted images cast a shadow of their own alpha (sigma 6 / offset 4), on by default (`[Tools] shadow_image`,
+  `Settings.STYLED`, never universal), baked by flatten / save / copy. The blurred silhouette is cached module-wide by
+  shape relative to the layer's origin, so moves reuse it.
+- Page growth: an image layer pasted or moved past the page grows it to its painted extent + `EXPAND_PADDING` (20 px)
+  in the same undo step (`EditorController._grow_page_for` from `_commit`, `UndoStack.amend` / `Compound`,
+  `document.expansion_for` / `expanded_base`, `MAX_PAGE` 16384). Pastes are 1:1; Fit fits the image with its shadow.
+- 144 tests. Design: `docs/EDITOR-SHADOWS-AND-PREVIEW.md`, `docs/EDITOR-CANVAS-EXPANSION.md` (differences from the
+  design at the top of each). The 4-up clipboard tray (`docs/CLIPBOARD-TRAY-4UP.md`) is on `feat/clip-tray-4up`,
+  drafted by the GLM worker and reviewed before acceptance.
+
+**Merge order:** `fix/tray-alttab-icons` first (without it `make test` deletes the real autostart entry), then
+`feat/editor-shadows-canvas` (contains the docs branch), then `feat/clip-tray-4up`. Open questions for the operator:
+`docs/CHANGES-2026-10-18.md` §6.
 
 ## 1. Mission
 
@@ -254,7 +275,7 @@ data/ icons, gresource.xml, .desktop files
 
 Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operator's call):
 
-- **Design docs 2026-10-18 (proposed, awaiting the operator's answers to their open questions):**
+- **Design docs 2026-10-18 (shadows, preview and page growth implemented on `feat/editor-shadows-canvas`; see §0a):**
   `docs/EDITOR-CANVAS-EXPANSION.md` (the page grows to fit a pasted or moved image, 20 px padding, one undo step),
   `docs/CLIPBOARD-TRAY-4UP.md` (the tray as a 2 × 2 grid of the last four copies; supersedes the item below),
   `docs/EDITOR-SHADOWS-AND-PREVIEW.md` (pasted-image shadow kept through flatten; a Shadow switch on every
