@@ -1,16 +1,20 @@
-"""Right rail: colour palette, view (zoom), edit (copy, flatten), page (size, fill, stage), layers, navigator,
-Settings."""
+"""Right rail: colour palette, view (zoom), edit (copy, flatten, arrange the selected layer), page (size, fill,
+stage), navigator, Settings. There is no layer list: layers are picked on the canvas (Ctrl+click: the one beneath)."""
 from __future__ import annotations
 import cairo
 from gi.repository import Gdk, Gtk
 
-from .widgets import (rail_button, group_label, hairline, SwatchGrid, LayerRow, PALETTE,
-                      colour_class, rail_page, pin_width, ZoomPill, compact_spin, switch)
+from .widgets import (rail_button, group_label, hairline, SwatchGrid, PALETTE, rail_page, pin_width, ZoomPill,
+                      compact_spin, switch)
 from ..services import icon_loader
 from ..app.view_state import ViewState
 
 OPEN_WIDTH, COLLAPSED_WIDTH = 220, 56
 EDIT_ITEMS = (("copy", "Copy the image with its annotations", "win.copy", "Ctrl+C"), ("stack-simple", "Flatten", "win.flatten", None))
+ARRANGE_ITEMS = (("arrow-line-up", "Bring to front", "win.layer-front", "Ctrl+Shift+Page Up"),
+                 ("arrow-up", "Bring forward", "win.layer-forward", "Ctrl+Page Up"),
+                 ("arrow-down", "Send backward", "win.layer-backward", "Ctrl+Page Down"),
+                 ("arrow-line-down", "Send to back", "win.layer-back", "Ctrl+Shift+Page Down"))
 
 
 def _settings_button() -> Gtk.Button:
@@ -25,41 +29,6 @@ def _settings_button() -> Gtk.Button:
     b.set_action_name("app.preferences")
     b.set_halign(Gtk.Align.END)
     return b
-
-
-def _layer_thumbnail(doc, layer):
-    """A 40×28 texture: the annotation alone (or the base image) scaled to fit."""
-    from gi.repository import Gdk, GLib
-    from ..model.annotations import draw
-    w, h = max(1, doc.width), max(1, doc.height)
-    scale = min(40 / w, 28 / h)
-    tw, th = max(1, int(w * scale)), max(1, int(h * scale))
-    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 40, 28)
-    cr = cairo.Context(surf)
-    cr.set_source_rgb(0x2f / 255, 0x34 / 255, 0x3b / 255)
-    cr.paint()
-    cr.translate((40 - tw) / 2, (28 - th) / 2)
-    cr.scale(scale, scale)
-    if layer is None:
-        if doc.base is not None:
-            cr.set_source_surface(doc.base, 0, 0)
-            cr.get_source().set_filter(cairo.FILTER_GOOD)
-            cr.paint()
-    else:
-        a = layer.annotation
-        if a.kind in ("blur", "pixelate"):
-            x, y, bw, bh = a.rect
-            cr.set_source_rgba(1, 1, 1, 0.5)
-            cr.rectangle(x, y, bw, bh)
-            cr.fill()
-        elif a.kind in ("eraser", "cutout"):
-            from ..model.annotations import _paint_eraser_ghost, _paint_cutout_ghost
-            (_paint_eraser_ghost if a.kind == "eraser" else _paint_cutout_ghost)(a, cr)   # clearing a thumbnail shows nothing
-        else:
-            draw(a, cr, None)
-    surf.flush()
-    return Gdk.MemoryTexture.new(40, 28, Gdk.MemoryFormat.B8G8R8A8_PREMULTIPLIED,
-                                 GLib.Bytes.new(bytes(surf.get_data())), surf.get_stride())
 
 
 class ColourPalette(Gtk.Box):
@@ -375,17 +344,20 @@ class PanelRail(Gtk.Stack):
         for b in self.edit_buttons:
             edit.append(b)
         box.append(edit)
+        arrange = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_bottom=10)
+        arrange.update_property([Gtk.AccessibleProperty.LABEL], ["Arrange the selected layer"])
+        self.arrange_buttons = [rail_button(icon, label, action, key=key) for icon, label, action, key in ARRANGE_ITEMS]
+        for b in self.arrange_buttons:
+            arrange.append(b)
+        edit.set_margin_bottom(4)
+        box.append(arrange)
         box.append(hairline())
         lbl = group_label("Page")
         lbl.set_margin_top(10)
         box.append(lbl)
         self.page = PageSection()
         box.append(self.page)
-        box.append(hairline())
-        lbl = group_label("Layers")
-        lbl.set_margin_top(10)
-        box.append(lbl)
-        box.append(self._build_layers())             # grows to fill; sits directly above the navigator
+        box.append(Gtk.Box(vexpand=True))            # the navigator sits at the bottom
         self.navigator = Navigator()
         self.navigator.set_margin_top(6)
         box.append(self.navigator)
@@ -398,85 +370,13 @@ class PanelRail(Gtk.Stack):
     def attach_stage(self, stage) -> None:
         self.navigator.attach(stage)
 
-    def _build_layers(self) -> Gtk.Box:
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_top=6, margin_bottom=10)
-        self.layers = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
-        self.layers.add_css_class("layer-list")
-        self.layers.set_accessible_role(Gtk.AccessibleRole.LIST)
-        self.layers_empty = Gtk.Label(label="No layers yet", halign=Gtk.Align.FILL, valign=Gtk.Align.START, hexpand=True)
-        self.layers_empty.add_css_class("empty-box")
-        self.layers_empty.set_size_request(-1, 60)
-        scroller = Gtk.ScrolledWindow(child=self.layers, hscrollbar_policy=Gtk.PolicyType.NEVER,
-                                      vscrollbar_policy=Gtk.PolicyType.AUTOMATIC, vexpand=True, propagate_natural_height=True)
-        scroller.add_css_class("rail-pin")
-        box.append(scroller)
-        box.append(self.layers_empty)
-        box.set_vexpand(True)
-        self.set_document(None)
-        return box
-
     def set_document(self, doc, selected_id: int | None = None) -> None:
-        """Rebuild the layer list: annotation layers top-first, then the base image; refresh the Page section."""
-        if hasattr(self, "page"):
-            self.page.set_document(doc)
-        self._rebuilding = True
-        try:
-            child = self.layers.get_first_child()
-            while child is not None:
-                nxt = child.get_next_sibling()
-                self.layers.remove(child)
-                child = nxt
-            has = doc is not None and not doc.empty
-            self.layers.get_parent().get_parent().set_visible(has)  # the scrolled window
-            self.layers_empty.set_visible(not has)
-            if not has:
-                return
-            chosen = None
-            for number, layer in reversed(list(enumerate(doc.layers, start=1))):
-                # rows are numbered by stack position (1 = bottom); the label names the tool that made the layer
-                row = LayerRow(str(number), layer.badge, "#5b6572", thumbnail=_layer_thumbnail(doc, layer))
-                row.layer_id = layer.id
-                row.eye.set_active(layer.visible)
-                row.eye.connect("toggled", lambda b, lid=layer.id: self._eye(lid, b.get_active()))
-                self.layers.append(row)
-                if layer.id == selected_id:
-                    chosen = row
-            base = LayerRow("Base capture", "img", "#c6cedb", thumbnail=_layer_thumbnail(doc, None))
-            base.layer_id = 0
-            base.eye.set_sensitive(False)
-            self.layers.append(base)
-            self.layers.select_row(chosen if chosen is not None else base)
-        finally:
-            self._rebuilding = False
+        """A new or changed document: refresh the Page section (``selected_id`` is kept for the window's calls)."""
+        self.page.set_document(doc)
 
     def bind_editor(self, editor) -> None:
         self.editor = editor
         self.page.bind(editor)
-        editor.on_selection.append(self._editor_selected)
-        self.layers.connect("row-selected", self._row_selected)
-
-    def _row_selected(self, _lb, row) -> None:
-        if getattr(self, "_rebuilding", False) or self.editor is None or row is None:
-            return
-        self.editor.select(row.layer_id or None, notify=False)
-
-    def _editor_selected(self, layer_id) -> None:
-        if getattr(self, "_rebuilding", False):
-            return
-        self._rebuilding = True
-        try:
-            row = self.layers.get_first_child()
-            while row is not None:
-                if getattr(row, "layer_id", None) == (layer_id or 0):
-                    self.layers.select_row(row)
-                    break
-                row = row.get_next_sibling()
-        finally:
-            self._rebuilding = False
-
-    def _eye(self, layer_id: int, visible: bool) -> None:
-        if not getattr(self, "_rebuilding", False) and self.editor is not None:
-            self.editor.set_visible(layer_id, visible)
 
     # -- collapsed page ----------------------------------------------------
     def _build_collapsed(self) -> Gtk.Box:
@@ -501,7 +401,7 @@ class PanelRail(Gtk.Stack):
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
         box.append(hairline(30))
-        for icon, label, action, key in EDIT_ITEMS:
+        for icon, label, action, key in EDIT_ITEMS + ARRANGE_ITEMS:
             b = rail_button(icon, label, action, key=key)
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)

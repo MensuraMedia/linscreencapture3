@@ -67,5 +67,9 @@
     <file>icons/scalable/actions/lsc-bounding-box-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-polygon-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-drop-half-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrow-line-up-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrow-up-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrow-down-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrow-line-down-symbolic.svg</file>
   </gresource>
 </gresources>

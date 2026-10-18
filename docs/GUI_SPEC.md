@@ -620,9 +620,13 @@ Branch `feat/stage-rotate-fill`.
    so the image strip is 923 px (was 955).
 3. The header's tool strip sits in a horizontally scrolling window, and the title / subtitle ellipsize, so no tool's
    strip forces the window wider than its 1360 px default (a selected image used to force 1450 px).
-4. The open right rail gains a **PAGE** group between EDIT and LAYERS: Width and Height rows (spins), a Fill row
+4. The open right rail gains a **PAGE** group after EDIT: Width and Height rows (spins), a Fill row
    (switch + `Gtk.ColorDialogButton`) and a Stage row (reset + colour button).
 5. The clipboard tray's cells paste on double-click.
+6. The right rail has **no layer list** (operator, 2026-10-18). The EDIT group gains a second row of four arrange
+   buttons (`arrow-line-up`, `arrow-up`, `arrow-down`, `arrow-line-down`: to front, forward, backward, to back),
+   also in the collapsed rail; Ctrl+click on the canvas picks the layer beneath. This supersedes the Layers list
+   specification in sections 3 and 6.
 
 ### Amendment 2026-10-16 — capture behaviour
 

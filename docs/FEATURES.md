@@ -100,12 +100,12 @@ router (§14) handles editing chords and tool letters even while a spin button h
 | --- | --- | --- |
 | COLOUR | 12 round 18 px swatches (accent ring on the current one), custom colour `+` (`Gtk.ColorDialog`), eyedropper | sets the colour for new annotations, recolours the selected layer (undoable), persists to every tool's settings; the eyedropper makes the next click on the image pick that composite pixel (toast shows the hex) |
 | VIEW | zoom out · value · zoom in · fit | `win.zoom-out` / `win.zoom-in` (**Ctrl+−** / **Ctrl++**) zoom by **4 %** of the current zoom per step, on whole percents (100 → 104 → 108 → 112 …; 100 → 96 → 92 → 88 …), at least 1 % per step, always stopping at 100 % when crossing it, within 10–1000 % (`view_state.next_zoom`); `win.zoom-fit` (**Ctrl+0**, never above 1:1); `win.zoom-actual` (**Ctrl+1**) |
-| EDIT | Copy (**Ctrl+C**) · Flatten | `win.copy` (§8), `win.flatten` (§9) |
+| EDIT | Copy (**Ctrl+C**) · Flatten; second row: **Bring to front** (Ctrl+Shift+Page Up) · **Bring forward** (Ctrl+Page Up) · **Send backward** (Ctrl+Page Down) · **Send to back** (Ctrl+Shift+Page Down) | `win.copy` (§8), `win.flatten` (§9); the arrange actions `win.layer-front` / `-forward` / `-backward` / `-back` move the selected layer in the stack (`EditorController.arrange_selected`, `MoveLayer`, one undo step named after the move) and are enabled only when it can move that way (greyed with nothing selected, at the top or the bottom) |
 | PAGE | **Width** / **Height** spins · **Fill** switch + colour button · **Stage** colour button + reset | Width / Height set the page size **about its centre** (grown sides transparent, shrunk sides cut; every layer keeps its place on the picture; one undo step each, `EditorController.set_page_size`, `document.resized_page`). Fill paints a colour behind the page's transparent parts (grown page, erased or cleared pixels, transparent PNGs): kept by Save, Copy and Flatten, undoable (`SetPageFill`, `Document.background`); a document starts unfilled, the colour button remembers the last colour (`[Stage] page_fill`, default white) and choosing a colour turns the fill on. Stage sets the workspace colour around the page (`[Stage] colour`, "" = the theme's; `win.stage-colour-reset`); a setting, not part of the image. Insensitive without a document |
-| LAYERS | scrollable list, annotation layers top-first: a rendered 40×28 thumbnail of that layer alone, its **number** (stack position, 1 = bottom), a label naming the **tool that made it** (`ARROW`, `BOX`, `BLUR`, `PIXELATE`, `TEXT`, `STEP`, `CALLOUT`, `ERASER`, `CUTOUT`, `IMAGE`…) and an eye; the last row is `Base capture · IMG`; "No layers yet" when empty | a row click selects the layer on the stage and vice versa; the eye hides/shows the layer (undoable). Drag-to-reorder is not implemented (`MoveLayer` exists) |
 | Navigator (untitled) | 116 px thumbnail of the composite, dimmed outside the viewport, accent rectangle for the visible part | follows zoom and scroll; click or drag scrolls the stage to that point |
 | bottom-right | Settings (**Ctrl+,**) | `app.preferences` |
-| Collapsed page | caret, six colour dots, eyedropper, −, +, fit, Copy, Flatten, gear | same actions (the Page group is in the open rail only) |
+| Collapsed page | caret, six colour dots, eyedropper, −, +, fit, Copy, Flatten, the four arrange buttons, gear | same actions (the Page group is in the open rail only) |
+| (no layer list) | removed 2026-10-18 at the operator's request: layers are picked on the canvas | a click selects the topmost layer under the pointer; **Ctrl+click** selects the next layer beneath the selected one there (wrapping), so a covered layer can still be reached; hiding a layer has no control any more (`SetVisible` remains in the model) |
 
 ## 6. Stage (`ui/stage.py`)
 
@@ -162,7 +162,7 @@ subtitle's layer count and `unsaved` follow every change.
 
 | Action | Keys | Behaviour |
 | --- | --- | --- |
-| Select one | click (Select / Move) or a Layers row | white handles with an accent border (corner ticks for layers without handles; the dashed frame is optional); the strip shows its properties |
+| Select one | click (Select / Move); **Ctrl+click** the layer beneath | white handles with an accent border (corner ticks for layers without handles; the dashed frame is optional); the strip shows its properties |
 | Select all | **Ctrl+A** | every layer is marked: dashed outline around the image and each layer, Select tool active. Ctrl+C then copies the flattened image, Delete removes all layers in one undo step; a plain selection, Esc, a tool switch or a click on the empty stage ends it. Moving all layers together is not implemented |
 | Clear selection | **Esc** | |
 

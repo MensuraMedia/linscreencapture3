@@ -82,7 +82,7 @@ def test_library_is_always_visible_above_the_actions_line(window):
         assert isinstance(lib[0].get_next_sibling(), Gtk.Separator), page   # the hairline right below it
 
 
-def test_layers_sit_above_the_navigator_and_navigator_tracks_the_view(window, tmp_path):
+def test_page_and_arrange_sit_above_the_navigator_and_navigator_tracks_the_view(window, tmp_path):
     from PIL import Image
     from linscreencapture.model.document import Document
     pr = window.panel_rail
@@ -91,7 +91,9 @@ def test_layers_sit_above_the_navigator_and_navigator_tracks_the_view(window, tm
     c = page.get_first_child()
     while c is not None:
         kids.append(c); c = c.get_next_sibling()
-    assert kids.index(pr.layers.get_parent().get_parent().get_parent()) < kids.index(pr.navigator)
+    assert kids.index(pr.arrange_buttons[0].get_parent()) < kids.index(pr.page) < kids.index(pr.navigator)
+    assert not any(isinstance(w, Gtk.ListBox) for w in _walk(page))      # no layer list in the rail
+    assert all(not (isinstance(k, Gtk.Label) and k.get_label() == "LAYERS") for k in kids)
     assert all(not (isinstance(k, Gtk.Label) and k.get_label() == "NAVIGATOR") for k in kids)
     Image.new("RGBA", (2000, 1200), (90, 60, 30, 255)).save(tmp_path / "big.png")
     window.load_document(Document.open(str(tmp_path / "big.png")))
@@ -213,15 +215,14 @@ def test_document_shows_on_stage_and_in_layers(window, tmp_path):
     assert window.stage.pages.get_visible_child_name() == "canvas"
     assert window.header.title.get_label() == "cap.png"
     assert window.header.subtitle.get_visible() and "400×300 · PNG · 1 layer · saved" in window.header.subtitle.get_label()
-    rows = [r for r in _walk(window.panel_rail.layers) if isinstance(r, Gtk.ListBoxRow)]
-    assert len(rows) == 1 and rows[0].name.get_label() == "Base capture"
+    assert window.panel_rail.page.width.get_value() == 400 and window.panel_rail.page.width.get_sensitive()
     assert window.stage.hud.get_label().endswith("%")
     window.activate_action("win.zoom-fit", None)
     assert 0.1 <= window.state.zoom <= 1.0
     window.activate_action("win.discard", None)
     pump(50)
     assert window.stage.pages.get_visible_child_name() == "empty" and window.header.title.get_label() == "LinScreenCapture"
-    assert window.panel_rail.layers_empty.get_visible()
+    assert not window.panel_rail.page.width.get_sensitive()              # no document: the Page rows rest
 
 
 def test_capture_actions_exist(app, window):
@@ -316,9 +317,7 @@ def test_drawing_tools_create_layers_with_undo(window, tmp_path):
     assert doc.layers[1].annotation.rect == (40, 40, 100, 100)          # Ctrl made it square
     assert doc.layers[0].annotation.style.colour == window.state.colour
     assert window.editor.selected_id == doc.layers[-1].id                 # the new layer is selected
-    rows = [r for r in _walk(window.panel_rail.layers) if isinstance(r, Gtk.ListBoxRow)]
-    assert [r.name.get_label() for r in rows] == ["3", "2", "1", "Base capture"]           # numbered by stack position
-    assert [r.kind.get_label() for r in rows] == ["PIXELATE", "BOX", "ARROW", "IMG"]       # the label names the tool
+    assert [l.badge for l in doc.layers] == ["ARROW", "BOX", "PIXELATE"]                    # the label names the tool
     assert "4 layers · unsaved" in window.header.subtitle.get_label()
     assert window.lookup_action("undo").get_enabled()
     window.activate_action("win.undo", None); pump(30)
@@ -701,8 +700,7 @@ def test_eraser_clears_to_transparent_and_png_keeps_alpha(window, tmp_path):
     doc.save(str(jpg))
     with Image.open(jpg) as img:
         assert img.mode == "RGB" and img.getpixel((50, 40))[0] > 240       # transparent lands on white in JPEG
-    rows = [r for r in _walk(window.panel_rail.layers) if isinstance(r, Gtk.ListBoxRow)]
-    assert rows[0].kind.get_label() == "ERASER"
+    assert doc.layers[-1].badge == "ERASER"
 
 
 def test_hand_space_and_middle_button_pan_the_view(window, tmp_path):
@@ -815,8 +813,6 @@ def test_area_tools_mark_copy_clear_and_crop(window, tmp_path):
     assert d[2 * st + 50 * 4 + 3] == 255 and d[170 * st + 2 * 4 + 3] == 0         # inside near the top edge · outside corner
     window.activate_action("win.undo", None); pump(30)
     assert (doc.width, doc.height) == (300, 200)
-    rows = [row for row in _walk(window.panel_rail.layers) if isinstance(row, Gtk.ListBoxRow)]
-    assert rows[-1].kind.get_label() == "IMG"
 
 
 def test_selection_frame_is_optional(window, settings):
@@ -1034,3 +1030,44 @@ def test_a_selected_image_strip_never_widens_the_window(window, tmp_path):
     assert props.sets.get_visible_child_name() == "image" and props.img_angle_label.get_label() == "-20°"
     assert window.get_width() == 1360                       # the strip scrolls in the header instead
     assert window.header.measure(Gtk.Orientation.HORIZONTAL, -1)[0] < 1000
+
+
+def test_arrange_buttons_restack_the_selected_layer_with_undo(window, tmp_path):
+    _load_blank(window, tmp_path, (400, 300))
+    for x in (20, 40, 60):
+        _drag(window, "box", x, x, x + 100, x + 80)
+    doc, ed = window.document, window.editor
+    a, b, c = doc.layers
+    ed.select(a.id); pump(20)                                     # the bottom layer
+    enabled = lambda w: window.lookup_action(f"layer-{w}").get_enabled()
+    assert enabled("front") and enabled("forward") and not enabled("backward") and not enabled("back")
+    window.activate_action("win.layer-forward", None); pump(20)
+    assert doc.layers == [b, a, c] and ed.selected_id == a.id
+    window.activate_action("win.layer-front", None); pump(20)
+    assert doc.layers == [b, c, a] and not enabled("front") and enabled("back")
+    assert window.undo.undo_label == "Bring to front"
+    window.activate_action("win.undo", None); pump(20)
+    assert doc.layers == [b, a, c]
+    ed.select(None); pump(20)
+    assert not any(enabled(w) for w in ("front", "forward", "backward", "back"))
+    assert [btn.get_action_name() for btn in window.panel_rail.arrange_buttons] == [
+        "win.layer-front", "win.layer-forward", "win.layer-backward", "win.layer-back"]
+
+
+def test_ctrl_page_keys_and_ctrl_click_pick_and_restack(window, tmp_path):
+    from gi.repository import Gdk
+    _load_blank(window, tmp_path, (400, 300))
+    _drag(window, "box", 50, 50, 150, 150)
+    _drag(window, "box", 60, 60, 160, 160)                       # on top of the first
+    doc, ed, r = window.document, window.editor, window.shortcuts
+    low, top = doc.layers
+    window.state.tool = "select"
+    ox, oy = window.stage.image_origin()
+    ed._drag_begin(_Gesture(), ox + 100, oy + 100); ed._drag_end(_Gesture(), 0, 0)
+    assert ed.selected_id == top.id                              # a plain click: the topmost
+    ed._drag_begin(_Gesture(ctrl=True), ox + 100, oy + 100); ed._drag_end(_Gesture(ctrl=True), 0, 0)
+    assert ed.selected_id == low.id                              # Ctrl+click: the one beneath
+    assert r.handle(Gdk.KEY_Page_Up, Gdk.ModifierType.CONTROL_MASK) is True; pump(20)
+    assert doc.layers == [top, low]
+    assert r.handle(Gdk.KEY_Page_Down, Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK) is True; pump(20)
+    assert doc.layers == [low, top]

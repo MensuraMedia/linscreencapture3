@@ -11,7 +11,7 @@ clipboard behaviour: `docs/CAPTURE.md` (its §11 lists the capture limits).
 | Multi-monitor | The capture overlay opens one window per monitor; a selection cannot span two monitors | open |
 | HiDPI | Monitor scale factors are assumed to be integers | open |
 | Scrolling capture, Pin to screen | Buttons present, not implemented | Phase 6 |
-| Layers | Drag-to-reorder in the Layers list is not implemented (the undo command exists) | Phase 7 |
+| Layers | The Layers list was removed (2026-10-18); restacking is the four arrange buttons and Ctrl+Page Up / Down, a covered layer is reached by Ctrl+click. There is no control to hide a layer any more | by request |
 | Select all | Ctrl+A marks every layer for Copy and Delete; the selection cannot be moved or restyled as a group | open |
 | Clipboard tray | Shows the last four copies (2 × 2); only copies made by LinScreenCapture appear (editor Ctrl+C, captures, Library Copy); copies from other applications are not tracked | by design |
 | Rotate | Image → Flip mirrors a pasted image's position, not its pixels; a turned image keeps its angle through a flip | open |

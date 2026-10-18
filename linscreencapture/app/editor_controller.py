@@ -158,11 +158,13 @@ class EditorController:
         return bool(st & Gdk.ModifierType.SHIFT_MASK), bool(st & Gdk.ModifierType.CONTROL_MASK)
 
     # -- pointer -----------------------------------------------------------
-    def _layer_at(self, x: float, y: float):
-        for layer in reversed(self.doc.layers):
-            if layer.visible and layer.annotation.contains(x, y):
-                return layer
-        return None
+    def _layer_at(self, x: float, y: float, below=None):
+        """The topmost visible layer at (x, y); with ``below`` (a layer), the next one under it there, wrapping
+        to the top (Ctrl+click picks a layer hidden beneath another)."""
+        hits = [l for l in reversed(self.doc.layers) if l.visible and l.annotation.contains(x, y)]
+        if below is not None and below in hits and len(hits) > 1:
+            return hits[(hits.index(below) + 1) % len(hits)]
+        return hits[0] if hits else None
 
     def _drag_begin(self, gesture, cx: float, cy: float) -> None:
         if not self._ready():
@@ -189,7 +191,8 @@ class EditorController:
             if hit:
                 self._mode = "handle:" + hit
             else:
-                layer = self._layer_at(x, y)
+                _shift, ctrl = self._modifiers(gesture)
+                layer = self._layer_at(x, y, below=self.selected_layer() if ctrl else None)
                 self.select(layer.id if layer else None)
                 self._mode = "move" if layer else None
             if layer is not None and self._mode:
@@ -597,6 +600,30 @@ class EditorController:
         layer = self.doc.find_layer(layer_id) if self.doc else None
         if layer is not None and layer.visible != visible:
             self._commit(SetVisible(layer, visible), select_new=False)
+
+    # -- arrange (right rail EDIT: to front, forward, backward, to back) -------------
+    ARRANGE = ("front", "forward", "backward", "back")
+
+    def _arrange_index(self, where: str) -> int | None:
+        layer = self.selected_layer()
+        if layer is None or not self._ready():
+            return None
+        i, top = self.doc.layers.index(layer), len(self.doc.layers) - 1
+        target = {"front": top, "forward": i + 1, "backward": i - 1, "back": 0}[where]
+        target = max(0, min(top, target))
+        return None if target == i else target
+
+    def can_arrange(self, where: str) -> bool:
+        return self._arrange_index(where) is not None
+
+    def arrange_selected(self, where: str) -> bool:
+        """Move the selected layer in the stack (layers[0] is the bottom); one undo step."""
+        index = self._arrange_index(where)
+        if index is None:
+            return False
+        labels = {"front": "Bring to front", "forward": "Bring forward", "backward": "Send backward", "back": "Send to back"}
+        self._commit(MoveLayer(self.selected_layer(), index, label=labels[where]), select_new=False)
+        return True
 
     def move_layer(self, layer_id: int, index: int) -> None:
         layer = self.doc.find_layer(layer_id) if self.doc else None
