@@ -229,6 +229,13 @@ data/ icons, gresource.xml, .desktop files
 
 Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operator's call):
 
+- **Design docs 2026-10-18 (proposed, awaiting the operator's answers to their open questions):**
+  `docs/EDITOR-CANVAS-EXPANSION.md` (the page grows to fit a pasted or moved image, 20 px padding, one undo step),
+  `docs/CLIPBOARD-TRAY-4UP.md` (the tray as a 2 × 2 grid of the last four copies; supersedes the item below),
+  `docs/EDITOR-SHADOWS-AND-PREVIEW.md` (pasted-image shadow kept through flatten; a Shadow switch on every
+  marking tool, fixing the dead Callout switch; the drawing preview at full colour: the 60 % cap in
+  `EditorController._draw_overlay` is the fading arrow). Suggested order: preview fix, shadow switches,
+  image shadow, canvas expansion, 4-up tray.
 - Clipboard tray with several slots (three or more, newest first). `ClipHistory.limit` and `clip_tray.SLOTS` already
   parametrise it; the tray was reduced to one slot on 2026-10-13 to keep the rail quiet.
 - Area tool follow-ups: move / restyle the marked region as a group, feather the edge, invert the area, Ctrl+X cut.
