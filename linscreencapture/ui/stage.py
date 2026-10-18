@@ -168,7 +168,6 @@ class Stage(Gtk.Overlay):
         z = self.state.zoom
         iw, ih = self._composite.get_width() * z, self._composite.get_height() * z
         x, y = (w - iw) / 2, (h - ih) / 2
-        self._draw_drop_shadow(cr, x, y, iw, ih)
         cr.save()
         cr.rectangle(x, y, iw, ih)
         cr.clip()
@@ -228,35 +227,6 @@ class Stage(Gtk.Overlay):
 
     def _pan_update(self, _g, dx: float, dy: float) -> None:
         self.scroll_by(-dx, -dy, getattr(self, "_pan_from", None))
-
-    SHADOW_REACH = 18      # px the stage shadow extends beyond the image edge
-    SHADOW_ALPHA = 0.55    # darkest value, right at the edge
-
-    def _draw_drop_shadow(self, cr, x: float, y: float, w: float, h: float) -> None:
-        """A smooth shadow around the image: linear gradients on the sides, radial ones on the corners.
-
-        (The 1.4-style stacked rectangles produced visible bands on dark captures.) The image itself
-        is painted pixel-exact with square corners on top of it."""
-        r, a0 = self.SHADOW_REACH, self.SHADOW_ALPHA
-        dy = 3  # the shadow sits slightly below the image
-        y += dy
-
-        def stops(grad):
-            grad.add_color_stop_rgba(0, 0, 0, 0, a0)
-            grad.add_color_stop_rgba(0.35, 0, 0, 0, a0 * 0.35)
-            grad.add_color_stop_rgba(1, 0, 0, 0, 0)
-            return grad
-        sides = (
-            (cairo.LinearGradient(x, y, x - r, y), (x - r, y, r, h)),            # left
-            (cairo.LinearGradient(x + w, y, x + w + r, y), (x + w, y, r, h)),    # right
-            (cairo.LinearGradient(x, y, x, y - r), (x, y - r, w, r)),            # top
-            (cairo.LinearGradient(x, y + h, x, y + h + r), (x, y + h, w, r)),    # bottom
-        )
-        for grad, rect in sides:
-            cr.set_source(stops(grad)); cr.rectangle(*rect); cr.fill()
-        corners = ((x, y, x - r, y - r), (x + w, y, x + w, y - r), (x, y + h, x - r, y + h), (x + w, y + h, x + w, y + h))
-        for cx, cy, rx, ry in corners:
-            cr.set_source(stops(cairo.RadialGradient(cx, cy, 0, cx, cy, r))); cr.rectangle(rx, ry, r, r); cr.fill()
 
     def point_in_image(self, cx: float, cy: float) -> bool:
         """Is canvas point (cx, cy) over the image (not the margin around it)?"""

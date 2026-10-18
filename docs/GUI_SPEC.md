@@ -630,6 +630,11 @@ Branch `feat/stage-rotate-fill`.
    one is the selected layer; two squares for one step, three for the whole way. Also in the collapsed rail after a
    hairline. Ctrl+click on the canvas picks the layer beneath. This supersedes the Layers list specification in
    sections 3 and 6.
+7. Later the same day: the stage draws **no shadow** around the page; the **Page** button moved from EDIT to the
+   VIEW row beside Fit (the zoom pill's spacing is 6 px so the row fits the 196 px content width); the right rail
+   ends with a hairline, a SETTINGS group label and a 30 px gear button, mirroring the left rail's ACTIONS group so
+   the two bottom lines are level (collapsed: an empty 30 px slot under the right line). The "Settings" text button
+   is gone.
 
 ### Amendment 2026-10-16 — capture behaviour
 

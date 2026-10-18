@@ -10,27 +10,13 @@ from ..services import icon_loader
 from ..app.view_state import ViewState
 
 OPEN_WIDTH, COLLAPSED_WIDTH = 220, 56
-EDIT_ITEMS = (("copy", "Copy the image with its annotations", "win.copy", "Ctrl+C"), ("stack-simple", "Flatten", "win.flatten", None),
-              ("frame-corners", "Page: size, fill and stage colour", "win.page-settings", None))
+EDIT_ITEMS = (("copy", "Copy the image with its annotations", "win.copy", "Ctrl+C"), ("stack-simple", "Flatten", "win.flatten", None))
+PAGE_ITEM = ("frame-corners", "Page: size, fill and stage colour", "win.page-settings", None)   # beside Fit in VIEW
 # low to high, left to right; the filled square in each glyph is the selected layer (data/icons/custom)
 ARRANGE_ITEMS = (("layer-back", "Send to back", "win.layer-back", "Ctrl+Shift+Page Down"),
                  ("layer-backward", "Send backward", "win.layer-backward", "Ctrl+Page Down"),
                  ("layer-forward", "Bring forward", "win.layer-forward", "Ctrl+Page Up"),
                  ("layer-front", "Bring to front", "win.layer-front", "Ctrl+Shift+Page Up"))
-
-
-def _settings_button() -> Gtk.Button:
-    b = Gtk.Button()
-    bb = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-    bb.append(icon_loader.icon("gear", 18))
-    bb.append(Gtk.Label(label="Settings"))
-    b.set_child(bb)
-    b.add_css_class("text-btn")
-    b.set_tooltip_text("Settings")
-    b.update_property([Gtk.AccessibleProperty.LABEL], ["Settings"])
-    b.set_action_name("app.preferences")
-    b.set_halign(Gtk.Align.END)
-    return b
 
 
 class ColourPalette(Gtk.Box):
@@ -202,10 +188,15 @@ class PanelRail(Gtk.Stack):
         lbl = group_label("View")
         lbl.set_margin_top(10)
         box.append(lbl)
+        view = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4, margin_top=4)
         self.zoom = ZoomPill()
         self.zoom.set_halign(Gtk.Align.START)
-        self.zoom.set_margin_top(4)
-        box.append(self.zoom)
+        view.append(self.zoom)
+        icon, label, action, key = PAGE_ITEM
+        self.page_btn = rail_button(icon, label, action, key=key)
+        self.page_btn.set_valign(Gtk.Align.CENTER)
+        view.append(self.page_btn)
+        box.append(view)
         lbl = group_label("Edit")
         lbl.set_margin_top(10)
         box.append(lbl)
@@ -229,9 +220,21 @@ class PanelRail(Gtk.Stack):
         self.navigator = Navigator()
         self.navigator.set_margin_top(6)
         box.append(self.navigator)
-        self.settings_btn = _settings_button()
-        self.settings_btn.set_margin_top(6)
-        box.append(self.settings_btn)
+        # the bottom group mirrors the left rail's ACTIONS (hairline, group label, a 30 px button row), so the two
+        # rails' bottom hairlines sit at the same height
+        hl = hairline()
+        hl.set_margin_top(10)
+        box.append(hl)
+        lbl = group_label("Settings")
+        lbl.set_margin_top(8)
+        box.append(lbl)
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.settings_btn = rail_button("gear", "Settings", "app.preferences", key="Ctrl+,")
+        self.settings_btn.set_hexpand(True)
+        self.settings_btn.set_halign(Gtk.Align.END)
+        row.append(self.settings_btn)
+        box.append(row)
+        self.bottom_hairline = hl
         self.state.connect("notify::zoom", lambda s, _p: self.zoom.set_zoom(s.zoom))
         return box
 
@@ -262,7 +265,7 @@ class PanelRail(Gtk.Stack):
         box.append(ed)
         box.append(hairline(30))
         for icon, label, action, key in (("minus", "Zoom out", "win.zoom-out", "Ctrl+−"), ("plus", "Zoom in", "win.zoom-in", "Ctrl++"),
-                                         ("arrows-in", "Fit to window", "win.zoom-fit", "Ctrl+0")):
+                                         ("arrows-in", "Fit to window", "win.zoom-fit", "Ctrl+0"), PAGE_ITEM):
             b = rail_button(icon, label, action, key=key)
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
@@ -275,6 +278,9 @@ class PanelRail(Gtk.Stack):
             box.append(b)
         box.append(Gtk.Box(vexpand=True))
         box.append(hairline(30))
+        slot = Gtk.Box()                              # the left rail has Discard + Save under its line: an empty
+        slot.set_size_request(30, 30)                 # 30 px slot keeps both lines level and the gear beside Save
+        box.append(slot)
         gear = rail_button("gear", "Settings", "app.preferences", key="Ctrl+,")
         gear.set_halign(Gtk.Align.CENTER)
         box.append(gear)

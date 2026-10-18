@@ -118,7 +118,7 @@ def test_right_rail_holds_view_and_edit(window):
     pump(50)
     assert pr.zoom.value.get_label() == "104%"            # 4 % steps (view_state.next_zoom)
     window.activate_action("win.zoom-fit", None)
-    assert [b.get_action_name() for b in pr.edit_buttons] == ["win.copy", "win.flatten", "win.page-settings"]
+    assert [b.get_action_name() for b in pr.edit_buttons] == ["win.copy", "win.flatten"]
     left_actions = [b.get_tooltip_text() for b in _buttons(window.tool_rail.get_child_by_name("open")) if b.get_action_name() in ("win.copy", "win.flatten")]
     assert left_actions == []
 
@@ -192,10 +192,45 @@ def test_library_page_toggles(window):
 
 def test_settings_button_is_last_in_right_rail(window):
     btn = window.panel_rail.settings_btn
-    assert btn.get_action_name() == "app.preferences" and btn.get_tooltip_text() == "Settings"
-    gear = next(b for b in _buttons(window.panel_rail) if b.get_action_name() == "app.preferences")
-    assert gear.get_tooltip_text() == "Settings\nCtrl+,"
+    assert btn.get_action_name() == "app.preferences" and btn.has_css_class("rail-btn") and btn.get_child().__class__ is Gtk.Image
+    assert btn.get_tooltip_text() == "Settings\nCtrl+,"                       # an icon button, no text label
     assert btn.get_next_sibling() is None and btn.get_halign() == Gtk.Align.END
+    row = btn.get_parent()
+    assert row.get_next_sibling() is None and isinstance(row.get_prev_sibling().get_prev_sibling(), Gtk.Separator)
+
+
+def _last_separator(page):
+    box, seps = page.get_child().get_child(), []
+    c = box.get_first_child()
+    while c is not None:
+        if isinstance(c, Gtk.Separator):
+            seps.append(c)
+        c = c.get_next_sibling()
+    return seps[-1]
+
+
+def test_both_rails_bottom_lines_are_level_open_and_collapsed(window):
+    from gi.repository import Graphene
+    for collapsed in (False, True):
+        window.state.left_collapsed = window.state.right_collapsed = collapsed; pump(400)
+        page = "collapsed" if collapsed else "open"
+        ys = [_last_separator(rail.get_child_by_name(page)).compute_point(window, Graphene.Point().init(0, 0))[1].y
+              for rail in (window.tool_rail, window.panel_rail)]
+        assert ys[0] == ys[1], (page, ys)
+
+
+def test_page_button_sits_beside_fit_and_the_stage_has_no_page_shadow(window, tmp_path):
+    import cairo
+    pr = window.panel_rail
+    assert pr.page_btn.get_prev_sibling() is pr.zoom and pr.zoom.fit.get_next_sibling() is None
+    assert pr.page_btn.get_action_name() == "win.page-settings"
+    assert pr.page_btn.get_parent().measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= 196    # fits the rail's content
+    _load_blank(window, tmp_path, (200, 100))
+    st = window.stage
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 300, 200)
+    st._draw_canvas(None, cairo.Context(surf), 300, 200)           # page at (50, 50)-(250, 150)
+    surf.flush()
+    assert surf.get_data()[(155) * surf.get_stride() + 150 * 4 + 3] == 0   # just below the page: nothing painted
 
 
 def test_close_saves_settings(window):
@@ -1032,7 +1067,7 @@ def test_page_dialog_stage_colour_and_reset(window, tmp_path):
 
 def test_page_settings_needs_a_document(window):
     assert not window.lookup_action("page-settings").get_enabled()
-    assert [b.get_action_name() for b in window.panel_rail.edit_buttons][-1] == "win.page-settings"
+    assert window.panel_rail.page_btn.get_action_name() == "win.page-settings"
 
 
 def test_selection_handles_are_round(window, tmp_path):

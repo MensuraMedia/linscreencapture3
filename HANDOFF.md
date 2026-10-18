@@ -114,7 +114,10 @@ uses the live display. The app on this machine is installed with `./install.sh` 
   the layer thumbnails are deleted; 175 tests (`e816c44`). Then the Page group moved into the Page dialog and the
   arrange buttons got their own ARRANGE group with the app's own glyphs (`data/icons/custom/`, bundled by
   `tools/sync_icons.py`); 177 tests.
-- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.8.
+- Then: no stage shadow around the page (`Stage._draw_drop_shadow` deleted); Page button beside Fit in VIEW; the
+  right rail's bottom is hairline + SETTINGS label + gear button, level with the left rail's ACTIONS line (a test
+  checks open and collapsed); 179 tests.
+- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.9.
 
 **Merge order** (PRs opened 2026-10-18): #1 `fix/tray-alttab-icons` → `feat/phase5` first (without it `make test`
 deletes the real autostart entry), then #2 `feat/editor-shadows-canvas` → `feat/phase5` (contains the docs branch),

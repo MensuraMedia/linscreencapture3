@@ -137,7 +137,7 @@ class StatusChip(Gtk.Box):
 
 class ZoomPill(Gtk.Box):
     def __init__(self):
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, valign=Gtk.Align.CENTER)
         self.add_css_class("pill")
         self.minus = rail_button("minus", "Zoom out", "win.zoom-out", key="Ctrl+−")
         self.value = Gtk.Label(label="100%", xalign=0.5)
