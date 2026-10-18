@@ -91,7 +91,7 @@ uses the live display. The app on this machine is installed with `./install.sh` 
   design at the top of each). The 4-up clipboard tray (`docs/CLIPBOARD-TRAY-4UP.md`) is on `feat/clip-tray-4up`
   (rebased onto `feat/editor-shadows-canvas`; GLM draft, reviewed and completed; 150 tests).
 
-**Branch `feat/stage-rotate-fill`** (stacked on `feat/clip-tray-4up`; no PR yet):
+**Branch `feat/stage-rotate-fill`** (stacked on `feat/clip-tray-4up`; PR #4, base `feat/clip-tray-4up`):
 - Pasted images rotate: `Annotation.angle` (degrees clockwise about the rect centre; image layers only), drawn by
   `annotations._image_frame`, hit-tested on the turned picture, bounding box = turned extent; `TransformBase` now
   saves and restores `angle`; a page rotation turns image layers (`_image_transformed`) instead of stretching them.
