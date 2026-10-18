@@ -12,8 +12,9 @@ Cinnamon (X11, 2560×1080) by driving the real hotkey and mouse through XTest.
 
 ## 1. Intended behaviour
 
-1. **The hotkey works everywhere.** The capture hotkey (PrintScreen by default; Ctrl+PrintScreen on the reference
-   machine) starts a capture wherever the user is, including inside the LinScreenCapture window.
+1. **The hotkey works everywhere.** The capture hotkey (PrintScreen by default, or any key combination the user
+   records in Settings) starts a capture wherever the user is, including inside the LinScreenCapture window.
+   The agent runs at startup (on by default), so the hotkey works from login onwards.
 2. **Region is fast and immediate.** The screen freezes and you draw a box. The capture happens **the moment the
    mouse button is released**. There are no handles and no confirmation step.
 3. **Region Plus is the precise variant.** The box keeps eight resize handles, arrow-key nudging and Space-move.
@@ -83,8 +84,18 @@ desktop binding and got double captures.
    If that call is unavailable, it falls back to writing `custom-list` to `[]` and back, because a changed value
    triggers the same reload.
 
-**Hotkey presets** (`Settings.HOTKEYS`): Off, `Print`, `<Control>Print`, `<Shift>Print`, `<Control><Shift>s`,
-`<Control><Alt>s`.
+**Choosing the hotkey** (Settings → System → *Capture hotkey* → *Key*): the presets (`Settings.HOTKEYS`: Off,
+`Print`, `<Control>Print`, `<Shift>Print`, `<Control><Shift>s`, `<Control><Alt>s`), or **Custom…** / **Record…**,
+which opens a small recorder window and takes the next key press:
+
+- PrintScreen, the function keys, Pause and similar keys work on their own; a letter, digit or symbol needs Ctrl,
+  Alt, Shift or Super (a bare letter would stop typing everywhere). Alt+PrintScreen (Sys_Req on X11) is stored as
+  `<Alt>Print`. Esc cancels; Backspace turns the hotkey off.
+- While the recorder is open, the agent removes its own desktop binding so the current key reaches the recorder
+  (`Application.suspend_hotkey`); it is re-registered when the recorder closes, with the new key or the old one.
+- Any GTK accelerator name is accepted in the settings file (`settings.valid_hotkey`); an unreadable value falls back
+  to `Print`.
+- A key already bound to another application's custom shortcut is logged as a conflict but not taken from it.
 
 **Diagnosing a dead hotkey.** Work through these in order:
 1. Does the agent log (`--debug`) show `capture requested`? If it does, the key works and the problem is further on.
@@ -203,11 +214,11 @@ capturing the veil. v3 crops the frozen image instead.
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `[System] hotkey` | `Print` | the capture hotkey preset (§4) |
-| `[System] register_hotkey` | off | when on, the agent writes the desktop binding at every start. Switching it off, or choosing the Off preset, removes our binding (`hotkey_registrar.unregister`) |
+| `[System] hotkey` | `Print` | a preset or any recorded accelerator (§4) |
+| `[System] register_hotkey` | on | when on, the agent writes the desktop binding at every start. Switching it off, or choosing the Off preset, removes our binding (`hotkey_registrar.unregister`) |
 | `[System] keep_running` | on | the agent holds itself alive; closing the studio hides it |
 | `[System] tray_icon` | on | the status-icon helper |
-| `[System] autostart` | off | the login entry (`--background`); the switch reads the file on disk |
+| `[System] autostart` | on | *Run at startup*: the login entry (`--background`). The first run creates it; afterwards the entry on disk is the truth (a switch-off in Cinnamon's Startup Applications, `X-GNOME-Autostart-enabled=false`, counts as off), and an enabled entry is rewritten when the launcher path changes (`autostart.sync`) |
 | `[System] hotkey_opens_editor` | off | present the studio after every hotkey capture |
 | `[Capture] delay_seconds` | 3 | used by the Delayed toggle (in-app captures only) |
 | `[Capture] backend` | auto | backend order (§6) |

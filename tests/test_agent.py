@@ -243,3 +243,72 @@ def test_tray_menu_actions_exist_on_the_agent(gtk, tmp_path, monkeypatch):
         assert app._agent and app._tray is None      # keep_running holds the app; LSC_NO_TRAY skips the icon
     finally:
         app.release()
+
+
+# -- any hotkey, run at startup ------------------------------------------------
+def test_defaults_are_printscreen_registered_and_run_at_startup(tmp_path):
+    from linscreencapture.model.settings import Settings
+    s = Settings(root=str(tmp_path))
+    assert (s.hotkey, s.register_hotkey, s.autostart) == ("Print", True, True)
+
+
+def test_any_recorded_hotkey_round_trips_and_garbage_is_ignored(tmp_path):
+    from linscreencapture.model.settings import Settings, valid_hotkey
+    assert valid_hotkey("Print") and valid_hotkey("<Super><Shift>F12") and valid_hotkey("none")
+    assert not valid_hotkey("") and not valid_hotkey("Ctrl+S") and not valid_hotkey("<Control>")
+    s = Settings(root=str(tmp_path)); s.hotkey = "<Alt><Super>F9"; s.save()
+    assert Settings.load(root=str(tmp_path)).hotkey == "<Alt><Super>F9"
+    s.path.write_text(s.path.read_text().replace("hotkey=<Alt><Super>F9", "hotkey=Ctrl+S"))
+    assert Settings.load(root=str(tmp_path)).hotkey == "Print"
+
+
+def test_key_presses_become_accelerators(gtk):
+    from gi.repository import Gdk
+    from linscreencapture.ui.preferences import accel_for_key, hotkey_label
+    C, S, A = Gdk.ModifierType.CONTROL_MASK, Gdk.ModifierType.SHIFT_MASK, Gdk.ModifierType.ALT_MASK
+    assert accel_for_key(Gdk.KEY_Print, 0)[0] == "Print"
+    assert accel_for_key(Gdk.KEY_Sys_Req, A)[0] == "<Alt>Print"
+    assert accel_for_key(Gdk.KEY_S, C | S)[0] == "<Shift><Control>s"
+    assert accel_for_key(Gdk.KEY_F12, 0)[0] == "F12"
+    assert accel_for_key(Gdk.KEY_s, 0)[0] is None              # a bare letter would stop typing everywhere
+    assert accel_for_key(Gdk.KEY_Control_L, C) == (None, "")   # modifiers alone wait for the real key
+    assert hotkey_label("<Control>Print") == "Ctrl+Print" and hotkey_label("none") == "Off"
+
+
+def test_preferences_record_a_custom_hotkey_and_turn_it_off(window):
+    from conftest import pump
+    from linscreencapture.ui.preferences import PreferencesDialog
+    changes, suspended = [], []
+    dlg = PreferencesDialog(window.settings, on_change=lambda f, v: changes.append((f, v)), suspend_hotkey=suspended.append)
+    dlg.present(window)
+    pump(100)
+    rec = dlg.record_hotkey()
+    assert suspended == [True]
+    rec.finish("<Super>F9")
+    pump(50)
+    assert window.settings.hotkey == "<Super>F9" and ("hotkey", "<Super>F9") in changes
+    assert "hotkey=<Super>F9" in window.settings.path.read_text()
+    assert dlg.hotkey_row.get_selected() == 6 and "Super" in dlg.hotkey_row.get_model().get_string(6)
+    dlg.record_hotkey().close()                                # cancelled: the old binding comes back
+    pump(50)
+    assert suspended[-1] is False and window.settings.hotkey == "<Super>F9"
+    dlg.hotkey_row.set_selected(1)                             # back to the PrintScreen preset
+    pump(50)
+    assert window.settings.hotkey == "Print" and dlg.hotkey_row.get_selected() == 1
+    dlg.record_hotkey().finish("none")
+    pump(50)
+    assert window.settings.hotkey == "none" and dlg.hotkey_row.get_selected() == 0
+    dlg.close()
+    pump(50)
+
+
+def test_autostart_sync_first_run_then_follows_the_entry(tmp_path):
+    from linscreencapture.services import autostart
+    root, which = str(tmp_path), (lambda _n: "/u/.local/bin/linscreencapture")
+    assert autostart.sync(True, True, root, which) and autostart.is_enabled(root)
+    p = autostart.entry_path(root)
+    p.write_text(p.read_text().replace("--background", "--old"))
+    assert autostart.sync(True, False, root, which) and "--background" in p.read_text()   # launcher refreshed
+    p.write_text(p.read_text().replace("X-GNOME-Autostart-enabled=true", "X-GNOME-Autostart-enabled=false"))
+    assert not autostart.is_enabled(root) and not autostart.sync(True, False, root, which)  # desktop's choice wins
+    assert not autostart.sync(False, True, str(tmp_path / "b"), which)

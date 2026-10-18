@@ -27,7 +27,13 @@ PREFIXES = ("LinScreenCapture_", "Screenshot_")
 NUMBERING = ("sequence", "timestamp")
 FORMATS = ("png", "jpeg", "webp")
 BACKENDS = ("auto", "portal", "x11", "cli")
-HOTKEYS = ("none", "Print", "<Control>Print", "<Shift>Print", "<Control><Shift>s", "<Control><Alt>s")
+HOTKEYS = ("none", "Print", "<Control>Print", "<Shift>Print", "<Control><Shift>s", "<Control><Alt>s")   # presets
+_ACCEL = re.compile(r"(<(Control|Primary|Shift|Alt|Super|Meta|Hyper|Mod[1-5])>)*[A-Za-z0-9_]+")
+
+
+def valid_hotkey(text: str) -> bool:
+    """``none`` or a GTK accelerator name (``Print``, ``<Control><Alt>F12``): any key the user records is allowed."""
+    return text == "none" or bool(_ACCEL.fullmatch(text))
 
 # 1.4 defaults (main_window.c) so a migrated profile looks exactly as it did
 _LEGACY_WIDTHS = {"arrow": 3.5, "box": 2.5, "circle": 2.5, "line": 3.0}
@@ -96,9 +102,9 @@ class Settings:
     backend: str = "auto"
     reopen_last: bool = True
     # [System]
-    autostart: bool = False
-    hotkey: str = "Print"
-    register_hotkey: bool = False
+    autostart: bool = True             # run the agent at login (the autostart entry on disk is the truth)
+    hotkey: str = "Print"              # a preset from HOTKEYS or any recorded accelerator (valid_hotkey)
+    register_hotkey: bool = True       # write the hotkey into the desktop's keybindings (Cinnamon)
     keep_running: bool = True          # background agent: closing the window hides it; Quit ends the agent
     tray_icon: bool = True             # the agent's status icon (Capture · Open editor · Quit)
     hotkey_opens_editor: bool = False  # PrintScreen / --capture: False = region to clipboard + file, no editor
@@ -192,7 +198,8 @@ class Settings:
         self.backend = g.choice("Capture", "backend", BACKENDS, self.backend)
         self.reopen_last = g.bool("Capture", "reopen_last", self.reopen_last)
         self.autostart = g.bool("System", "autostart", self.autostart)
-        self.hotkey = g.choice("System", "hotkey", HOTKEYS, self.hotkey)
+        hotkey = g.str("System", "hotkey", self.hotkey)
+        self.hotkey = hotkey if valid_hotkey(hotkey) else self.hotkey
         self.register_hotkey = g.bool("System", "register_hotkey", self.register_hotkey)
         self.keep_running = g.bool("System", "keep_running", self.keep_running)
         self.tray_icon = g.bool("System", "tray_icon", self.tray_icon)

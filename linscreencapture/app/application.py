@@ -112,6 +112,7 @@ class Application(Adw.Application):
         LOG.debug("actions: %d app actions, %d accelerators", len(self.list_actions()), len(ACCELS))
         if s.keep_running or self._background or self._capture_on_start:
             self.become_agent()
+        self.sync_autostart()
         if s.register_hotkey:
             GLib.idle_add(lambda: (self.apply_hotkey(), False)[1])   # re-asserted at every start, as in 1.4
         LOG.debug("startup done in %.0f ms", (time.monotonic() - t0) * 1000)
@@ -176,9 +177,41 @@ class Application(Adw.Application):
             self._tray.force_exit()
             self._tray = None
 
+    def sync_autostart(self) -> None:
+        """Run at startup: the first run creates the login entry (on by default), later runs follow the entry on disk."""
+        from ..services import autostart
+        s = self.settings
+        first_run = not s.path.is_file()
+        try:
+            enabled = autostart.sync(s.autostart, first_run, s.root)
+        except OSError as exc:
+            LOG.warning("autostart entry not written: %s", exc)
+            return
+        LOG.debug("autostart: %s (%s)", "on" if enabled else "off", autostart.entry_path(s.root))
+        if enabled != s.autostart or first_run:
+            s.autostart = enabled
+            try:
+                s.save()
+            except Exception as exc:  # noqa: BLE001
+                LOG.warning("settings not saved: %s", exc)
+
+    def suspend_hotkey(self, suspended: bool) -> None:
+        """Release the desktop binding while the Settings dialog records a new shortcut, so the key reaches it."""
+        if suspended:
+            from ..services import hotkey_registrar as reg
+            if self.settings.register_hotkey and reg.supported() and os.environ.get("LSC_NO_HOTKEY") != "1":
+                try:
+                    reg.unregister()
+                except GLib.Error as exc:
+                    LOG.warning("hotkey not released: %s", exc.message)
+        elif self.settings.register_hotkey:
+            self.apply_hotkey()
+
     def apply_hotkey(self) -> None:
         """Register ``Settings.hotkey`` with the desktop (or remove it when registration is switched off)."""
         from ..services import hotkey_registrar as reg
+        if os.environ.get("LSC_NO_HOTKEY") == "1":
+            return
         if not reg.supported():
             LOG.info("hotkey: no supported keybinding API on this desktop; bind `linscreencapture --capture` by hand")
             return
@@ -233,7 +266,8 @@ class Application(Adw.Application):
                     self.become_agent()
                 win.set_hide_on_close(bool(self.settings.keep_running and self._agent))
                 self.update_tray()
-        dialog = PreferencesDialog(self.settings, on_change=changed)
+        dialog = PreferencesDialog(self.settings, on_change=changed, autostart_root=self.settings.root,
+                                   suspend_hotkey=self.suspend_hotkey)
         self.preferences_dialog = dialog
         dialog.present(win)
 

@@ -3,6 +3,10 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+# never touch the real desktop from a test: in-memory GSettings, no Cinnamon hotkey, no tray helper
+os.environ["GSETTINGS_BACKEND"] = "memory"
+os.environ.setdefault("LSC_NO_HOTKEY", "1")
+os.environ.setdefault("LSC_NO_TRAY", "1")
 
 import gi  # noqa: E402
 gi.require_version("Gtk", "4.0")

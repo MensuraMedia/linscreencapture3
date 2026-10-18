@@ -60,7 +60,7 @@ The Library (Ctrl+L) is a full-stage page of the save folder, newest first. Clic
 
 ![Settings dialog: Saving, Capture and Window rows](screenshots/dev/shell_settings.png)
 
-The Settings dialog (Ctrl+,) has two pages. **Capture**: save folder, file-name prefix, numbering, format, delayed-capture seconds and the window switches. **System**: the background agent (keep running, tray icon, start at login, PrintScreen opens the editor) and the capture hotkey (key preset, register with the desktop). The render above predates the System page.
+The Settings dialog (Ctrl+,) has two pages. **Capture**: save folder, file-name prefix, numbering, format, delayed-capture seconds and the window switches. **System**: *Run at startup* (on by default), the background agent (keep running, tray icon, the hotkey opens the editor) and the capture hotkey (PrintScreen by default, a preset or any recorded key combination; register with the desktop). The render above predates the System page.
 
 ### Design mockups
 
@@ -83,7 +83,7 @@ The nine design artboards (`screenshots/01`–`09`) remain in the repository as 
 - The capture hotkey (PrintScreen by default; `linscreencapture --capture`) works everywhere, including inside the studio, and always runs the fast Region capture. The capture is copied to the clipboard, saved and loaded into the studio without popping it up: a hidden studio stays hidden, a visible one is shown again holding the capture. Settings → System → *PrintScreen opens the editor* presents the studio after every hotkey capture.
 - On Cinnamon, Settings → System → *Register with the desktop* writes the hotkey as a custom shortcut, frees the key from Cinnamon's built-in screenshot bindings and re-applies it at every agent start. Other desktops need a manual binding.
 - A tray icon (XApp on Cinnamon, MATE and Xfce; Ayatana AppIndicator elsewhere) offers *Capture region to clipboard*, *Open editor* and *Quit*. A left click opens the editor.
-- `linscreencapture --background` starts the agent without a window. Settings → System → *Start at login* writes `~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop`, which does this at login.
+- `linscreencapture --background` starts the agent without a window. Settings → System → *Run at startup* (on by default; the first start creates it) writes `~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop`, which does this at login.
 - If a hotkey capture fails while no window is shown, a desktop notification reports the error.
 
 **Annotate**
@@ -128,7 +128,7 @@ The nine design artboards (`screenshots/01`–`09`) remain in the repository as 
 
 | Shortcut | Action |
 | --- | --- |
-| PrintScreen (system; preset in Settings → System) | Region capture to the clipboard, the save folder and the studio, without popping it up (see *Background agent*) |
+| PrintScreen (system; any key can be set in Settings → System) | Region capture to the clipboard, the save folder and the studio, without popping it up (see *Background agent*) |
 | Ctrl+N / Ctrl+Shift+N | Capture in the rail's current mode / Full-screen capture |
 | Ctrl+S / Ctrl+Shift+S | Save / Save As |
 | Ctrl+C / Ctrl+V | Copy composition or selection / Paste image as a layer |
@@ -176,7 +176,7 @@ Background agent on Linux Mint Cinnamon:
 ```bash
 sudo apt install gir1.2-xapp-1.0          # tray icon (gir1.2-ayatanaappindicator3-0.1 on other desktops)
 make launcher                             # menu entry for this checkout
-linscreencapture --background             # or enable Settings → System → Start at login
+linscreencapture --background             # Settings → System → Run at startup does this at login (default on)
 ```
 
 Hotkey: on Cinnamon, pick the key in Settings → System → *Capture hotkey* and switch on *Register with the desktop*; the agent writes the custom shortcut and makes Cinnamon reload it. On other desktops bind `linscreencapture --capture` by hand ([INSTALL.md](INSTALL.md)). A dead hotkey is diagnosed in [docs/CAPTURE.md](docs/CAPTURE.md) §4. Set `LSC_NO_TRAY=1` to run the agent without the icon.

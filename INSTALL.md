@@ -49,8 +49,10 @@ A `.deb` package and a system-wide `.desktop` entry arrive with the 3.0 release 
 
 ## Capture hotkey
 
-**Cinnamon:** open Settings → System, choose the key under *Capture hotkey* (Off, PrintScreen, Ctrl+PrintScreen,
-Shift+PrintScreen, Ctrl+Shift+S, Ctrl+Alt+S) and switch on *Register with the desktop*. The agent writes a Cinnamon
+**Cinnamon:** works out of the box: the default hotkey is PrintScreen and *Register with the desktop* is on. To change
+it, open Settings → System → *Capture hotkey* and pick a preset (Off, PrintScreen, Ctrl+PrintScreen,
+Shift+PrintScreen, Ctrl+Shift+S, Ctrl+Alt+S) or press **Record…** and press any key combination. *Run at startup*
+(Settings → System → Startup, on by default) starts the agent at login. The agent writes a Cinnamon
 custom shortcut running `linscreencapture --capture`, removes the key from Cinnamon's built-in screenshot bindings,
 makes Cinnamon reload, and re-applies the binding at every start. The command is the absolute path of
 `linscreencapture` on `PATH`, or `python3 -m linscreencapture --capture` with `PYTHONPATH` set to the checkout.

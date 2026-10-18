@@ -47,7 +47,32 @@ def desktop_entry(exec_line: str, path: str | None) -> str:
 
 
 def is_enabled(root: str | None = None) -> bool:
-    return entry_path(root).is_file()
+    """The entry exists and is not switched off (Cinnamon's Startup Applications writes
+    ``X-GNOME-Autostart-enabled=false`` instead of deleting the file)."""
+    p = entry_path(root)
+    if not p.is_file():
+        return False
+    try:
+        text = p.read_text().lower()
+    except OSError:
+        return False
+    return "x-gnome-autostart-enabled=false" not in text and "hidden=true" not in text
+
+
+def sync(want: bool, first_run: bool, root: str | None = None, which=shutil.which) -> bool:
+    """Called at every start. On the first run the setting (default on) creates the entry; afterwards the entry on
+    disk wins, so a choice made in the desktop's Startup Applications is respected. An enabled entry is rewritten
+    when the launcher moved. Returns whether the agent runs at login."""
+    if first_run:
+        set_enabled(want, root, which)
+        return want
+    if not is_enabled(root):
+        return False
+    p = entry_path(root)
+    fresh = desktop_entry(*launch_command(which))
+    if p.read_text() != fresh:
+        p.write_text(fresh)
+    return True
 
 
 def set_enabled(enabled: bool, root: str | None = None, which=shutil.which) -> pathlib.Path:

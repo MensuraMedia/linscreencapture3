@@ -244,7 +244,13 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
    applications nothing to paste on X11), `[Capture] copy_to_clipboard` and `selection_style` retired, and the
    Cinnamon hotkey registrar (item 1). On the dev machine the hotkey is Ctrl+PrintScreen, bound through the
    registrar to `~/.local/bin/linscreencapture --capture` (a wrapper around `tools/launch.sh`); autostart is enabled.
-   Full description: `docs/CAPTURE.md`.
+   Full description: `docs/CAPTURE.md`. **2026-10-17** (merged into `feat/phase5`): any hotkey can be recorded
+   (Settings → System → *Capture hotkey* → *Record…* / *Custom…*, `ShortcutRecorder`; the desktop binding is
+   released while recording), *Run at startup* is its own group and on by default (`autostart.sync`: first run
+   creates the entry, later the file wins), `register_hotkey` defaults on. The dev machine is back on plain
+   PrintScreen. Tests run with `GSETTINGS_BACKEND=memory`, `LSC_NO_HOTKEY=1` and `LSC_NO_TRAY=1` (conftest), so they
+   never touch the real desktop. Gotcha: never `set_model` on an `Adw.ComboRow` from its own `notify::selected`
+   handler; it froze the dialog.
 1. `services/hotkey_registrar.py`: **done for Cinnamon** (2026-10-16; reuses our `customN`, never overwrites another
    application's slot, frees the six built-in screenshot keys, reloads through `org.Cinnamon.Eval`; re-applied at
    every agent start while `register_hotkey` is on; `docs/CAPTURE.md` §4). Still to port from `keybinding_manager.c`:
