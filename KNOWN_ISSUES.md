@@ -14,6 +14,8 @@ clipboard behaviour: `docs/CAPTURE.md` (its §11 lists the capture limits).
 | Layers | The Layers list was removed (2026-10-18); restacking is the four arrange buttons and Ctrl+Page Up / Down, a covered layer is reached by Ctrl+click. There is no control to hide a layer any more | by request |
 | Select all | Ctrl+A marks every layer for Copy and Delete; the selection cannot be moved or restyled as a group | open |
 | Clipboard tray | Shows the last four copies (2 × 2); only copies made by LinScreenCapture appear (editor Ctrl+C, captures, Library Copy); copies from other applications are not tracked | by design |
+| Library tags | Kept in `~/.local/share/linscreencapture/tags.json` by path: they follow renames and duplicates made in the app, not files moved or copied outside it, and are not written into the image files | by design |
+| Library | While the Library is open the header strip still shows the last tool's properties | open |
 | Rotate | Image → Flip mirrors a pasted image's position, not its pixels; a turned image keeps its angle through a flip | open |
 | Area tool | A marked area can be copied, cropped to or cleared; it cannot yet be moved, inverted or feathered | roadmap |
 | Eraser | Erases the composite (base and layers beneath); it cannot be restricted to one layer | by design |

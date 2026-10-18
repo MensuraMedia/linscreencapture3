@@ -13,6 +13,7 @@ from ..model.document import Document
 from ..services import clipboard
 from ..services.clip_history import ClipHistory
 from ..services.file_store import duplicate_file
+from ..services.tags import TagStore
 from ..model.undo import UndoStack, ReplaceBase, TransformBase, AddLayer
 from ..app import image_ops
 from .popovers import ResizePopover, RotatePopover, AdjustPopover
@@ -37,6 +38,7 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.state.left_collapsed = self.settings.left_collapsed
         self.state.right_collapsed = self.settings.right_collapsed
         self.captures = CapturesIndex(self.settings.screenshot_path)
+        self.tags = TagStore.load(self.settings.root)     # Library tags (tags.json; under the test root in tests)
         self.document: Document | None = None
 
         self.set_default_size(max(self.settings.window_width, MIN_WIDTH), max(self.settings.window_height, MIN_HEIGHT))
@@ -53,13 +55,14 @@ class StudioWindow(Gtk.ApplicationWindow):
         body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.clips = ClipHistory()                    # the last four copies, shown in the left rail's 2 × 2 tray
         self.tool_rail = ToolRail(self.state, self.clips, self._paste_clip)
-        self.stage = Stage(self.state, self.captures)
+        self.stage = Stage(self.state, self.captures, self.tags)
         self.panel_rail = PanelRail(self.state)
         body.append(self.tool_rail)
         body.append(self.stage)
         body.append(self.panel_rail)
         self.breakpoint_bin.set_child(body)
         self.panel_rail.attach_stage(self.stage)
+        self.panel_rail.bind_library(self.stage.library, self.tags)
         self.undo: UndoStack | None = None
         self.editor = EditorController(self)
         self.panel_rail.bind_editor(self.editor)
@@ -120,6 +123,11 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._simple("library-copy", self._library_copy)
         self._simple("library-duplicate", self._library_duplicate)
         self._simple("library-select-all", self._library_select_all)
+        self._simple("library-clear", lambda: self.stage.library.clear_selection())
+        self._simple("library-combine", self._library_combine)
+        self._simple("library-rename", self._library_rename)
+        self._simple("library-tag", self._library_tag)
+        self._simple("library-show", self._library_show)
         self._simple("select-all", self._select_all)
         self._simple("resize", lambda: self._popover("resize"))
         self._simple("rotate", lambda: self._popover("rotate"))
@@ -179,6 +187,9 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.state.title = "Library" if show else "LinScreenCapture"
         if show:
             self.captures.scan()
+            # focus the grid, not the search field (the first focusable widget): tool letters, Esc, F2 and
+            # Delete must reach the Library, and a click in the field is all it takes to type a filter
+            GLib.idle_add(lambda: (self.stage.library.grid.grab_focus(), False)[1])
 
     # -- document ----------------------------------------------------------
     def load_document(self, doc: Document) -> None:
@@ -323,7 +334,9 @@ class StudioWindow(Gtk.ApplicationWindow):
         made = []
         for e in entries:
             try:
-                made.append(os.path.basename(duplicate_file(e.path)))
+                copy = duplicate_file(e.path)
+                self.tags.copy(e.path, copy)
+                made.append(os.path.basename(copy))
             except OSError as exc:
                 self.toast(f"Could not duplicate {e.name}: {exc}", timeout=5)
                 break
@@ -332,6 +345,116 @@ class StudioWindow(Gtk.ApplicationWindow):
             self.toast(f"Duplicated as {made[0]}")
         elif made:
             self.toast(f"Duplicated {len(made)} files")
+
+    # -- library: combine, rename, tag, show -------------------------------------------
+    def _library_combine(self) -> None:
+        """Tile the selected images on one new page, 10 px apart, each an image layer (``app/tiling.py``)."""
+        entries = self.stage.library.selected_entries
+        if len(entries) < 2:
+            self.toast("Select two or more images to combine · Ctrl+click adds to the selection", timeout=3)
+            return
+        self.confirm_discard(lambda: self.combine([e.path for e in entries]))
+
+    def combine(self, paths: list[str]) -> bool:
+        import cairo
+        from ..app.tiling import tile
+        from ..model.annotations import Annotation
+        from ..model.document import load_image, MAX_PAGE
+        try:
+            surfaces = [load_image(p) for p in paths]
+        except Exception as exc:  # noqa: BLE001
+            self.toast(f"Could not read an image: {exc}", timeout=5)
+            return False
+        sizes = [(s.get_width(), s.get_height()) for s in surfaces]
+        width, height, places = tile(sizes)
+        if width > MAX_PAGE or height > MAX_PAGE:
+            self.toast(f"Too large to combine ({width} × {height} px; the page limit is {MAX_PAGE} px)", timeout=5)
+            return False
+        doc = Document(cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height))
+        style = self.settings.tool_style("image")
+        style.shadow = False                         # shadows would crowd the 10 px gaps
+        for surf, (x, y), (w, h) in zip(surfaces, places, sizes):
+            doc.add_layer(Annotation("image", x, y, x + w, y + h, style=style.copy(), surface=surf))
+        doc.dirty = True
+        self.load_document(doc)
+        self.state.title = f"Combined · {len(paths)} images"
+        self.toast(f"Combined {len(paths)} images · each is a layer you can move · Page sets a fill behind them", timeout=4)
+        return True
+
+    def _library_rename(self) -> None:
+        entries = self.stage.library.selected_entries
+        if len(entries) != 1:
+            self.toast("Select one image to rename", timeout=2)
+            return
+        e = entries[0]
+        stem, ext = os.path.splitext(e.name)
+        entry = Gtk.Entry(text=stem, activates_default=True)
+        dlg = Adw.AlertDialog(heading=f"Rename {e.name}", body=f"The extension {ext} is kept.")
+        dlg.set_extra_child(entry)
+        dlg.add_response("cancel", "Cancel")
+        dlg.add_response("rename", "Rename")
+        dlg.set_response_appearance("rename", Adw.ResponseAppearance.SUGGESTED)
+        dlg.set_default_response("rename")
+
+        def done(_d, response):
+            if response == "rename":
+                self.rename_file(e.path, entry.get_text())
+        dlg.connect("response", done)
+        dlg.present(self)
+        entry.grab_focus()
+
+    def rename_file(self, path: str, new_stem: str) -> str | None:
+        """Rename ``path`` to ``new_stem`` + its extension in the same folder; tags and an open document follow."""
+        stem = new_stem.strip()
+        if not stem or "/" in stem or stem in (".", ".."):
+            self.toast("Not a valid file name", timeout=3)
+            return None
+        target = os.path.join(os.path.dirname(path), stem + os.path.splitext(path)[1])
+        if target == path:
+            return None
+        if os.path.exists(target):
+            self.toast(f"{os.path.basename(target)} already exists", timeout=3)
+            return None
+        try:
+            os.rename(path, target)
+        except OSError as exc:
+            self.toast(f"Could not rename: {exc.strerror}", timeout=5)
+            return None
+        self.tags.rename(path, target)
+        if self.document is not None and self.document.path == path:
+            self.document.path = target
+        self.captures.scan()
+        self.toast(f"Renamed to {os.path.basename(target)}", timeout=2)
+        return target
+
+    def _library_tag(self) -> None:
+        entries = self.stage.library.selected_entries
+        if not entries:
+            self.toast("Select a screenshot first")
+            return
+        entry = Gtk.Entry(placeholder_text="e.g. bug report", activates_default=True)
+        known = self.tags.all_tags()
+        dlg = Adw.AlertDialog(heading="Add a tag", body=(f"To {entries[0].name}" if len(entries) == 1 else f"To {len(entries)} images")
+                              + (f"\nIn use: {', '.join(known[:8])}" if known else ""))
+        dlg.set_extra_child(entry)
+        dlg.add_response("cancel", "Cancel")
+        dlg.add_response("add", "Add")
+        dlg.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
+        dlg.set_default_response("add")
+
+        def done(_d, response):
+            if response == "add" and self.tags.add([e.path for e in entries], entry.get_text()):
+                self.stage.library.tags_changed()
+        dlg.connect("response", done)
+        dlg.present(self)
+        entry.grab_focus()
+
+    def _library_show(self) -> None:
+        entries = self.stage.library.selected_entries
+        if not entries:
+            self.toast("Select a screenshot first")
+            return
+        Gtk.FileLauncher(file=Gio.File.new_for_path(entries[0].path)).open_containing_folder(self, None, None)
 
     def _open_path(self, path: str, name: str) -> None:
         try:
@@ -360,6 +483,7 @@ class StudioWindow(Gtk.ApplicationWindow):
                 for e in entries:
                     try:
                         Gio.File.new_for_path(e.path).trash(None)
+                        self.tags.forget(e.path)
                         n += 1
                     except GLib.Error as exc:
                         self.toast(f"Could not trash {e.name}: {exc.message}", timeout=5)

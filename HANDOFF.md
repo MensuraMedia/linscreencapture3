@@ -117,7 +117,14 @@ uses the live display. The app on this machine is installed with `./install.sh` 
 - Then: no stage shadow around the page (`Stage._draw_drop_shadow` deleted); Page button beside Fit in VIEW; the
   right rail's bottom is hairline + SETTINGS label + gear button, level with the left rail's ACTIONS line (a test
   checks open and collapsed); 179 tests.
-- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.9.
+- Library rework: toggle at the right rail's top right (`PanelRail.library_btn`), the rail's middle is a Stack
+  (`editor` / `library`, sized by the visible page — a homogeneous stack let the hidden panel widen the rail) with
+  `ui/library_panel.py`; Library page head = search (Gtk.FilterListModel + CustomFilter on name or tag), Open,
+  Close; right-click PopoverMenu; tags `services/tags.py` (tags.json in the XDG data dir); Combine
+  (`StudioWindow.combine`, `app/tiling.py`: grid, 10 px gap and margin, best column count by waste + 16:9 shape);
+  Rename (F2, `rename_file`); Show in folder (`Gtk.FileLauncher`). Pitfall: on Library open the search field took
+  focus and swallowed tool keys, Esc and F2 — the grid is focused instead. 193 tests.
+- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.10.
 
 **Merge order** (PRs opened 2026-10-18): #1 `fix/tray-alttab-icons` → `feat/phase5` first (without it `make test`
 deletes the real autostart entry), then #2 `feat/editor-shadows-canvas` → `feat/phase5` (contains the docs branch),

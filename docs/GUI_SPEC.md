@@ -635,6 +635,12 @@ Branch `feat/stage-rotate-fill`.
    ends with a hairline, a SETTINGS group label and a 30 px gear button, mirroring the left rail's ACTIONS group so
    the two bottom lines are level (collapsed: an empty 30 px slot under the right line). The "Settings" text button
    is gone.
+8. **Library** (2026-10-18): its toggle moved from the left rail (above ACTIONS) to the right rail's top row, right
+   end, mirroring Capture on the left (collapsed: under the caret). While the Library is open the right rail's middle
+   swaps to a Library panel — IMAGE (Open, Combine, Copy, Duplicate, Rename, Show in folder, Delete), SELECTION,
+   INFO and TAGS (pills + entry); the page head keeps the title, a search field, Open and Close. Thumbnails show
+   `#tags` in the accent colour; a right-click menu repeats the image actions. Icons added: `arrow-square-out`,
+   `squares-four`, `cursor-text`, `selection-slash`.
 
 ### Amendment 2026-10-16 — capture behaviour
 

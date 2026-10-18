@@ -16,13 +16,13 @@ def _kind(text: str) -> Gtk.Label:
 
 
 class Stage(Gtk.Overlay):
-    def __init__(self, state: ViewState, captures: CapturesIndex):
+    def __init__(self, state: ViewState, captures: CapturesIndex, tags=None):
         super().__init__(hexpand=True, vexpand=True)
         self.state = state
         self.add_css_class("stage")
         self.pages = Gtk.Stack(hexpand=True, vexpand=True, transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=120)
         self.pages.add_named(self._build_empty(), "empty")
-        self.library = LibraryPage(captures)
+        self.library = LibraryPage(captures, tags)
         self.pages.add_named(self.library, "library")
         # canvas page: the document, scaled by ViewState.zoom, centred in a scrolled viewport
         self.document = None

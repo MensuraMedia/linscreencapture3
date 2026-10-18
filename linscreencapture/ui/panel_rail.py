@@ -1,6 +1,7 @@
-"""Right rail: colour palette, view (zoom), edit (copy, flatten, the Page dialog), arrange (the selected layer's place
-in the stack), navigator, Settings. There is no layer list: layers are picked on the canvas (Ctrl+click: the one
-beneath)."""
+"""Right rail. Top row: collapse caret and the Library toggle (mirroring the left rail's Capture button). Middle, for the
+editor: colour palette, view (zoom, the Page dialog), edit (copy, flatten), arrange (the selected layer's place in the
+stack), navigator; while the Library is open, the Library panel instead (``ui/library_panel.py``). Bottom: Settings.
+There is no layer list: layers are picked on the canvas (Ctrl+click: the one beneath)."""
 from __future__ import annotations
 import cairo
 from gi.repository import Gtk
@@ -8,9 +9,11 @@ from gi.repository import Gtk
 from .widgets import rail_button, group_label, hairline, SwatchGrid, PALETTE, rail_page, pin_width, ZoomPill
 from ..services import icon_loader
 from ..app.view_state import ViewState
+from .library_panel import LibraryPanel, LibraryColumn
 
 OPEN_WIDTH, COLLAPSED_WIDTH = 220, 56
 EDIT_ITEMS = (("copy", "Copy the image with its annotations", "win.copy", "Ctrl+C"), ("stack-simple", "Flatten", "win.flatten", None))
+LIBRARY_ITEM = ("images", "Library", "win.library", "Ctrl+L")                    # top right, a toggle
 PAGE_ITEM = ("frame-corners", "Page: size, fill and stage colour", "win.page-settings", None)   # beside Fit in VIEW
 # low to high, left to right; the filled square in each glyph is the selected layer (data/icons/custom)
 ARRANGE_ITEMS = (("layer-back", "Send to back", "win.layer-back", "Ctrl+Shift+Page Down"),
@@ -172,15 +175,34 @@ class PanelRail(Gtk.Stack):
         self.add_named(pin_width(self._build_collapsed(), COLLAPSED_WIDTH), "collapsed")
         state.connect("notify::right-collapsed", self._sync)
         state.connect("notify::colour", self._colour_changed)
+        state.connect("notify::library", self._mode)
         self._sync()
+        self._mode()
 
     # -- open page ---------------------------------------------------------
     def _build_open(self) -> Gtk.Box:
         box = rail_page(OPEN_WIDTH)
         box.add_css_class("rail")
-        top = Gtk.Box(halign=Gtk.Align.START, margin_bottom=6)
+        top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_bottom=10)   # as the left rail's top row
         top.append(rail_button("caret-right", "Collapse panels", "win.toggle-right-rail", key="Ctrl+]"))
+        top.append(Gtk.Box(hexpand=True))
+        icon, label, action, key = LIBRARY_ITEM
+        self.library_btn = rail_button(icon, label, action, toggle=True, key=key)
+        top.append(self.library_btn)
         box.append(top)
+        self.middle = Gtk.Stack(vhomogeneous=False, hhomogeneous=False, vexpand=True,   # sized by the visible page only
+                                transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=120)
+        editor = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+        self.middle.add_named(editor, "editor")
+        self.library_panel = LibraryPanel()
+        self.middle.add_named(self.library_panel, "library")
+        box.append(self.middle)
+        self._build_editor_groups(editor)
+        self._build_settings(box)
+        self.state.connect("notify::zoom", lambda s, _p: self.zoom.set_zoom(s.zoom))
+        return box
+
+    def _build_editor_groups(self, box: Gtk.Box) -> None:
         self.palette = ColourPalette(self.state)
         self.palette.set_margin_bottom(10)
         box.append(self.palette)
@@ -220,6 +242,8 @@ class PanelRail(Gtk.Stack):
         self.navigator = Navigator()
         self.navigator.set_margin_top(6)
         box.append(self.navigator)
+
+    def _build_settings(self, box: Gtk.Box) -> None:
         # the bottom group mirrors the left rail's ACTIONS (hairline, group label, a 30 px button row), so the two
         # rails' bottom hairlines sit at the same height
         hl = hairline()
@@ -235,8 +259,6 @@ class PanelRail(Gtk.Stack):
         row.append(self.settings_btn)
         box.append(row)
         self.bottom_hairline = hl
-        self.state.connect("notify::zoom", lambda s, _p: self.zoom.set_zoom(s.zoom))
-        return box
 
     def attach_stage(self, stage) -> None:
         self.navigator.attach(stage)
@@ -247,6 +269,10 @@ class PanelRail(Gtk.Stack):
     def bind_editor(self, editor) -> None:
         self.editor = editor
 
+    def bind_library(self, library, tags) -> None:
+        self.library_panel.bind(library, tags)
+        self.library_column.bind(library)
+
     # -- collapsed page ----------------------------------------------------
     def _build_collapsed(self) -> Gtk.Box:
         box = rail_page(COLLAPSED_WIDTH, 8)
@@ -255,10 +281,21 @@ class PanelRail(Gtk.Stack):
         exp = rail_button("caret-left", "Expand panels", "win.toggle-right-rail", classes=("outlined",), key="Ctrl+]")
         exp.set_halign(Gtk.Align.CENTER)
         box.append(exp)
+        icon, label, action, key = LIBRARY_ITEM
+        lib = rail_button(icon, label, action, toggle=True, key=key)
+        lib.set_halign(Gtk.Align.CENTER)
+        box.append(lib)
+        self.middle_collapsed = Gtk.Stack(vhomogeneous=False, hhomogeneous=False, vexpand=True)
+        editor = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, vexpand=True)
+        self.middle_collapsed.add_named(editor, "editor")
+        self.library_column = LibraryColumn()
+        self.middle_collapsed.add_named(self.library_column, "library")
+        box.append(self.middle_collapsed)
+        outer, box = box, editor
         box.append(hairline(30))
         self.dots = SwatchGrid(PALETTE[:6], on_select=lambda hx: setattr(self.state, "colour", hx), per_row=1)
         self.dots.set_halign(Gtk.Align.CENTER)
-        self.dots.set_row_spacing(10)
+        self.dots.set_row_spacing(8)                  # 8, not 10: the column also holds the Library button
         box.append(self.dots)
         ed = rail_button("eyedropper", "Eyedropper", "win.eyedropper")
         ed.set_halign(Gtk.Align.CENTER)
@@ -276,7 +313,7 @@ class PanelRail(Gtk.Stack):
             b = rail_button(icon, label, action, key=key)
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
-        box.append(Gtk.Box(vexpand=True))
+        box = outer
         box.append(hairline(30))
         slot = Gtk.Box()                              # the left rail has Discard + Save under its line: an empty
         slot.set_size_request(30, 30)                 # 30 px slot keeps both lines level and the gear beside Save
@@ -290,6 +327,12 @@ class PanelRail(Gtk.Stack):
     # -- state sync --------------------------------------------------------
     def _sync(self, *_a) -> None:
         self.set_visible_child_name("collapsed" if self.state.right_collapsed else "open")
+
+    def _mode(self, *_a) -> None:
+        """The Library open: its panel replaces the editor groups (open and collapsed)."""
+        name = "library" if self.state.library else "editor"
+        self.middle.set_visible_child_name(name)
+        self.middle_collapsed.set_visible_child_name(name)
 
     def _colour_changed(self, *_a) -> None:
         self.dots.select(self.state.colour)

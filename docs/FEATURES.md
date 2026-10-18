@@ -60,9 +60,8 @@ Every button has a two-line tooltip: the caption, then its shortcut in small mut
 | TOOLS row 1 | Select **V** · Arrow **A** · Line **L** · Box **B** · Circle **C** · Text **T** · Pen **P** · Marker **M** · Eraser **E** · Hand **H** | `win.tool::<name>` (stateful; exactly one toggle checked) |
 | TOOLS row 2 | Box area **R** · Round area **O** · Point chain **J** · Blur **U** · Pixelate **X** · Fill · Step number **N** · Callout · Crop **K** · Resize · Rotate · Brightness · Move · Duplicate | tools via `win.tool`; Resize / Rotate / Brightness open popovers (`win.resize`, `win.rotate`, `win.adjust`); Duplicate (file) is a Phase 7 placeholder |
 | CLIPBOARD | a navigator-sized tray (116 px) cut into quarters: a **2 × 2 grid of the last four copies** the application made, newest top-left in reading order (accent border on the one still on the clipboard; a fifth copy pushes the oldest out; the same pixels again move to the newest cell); hover shows `label · W×H · time`; a click opens a preview popover (sample ≤ 320×200, caption, then **Copy · Paste · Delete** centred below). Copy puts the sample back on the clipboard; Paste adds it to the open image as a layer (or opens it as a new image on an empty stage); Delete drops it from the tray and clears the system clipboard if it held that copy. Several slots are a roadmap item (HANDOFF §8); `ClipHistory.limit` and `clip_tray.SLOTS` already parametrise it | `ui/clip_tray.py`, `services/clip_history.py` |
-| above the line | Library (**Ctrl+L**, toggle) | `win.library` |
 | ACTIONS | Discard · Save (**Ctrl+S**) | `win.discard` clears the stage (asks when unsaved); `win.save` |
-| Collapsed page | caret, Capture, Region / Full screen / Delayed, seven tools (Arrow, Box, Text, Pen, Blur, Step, Crop — the active tool always takes the last slot if it is not among them), a clipboard button whose popover holds the same tray, Library, Discard, Save | same actions |
+| Collapsed page | caret, Capture, Region / Full screen / Delayed, seven tools (Arrow, Box, Text, Pen, Blur, Step, Crop — the active tool always takes the last slot if it is not among them), a clipboard button whose popover holds the same tray, Discard, Save | same actions |
 
 ## 4. Header tool-properties strip (`ui/tool_props.py`)
 
@@ -214,14 +213,20 @@ A full-stage page of the save folder, newest first, toggled by the Library butto
 
 | Function | Behaviour |
 | --- | --- |
-| Head | title, `n screenshots · ~/folder` (or `k of n selected`), then Refresh · Select all · Copy · Duplicate · Delete · **Open** · Close |
+| Toggle | the **Library** button at the top right of the right rail (mirroring Capture at the top left of the left rail; also second in the collapsed right rail), **Ctrl+L** |
+| Head | title, `n screenshots · ~/folder` (`k of n shown` while filtering, `k of n selected`; the path ellipsizes so it never widens the page), a **search field** filtering by file name or tag, **Open**, Close. The grid takes keyboard focus when the Library opens, so keys reach the Library until the field is clicked |
+| Right rail (Library open) | the editor groups give way to the **Library panel** (`ui/library_panel.py`): IMAGE — Open (Enter), **Combine**, Copy (Ctrl+C), Duplicate (Ctrl+D), **Rename** (F2), **Show in folder**, Delete (Delete); SELECTION — Select all (Ctrl+A), Clear, Refresh; INFO — name, `W × H px · format · size`, date, or `n images selected · total size`; TAGS — the selection's tags as removable pills and an *Add a tag* field (Enter tags every selected image). Buttons follow the selection (Combine needs two, Rename exactly one). Collapsed: the same buttons in a column |
+| Right-click | on a thumbnail (it joins or becomes the selection): Open in the editor · Combine on one page · Copy · Duplicate · Rename… · Add a tag… · Show in folder · Move to trash |
+| Tags | free text per image (`services/tags.py`, `~/.local/share/linscreencapture/tags.json`, keyed by path); shown as `#tag` under each thumbnail; trimmed, `#` dropped, compared case-insensitively; a rename moves them, a duplicate copies them, a trashed file loses them |
+| Combine | two or more selected images open as one new document (prompting first if the current one is unsaved), each an **image layer** at 1:1 without a shadow on a transparent page, tiled by `app/tiling.py`: a grid whose columns are as wide as their widest image and rows as tall as their tallest, each image centred in its cell, **10 px** between cells and around the edge; two images always side by side; for more, the column count with the least empty page wins, nudged towards a 16:9 page (3 landscape shots → one row, 9 → 3 × 3). Title `Combined · n images`; the Page dialog adds a fill behind them; refused beyond 16384 px a side |
+| Rename (**F2**) | a dialog with the name (the extension is kept); a name in use is refused; tags and an open document follow the file |
 | Grid | 180×120 thumbnails with file name and date (`Oct 9, 2026 · 14:17`); up to 200 newest PNG/JPEG/BMP/GIF/WebP/TIFF files; thumbnails are loaded in a worker thread; an empty folder shows a placeholder |
 | Selection | click, **Ctrl+click**, **Shift+click**, **Ctrl+A** (`Gtk.MultiSelection`); a rescan (Refresh, Open, save) keeps the selection when the folder has not changed |
 | Open | **double-click**, **Enter** or the Open button loads the file into the editor (prompting first if the current document is unsaved) |
 | Copy (**Ctrl+C**) | one file: its pixels, the file and a `text/uri-list` go on the clipboard (and into the tray); several files: the files only, for pasting into a file manager |
 | Duplicate (**Ctrl+D**) | copies each selected file next to itself as `name copy.png`, `name copy 2.png`… and rescans |
 | Delete (**Delete**) | moves the selection to the trash after one confirmation, then rescans |
-| Scope | Copy, Duplicate and Delete touch only the library (files on disk and the clipboard), never the document on the stage |
+| Scope | Copy, Duplicate, Rename, tags and Delete touch only the library (files on disk, tags and the clipboard), never the document on the stage; Open and Combine load the editor |
 
 ## 11. Capture (`app/capture_controller.py`, `services/capture_service.py`, `backends/`, `ui/capture_overlay.py`)
 
@@ -346,6 +351,7 @@ while it is open.
 | **Ctrl+V** | paste a copied layer, a clipboard image or clipboard text |
 | **Ctrl+D** | duplicate the selected layer (Library: duplicate the selected files) |
 | **Delete** | clear the marked area · delete all selected layers · delete the selected layer (Library: trash the selection) |
+| **F2** | Library: rename the selected file |
 | **Enter** | crop to the marked area · apply the pending crop (Library: open) |
 | **Esc** | drop the area or chain · cancel the crop · stop the eyedropper · clear the selection (Library: close) |
 | **Backspace** | remove the last point of a chain in progress |

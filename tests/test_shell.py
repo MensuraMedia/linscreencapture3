@@ -74,12 +74,19 @@ def test_defaults_are_collapsed_and_breakpoint_restores_them(tmp_path, app):
     win.destroy()
 
 
-def test_library_is_always_visible_above_the_actions_line(window):
+def test_library_sits_top_right_in_the_right_rail_like_capture_on_the_left(window):
     for page in ("open", "collapsed"):
-        btns = _buttons(window.tool_rail.get_child_by_name(page))
-        lib = [b for b in btns if b.get_action_name() == "win.library"]
-        assert len(lib) == 1, page
-        assert isinstance(lib[0].get_next_sibling(), Gtk.Separator), page   # the hairline right below it
+        assert not [b for b in _buttons(window.tool_rail.get_child_by_name(page)) if b.get_action_name() == "win.library"]
+        lib = [b for b in _buttons(window.panel_rail.get_child_by_name(page)) if b.get_action_name() == "win.library"]
+        assert len(lib) == 1 and isinstance(lib[0], Gtk.ToggleButton), page
+    btn = window.panel_rail.library_btn
+    row = btn.get_parent()
+    assert btn.get_next_sibling() is None and row.get_first_child().get_action_name() == "win.toggle-right-rail"
+    assert row.get_prev_sibling() is None                                   # the rail's top row, as Capture's on the left
+    from gi.repository import Graphene
+    cap = window.tool_rail.capture.compute_point(window, Graphene.Point().init(0, 0))[1]
+    lib_pt = btn.compute_point(window, Graphene.Point().init(0, 0))[1]
+    assert cap.y == lib_pt.y                                                # same height as Capture
 
 
 def test_page_and_arrange_sit_above_the_navigator_and_navigator_tracks_the_view(window, tmp_path):
@@ -87,8 +94,9 @@ def test_page_and_arrange_sit_above_the_navigator_and_navigator_tracks_the_view(
     from linscreencapture.model.document import Document
     pr = window.panel_rail
     page = pr.get_child_by_name("open").get_child().get_child()  # scrolled window -> viewport -> box
+    editor = pr.middle.get_child_by_name("editor")                # the editor groups (the Library panel swaps in)
     kids = []
-    c = page.get_first_child()
+    c = editor.get_first_child()
     while c is not None:
         kids.append(c); c = c.get_next_sibling()
     assert kids.index(pr.edit_buttons[0].get_parent()) < kids.index(pr.arrange_buttons[0].get_parent()) < kids.index(pr.navigator)
@@ -182,7 +190,7 @@ def test_library_page_toggles(window):
     pump(100)
     assert window.state.library and window.stage.pages.get_visible_child_name() == "library"
     assert window.header.title.get_label() == "Library"
-    lib_btn = next(b for b in _buttons(window.tool_rail) if b.get_tooltip_text().startswith("Library"))
+    lib_btn = window.panel_rail.library_btn
     assert isinstance(lib_btn, Gtk.ToggleButton) and lib_btn.get_active()
     window.activate_action("win.library", None)
     pump(100)
@@ -655,7 +663,7 @@ def test_clipboard_image_detection_accepts_texture_subclasses(window, tmp_path):
 
 # ---- review round 2 (2026-10-13): library controls, select all, tray, eraser, pan, tooltips -----------------
 def test_tooltips_carry_the_shortcut_under_the_caption(window):
-    tips = {b.get_tooltip_text() for b in _buttons(window.tool_rail)}
+    tips = {b.get_tooltip_text() for b in _buttons(window.tool_rail) + _buttons(window.panel_rail)}
     assert "Arrow\nA" in tips and "Eraser (clears to transparent)\nE" in tips and "Hand · drag to pan the view\nH" in tips
     assert "Capture a new screenshot\nCtrl+N" in tips and "Library\nCtrl+L" in tips and "Save\nCtrl+S" in tips
     for b in _buttons(window.tool_rail):
@@ -1134,3 +1142,85 @@ def test_ctrl_page_keys_and_ctrl_click_pick_and_restack(window, tmp_path):
     assert doc.layers == [top, low]
     assert r.handle(Gdk.KEY_Page_Down, Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK) is True; pump(20)
     assert doc.layers == [low, top]
+
+
+def _library_with(window, tmp_path, sizes):
+    from PIL import Image
+    folder = tmp_path / "pics"; folder.mkdir(exist_ok=True)
+    for n, size in enumerate(sizes):
+        Image.new("RGBA", size, (40 * n, 120, 200, 255)).save(folder / f"shot{n}.png")
+    window.captures.scan(); pump(600)
+    window.activate_action("win.library", None); pump(150)
+    return window.stage.library, folder
+
+
+def test_library_panel_replaces_the_editor_groups_and_follows_the_selection(window, tmp_path):
+    lib, _folder = _library_with(window, tmp_path, [(40, 30), (50, 30), (60, 30)])
+    pr, panel = window.panel_rail, window.panel_rail.library_panel
+    assert pr.middle.get_visible_child_name() == "library" and pr.middle_collapsed.get_visible_child_name() == "library"
+    by = {b.get_action_name(): b for b in panel.buttons}
+    assert set(by) >= {"win.library-open", "win.library-combine", "win.library-copy", "win.library-duplicate",
+                       "win.library-rename", "win.library-show", "win.library-delete", "win.library-select-all"}
+    assert not by["win.library-open"].get_sensitive() and panel.info_name.get_label() == "Nothing selected"
+    lib.selection.select_item(0, True); pump(30)
+    assert by["win.library-rename"].get_sensitive() and not by["win.library-combine"].get_sensitive()
+    assert "40 × 30 px" in panel.info_detail.get_label() or "60 × 30 px" in panel.info_detail.get_label()
+    lib.select_all(); pump(30)
+    assert by["win.library-combine"].get_sensitive() and not by["win.library-rename"].get_sensitive()
+    assert panel.info_name.get_label() == "3 images selected"
+    window.activate_action("win.library", None); pump(100)
+    assert pr.middle.get_visible_child_name() == "editor"
+
+
+def test_tags_from_the_panel_show_on_cells_filter_and_follow_renames(window, tmp_path):
+    lib, folder = _library_with(window, tmp_path, [(40, 30), (50, 30)])
+    panel = window.panel_rail.library_panel
+    lib.selection.select_item(0, True); pump(30)
+    first = lib.selected
+    assert panel.add_tag("#Bug report") and window.tags.get(first.path) == ["Bug report"]
+    assert [c.get_child().get_label() for c in _walk(panel.chips) if isinstance(c, Gtk.FlowBoxChild)] == ["Bug report  ×"]
+    cell = next(c for c in lib._cells if c.entry is first)
+    assert cell.tag_label.get_visible() and cell.tag_label.get_label() == "#Bug report"
+    lib.search.set_text("bug"); lib._refilter(); pump(50)
+    assert lib.filtered.get_n_items() == 1 and lib.filtered.get_item(0) is first
+    lib.search.set_text(""); lib._refilter(); pump(50)
+    new = window.rename_file(first.path, "renamed"); pump(600)
+    assert new == str(folder / "renamed.png") and window.tags.get(new) == ["Bug report"] and window.tags.get(first.path) == []
+    other = next(lib.filtered.get_item(n) for n in range(lib.filtered.get_n_items()) if lib.filtered.get_item(n).path != new)
+    assert window.rename_file(new, other.name[:-4]) is None                # a name in use is refused
+    lib.selection.unselect_all(); pump(10)
+    i = next(n for n in range(lib.filtered.get_n_items()) if lib.filtered.get_item(n).path == new)
+    lib.selection.select_item(i, True); pump(30)
+    assert panel.remove_tag("bug report") and window.tags.get(new) == []
+
+
+def test_combine_tiles_the_selection_side_by_side_as_layers(window, tmp_path):
+    from linscreencapture.app.tiling import GAP, MARGIN
+    lib, _folder = _library_with(window, tmp_path, [(120, 80), (100, 80)])
+    lib.select_all(); pump(30)
+    window.activate_action("win.library-combine", None); pump(200)
+    doc = window.document
+    assert not window.state.library and len(doc.layers) == 2 and all(l.annotation.kind == "image" for l in doc.layers)
+    (ax, ay, aw, ah), (bx, by, bw, bh) = (l.annotation.rect for l in doc.layers)
+    assert ay == by == MARGIN and min(ax, bx) == MARGIN and abs(bx - ax) == (aw if ax < bx else bw) + GAP
+    assert (doc.width, doc.height) == (2 * MARGIN + 220 + GAP, 2 * MARGIN + 80)
+    assert not any(l.annotation.style.shadow for l in doc.layers) and doc.dirty
+    assert window.header.title.get_label() == "Combined · 2 images"
+    # the hidden Library panel must not widen the rail (it pushed the Library button and navigator off the edge)
+    assert window.panel_rail.middle.measure(Gtk.Orientation.HORIZONTAL, -1)[1] <= 196
+
+
+def test_combine_needs_two_and_the_context_menu_selects_the_clicked_cell(window, tmp_path):
+    lib, _folder = _library_with(window, tmp_path, [(40, 30), (50, 30), (60, 30)])
+    lib.selection.select_item(0, True); pump(30)
+    window.activate_action("win.library-combine", None); pump(50)
+    assert window.document is None                                         # one image: nothing combined
+    lib.context_menu(2, 10, 10); pump(100)
+    assert lib.menu.get_visible() and [e.name for e in lib.selected_entries] == [lib.selection.get_item(2).name]
+    labels = [lib.menu.get_menu_model().get_item_link(s, "section").get_item_attribute_value(i, "label", None).get_string()
+              for s in range(lib.menu.get_menu_model().get_n_items())
+              for i in range(lib.menu.get_menu_model().get_item_link(s, "section").get_n_items())]
+    assert "Combine on one page" in labels and "Rename…" in labels and "Add a tag…" in labels
+    lib.menu.popdown(); lib.grid.grab_focus(); pump(50)
+    from gi.repository import Gdk
+    assert window.shortcuts.handle(Gdk.KEY_F2, 0) is True; pump(100)     # F2 opens the rename dialog

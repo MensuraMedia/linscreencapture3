@@ -189,3 +189,7 @@ button.clip-slot picture { border-radius: 4px; }
 /* Page dialog: the 3 × 3 anchor grid */
 button.anchor-cell { min-width: 18px; min-height: 18px; padding: 0; border-radius: 3px; }
 button.anchor-cell:checked { background: @accent; }
+
+/* Library: tag pills in the right rail, tags under a thumbnail */
+button.tag-chip { min-height: 22px; padding: 0 9px; border-radius: 11px; font-size: 12px; font-weight: normal; }
+.cap-tags { font-size: 11px; color: @accent; }

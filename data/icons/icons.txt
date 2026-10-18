@@ -63,3 +63,7 @@ bounding-box
 polygon
 drop-half
 frame-corners
+squares-four
+cursor-text
+arrow-square-out
+selection-slash

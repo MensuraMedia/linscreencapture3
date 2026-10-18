@@ -131,6 +131,8 @@ class ShortcutRouter:
             return False                                  # digits, Enter, Delete, arrows edit the number
         if keyval in (Gdk.KEY_Delete, Gdk.KEY_KP_Delete):
             return act("library-delete" if library else "delete-layer")
+        if keyval == Gdk.KEY_F2 and library:
+            return act("library-rename")
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
             if library:
                 return act("library-open")
