@@ -24,6 +24,7 @@ def test_autostart_entry_uses_the_script_on_path(tmp_path):
     text = p.read_text()
     assert p == tmp_path / "autostart" / "com.mensuramedia.LinScreenCapture.desktop"
     assert "Exec=/home/u/.local/bin/linscreencapture --background" in text and "Path=" not in text
+    assert "Icon=com.mensuramedia.LinScreenCapture\n" in text     # the installed app icon (docs/ICONOGRAPHY.md)
     assert autostart.is_enabled(str(tmp_path))
     autostart.set_enabled(False, str(tmp_path))
     assert not p.exists() and not autostart.is_enabled(str(tmp_path))
@@ -273,6 +274,23 @@ def test_key_presses_become_accelerators(gtk):
     assert accel_for_key(Gdk.KEY_s, 0)[0] is None              # a bare letter would stop typing everywhere
     assert accel_for_key(Gdk.KEY_Control_L, C) == (None, "")   # modifiers alone wait for the real key
     assert hotkey_label("<Control>Print") == "Ctrl+Print" and hotkey_label("none") == "Off"
+
+
+def test_preferences_autostart_switch_stays_in_the_settings_root(window):
+    """The Run at startup switch writes under the settings' root, never the real ~/.config/autostart."""
+    from conftest import pump
+    from linscreencapture.services import autostart
+    from linscreencapture.ui.preferences import PreferencesDialog
+    dlg = PreferencesDialog(window.settings)
+    assert dlg.autostart_root == window.settings.root
+    dlg.present(window)
+    pump(50)
+    dlg._set("autostart", True)
+    assert autostart.entry_path(window.settings.root).is_file()
+    dlg._set("autostart", False)
+    assert not autostart.entry_path(window.settings.root).exists()
+    dlg.close()
+    pump(50)
 
 
 def test_preferences_record_a_custom_hotkey_and_turn_it_off(window):
