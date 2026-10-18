@@ -1,9 +1,10 @@
 """The last few images this app put on the clipboard, for the left rail's clipboard tray.
 
 Every copy the app makes (Ctrl+C in the editor, a capture copied on save, Copy in the Library) is
-pushed here; the tray shows the newest one (``LIMIT``; more slots are on the roadmap). An entry can be copied back to the clipboard or removed;
-removing the entry that currently owns the clipboard clears the clipboard too. Copies made by other
-applications are not tracked (reading the clipboard on every change would be intrusive).
+pushed here; the tray shows the last ``LIMIT`` copies, newest first. An entry can be copied back to
+the clipboard or removed; removing the entry that currently owns the clipboard clears the clipboard
+too. Copies made by other applications are not tracked (reading the clipboard on every change would
+be intrusive).
 """
 from __future__ import annotations
 import hashlib
@@ -15,8 +16,9 @@ from gi.repository import Gdk, GLib, GObject
 
 from . import clipboard
 
-LIMIT = 1          # one copy for now; the tray grows to several slots later (roadmap: HANDOFF §8)
-PREVIEW_W, PREVIEW_H = 320, 200     # the tray's larger sample; the slots show the same texture smaller
+LIMIT = 4          # the tray's 2 × 2 grid; a fifth copy pushes the oldest out
+PREVIEW_W, PREVIEW_H = 320, 200     # the preview popover's larger sample
+THUMB_W, THUMB_H = 192, 108         # the tray cells (2 × cell size, so GTK only ever downscales)
 
 
 @dataclass
@@ -26,7 +28,8 @@ class ClipEntry:
     when: float = field(default_factory=time.time)
     digest: str = ""
     texture: object = None          # full-size Gdk.Texture (pasting)
-    preview: object = None          # ≤ 320×200 Gdk.Texture (tray slots and the preview popover)
+    preview: object = None          # ≤ 320×200 Gdk.Texture (the preview popover)
+    thumb: object = None            # ≤ 192×108 Gdk.Texture (the tray's 2 × 2 cells)
 
     @property
     def width(self) -> int:
@@ -87,7 +90,8 @@ class ClipHistory(GObject.Object):
                 self.emit("changed")
                 return e
         entry = ClipEntry(surface, label, digest=digest, texture=clipboard.texture_from_surface(surface),
-                          preview=clipboard.texture_from_surface(preview_surface(surface)))
+                          preview=clipboard.texture_from_surface(preview_surface(surface)),
+                          thumb=clipboard.texture_from_surface(preview_surface(surface, THUMB_W, THUMB_H)))
         self.entries.insert(0, entry)
         del self.entries[self.limit:]
         self._current = entry

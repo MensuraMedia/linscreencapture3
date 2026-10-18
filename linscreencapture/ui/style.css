@@ -181,8 +181,8 @@ popover.studio-popover > contents, popover > contents { padding: 2px; }
 
 /* clipboard tray (left rail, navigator-sized) */
 .clip-tray { background: @navigator; border: 1px solid @border; border-radius: 8px; padding: 6px; min-height: 116px; }
-button.clip-slot { background: transparent; background-image: none; border: 1px dashed alpha(@border, 0.8); border-radius: 6px;
-  padding: 2px; min-width: 0; min-height: 0; box-shadow: none; outline: none; }
+button.clip-slot { background: transparent; background-image: none; border: 1px dashed alpha(@border, 0.8); border-radius: 5px;
+  padding: 1px; min-width: 0; min-height: 0; box-shadow: none; outline: none; }
 button.clip-slot:disabled { opacity: 1; }
 button.clip-slot.filled { border: 1px solid @border; }
 button.clip-slot.filled:hover { border-color: @accent; background: alpha(@accent, 0.08); }
