@@ -1,8 +1,9 @@
 """Persisted settings: the full 2.0 schema, migrated from the 1.4 key file on first run.
 
-Stored as a GLib key file at ``~/.config/linscreencapture/settings.conf`` in four groups:
+Stored as a GLib key file at ``~/.config/linscreencapture/settings.conf`` in five groups:
 ``[Window]`` geometry and rail state, ``[Capture]`` saving and capture options, ``[System]``
-hotkey, autostart and the background agent, ``[Tools]`` per-tool colour, width and shadow plus text and blur options.
+hotkey, autostart and the background agent, ``[Tools]`` per-tool colour, width and shadow plus text and blur options,
+``[Stage]`` the workspace colour around the page and the last page fill colour.
 
 The legacy 1.x file ``~/.config/linshot/settings.conf`` (single ``[Settings]`` group) is read once
 when the new file does not exist; it is copied, never moved or modified. No GTK here.
@@ -121,6 +122,9 @@ class Settings:
     text_bold: bool = True
     text_italic: bool = False
     step_size: float = 14.0        # step-number badge size (font pt; radius = max(10, 0.75 × size))
+    # [Stage]
+    stage_colour: str = ""         # the workspace around the page; "" = the theme's
+    page_fill: str = "#ffffff"     # the colour the Page fill switch paints (remembered; a document starts unfilled)
     # bookkeeping
     root: str | None = None          # config root override (tests)
     migrated_from: str | None = None  # set when this instance came from the 1.x file
@@ -223,6 +227,8 @@ class Settings:
         self.text_bold = g.bool("Tools", "text_bold", self.text_bold)
         self.text_italic = g.bool("Tools", "text_italic", self.text_italic)
         self.step_size = max(8.0, min(48.0, g.float("Tools", "step_size", self.step_size)))
+        self.stage_colour = parse_colour(g.str("Stage", "colour", "")) or ""
+        self.page_fill = parse_colour(g.str("Stage", "page_fill", self.page_fill)) or self.page_fill
         self.migrated_from = g.str("Meta", "migrated_from", None) or None
 
     def _read_legacy(self, kf: GLib.KeyFile) -> None:
@@ -300,6 +306,8 @@ class Settings:
         kf.set_boolean("Tools", "text_bold", bool(self.text_bold))
         kf.set_boolean("Tools", "text_italic", bool(self.text_italic))
         kf.set_double("Tools", "step_size", float(self.step_size))
+        kf.set_string("Stage", "colour", self.stage_colour)
+        kf.set_string("Stage", "page_fill", self.page_fill)
         if self.migrated_from:
             kf.set_string("Meta", "migrated_from", self.migrated_from)
         self.path.parent.mkdir(parents=True, exist_ok=True)

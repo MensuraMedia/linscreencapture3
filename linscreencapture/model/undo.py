@@ -160,7 +160,7 @@ class TransformBase:
 
     def apply(self, doc: Document) -> None:
         self._old_base = doc.base
-        self._before = [(l, {k: getattr(l.annotation, k) for k in ("x1", "y1", "x2", "y2", "points")}) for l in doc.layers]
+        self._before = [(l, {k: getattr(l.annotation, k) for k in ("x1", "y1", "x2", "y2", "points", "angle")}) for l in doc.layers]
         doc.base = self.new_base
         if self.mapper is not None:
             for layer in doc.layers:
@@ -173,6 +173,23 @@ class TransformBase:
         for layer, fields in self._before or []:
             for k, v in fields.items():
                 setattr(layer.annotation, k, v)
+        doc.dirty = True
+
+
+@dataclass
+class SetPageFill:
+    """The colour painted behind the page (None = transparent)."""
+    colour: str | None
+    label: str = "Page fill"
+    _old: str | None = None
+
+    def apply(self, doc: Document) -> None:
+        self._old = doc.background
+        doc.background = self.colour
+        doc.dirty = True
+
+    def revert(self, doc: Document) -> None:
+        doc.background = self._old
         doc.dirty = True
 
 

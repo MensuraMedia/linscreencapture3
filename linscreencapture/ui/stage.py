@@ -199,6 +199,18 @@ class Stage(Gtk.Overlay):
             cls._checker = pat
         return cls._checker
 
+    _stage_css = None
+
+    def set_stage_colour(self, hx: str) -> None:
+        """The workspace colour around the page ("" = the theme's ``@stage``)."""
+        display = self.get_display()
+        if Stage._stage_css is None:
+            Stage._stage_css = Gtk.CssProvider()
+            Gtk.StyleContext.add_provider_for_display(display, Stage._stage_css,
+                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+        Stage._stage_css.load_from_string(f".stage {{ background: {hx}; }}" if hx else "")
+        self.stage_colour = hx
+
     # -- panning --------------------------------------------------------------
     def scroll_by(self, dx: float, dy: float, origin: tuple[float, float] | None = None) -> None:
         """Move the viewport by (dx, dy) px from ``origin`` (the adjustment values when a pan began)."""

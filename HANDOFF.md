@@ -91,6 +91,23 @@ uses the live display. The app on this machine is installed with `./install.sh` 
   design at the top of each). The 4-up clipboard tray (`docs/CLIPBOARD-TRAY-4UP.md`) is on `feat/clip-tray-4up`
   (rebased onto `feat/editor-shadows-canvas`; GLM draft, reviewed and completed; 150 tests).
 
+**Branch `feat/stage-rotate-fill`** (stacked on `feat/clip-tray-4up`; no PR yet):
+- Pasted images rotate: `Annotation.angle` (degrees clockwise about the rect centre; image layers only), drawn by
+  `annotations._image_frame`, hit-tested on the turned picture, bounding box = turned extent; `TransformBase` now
+  saves and restores `angle`; a page rotation turns image layers (`_image_transformed`) instead of stretching them.
+  Canvas: a round rotate handle above the top edge (`tools.handles_for(a, zoom)`, `image_rotate`, Shift 15°);
+  turned resize along the picture's own sides (`image_resize_turned`). Strip: a `↻ N°` popover button.
+- Round selection handles (`HANDLE_PX` 9).
+- Right rail **PAGE** group (`panel_rail.PageSection`): page size about the centre (`set_page_size`,
+  `document.resized_page`), page fill (`Document.background`, `SetPageFill`, painted first by `Document.render`),
+  stage colour (`Stage.set_stage_colour`, a display CSS provider). Settings `[Stage] colour`, `page_fill`.
+- Clipboard tray: double-click pastes (`ClipTray._pressed`, capture-phase `GestureClick`; single click pops the
+  preview after the double-click time).
+- Fixes found on the way: after Ctrl+Z / Ctrl+Y the header strip still showed the old values (`refresh_document`
+  now calls `ToolProps.reload`); a selected image forced the window to 1450 px wide (the strip now scrolls in the
+  header, title / subtitle ellipsize).
+- 173 tests. Change report: `docs/CHANGES-2026-10-18.md` §4.6.
+
 **Merge order** (PRs opened 2026-10-18): #1 `fix/tray-alttab-icons` → `feat/phase5` first (without it `make test`
 deletes the real autostart entry), then #2 `feat/editor-shadows-canvas` → `feat/phase5` (contains the docs branch),
 then #3 `feat/clip-tray-4up` (based on `feat/editor-shadows-canvas`; retarget it to `feat/phase5` if #2's branch is

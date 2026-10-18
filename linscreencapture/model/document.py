@@ -104,6 +104,20 @@ def expanded_base(base: cairo.ImageSurface, left: int, top: int, right: int, bot
     return out
 
 
+def resized_page(base: cairo.ImageSurface, width: int, height: int) -> tuple[cairo.ImageSurface, int, int]:
+    """The page set to ``width`` × ``height`` about its centre: grown sides are transparent, shrunk sides cut.
+
+    Returns the new base and the (dx, dy) by which every layer moves."""
+    width, height = max(1, min(MAX_PAGE, int(width))), max(1, min(MAX_PAGE, int(height)))
+    dx, dy = (width - base.get_width()) // 2, (height - base.get_height()) // 2
+    out = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+    cr = cairo.Context(out)
+    cr.set_source_surface(base, dx, dy)
+    cr.paint()
+    out.flush()
+    return out, dx, dy
+
+
 # ---------------------------------------------------------------- document
 class Document:
     """Base image + layers. Mutate through ``UndoStack`` commands from the controllers."""
@@ -114,6 +128,7 @@ class Document:
         self.layers: list[Layer] = []
         self.dirty = False
         self.format = "PNG"
+        self.background: str | None = None   # page fill painted behind everything ("#rrggbb"); None = transparent
 
     # -- basics -----------------------------------------------------------
     @property
@@ -176,7 +191,14 @@ class Document:
 
     # -- rendering ----------------------------------------------------------
     def render(self, cr: cairo.Context, target: cairo.ImageSurface | None, include_hidden: bool = False) -> None:
-        """Paint base and layers onto ``cr`` (whose target image surface is ``target``)."""
+        """Paint fill, base and layers onto ``cr`` (whose target image surface is ``target``)."""
+        if self.background and self.base is not None:
+            from .annotations import parse_hex
+            cr.save()
+            cr.set_source_rgb(*parse_hex(self.background))
+            cr.rectangle(0, 0, self.width, self.height)
+            cr.fill()
+            cr.restore()
         if self.base is not None:
             cr.save()
             cr.set_source_surface(self.base, 0, 0)

@@ -141,7 +141,7 @@ linscreencapture/
     studio_window.py     # Gtk.ApplicationWindow: header + rails + stage
     header_bar.py        # title block, status chip, zoom pill, Capture button
     tool_rail.py         # left rail, open and collapsed layouts
-    panel_rail.py        # right rail: Layers, Captures, Props, Colour, Navigator
+    panel_rail.py        # right rail: Colour, View, Edit, Page, Layers, Navigator
     stage.py             # Gtk.ScrolledWindow + DrawingArea, zoom HUD overlay
     capture_overlay.py   # full-screen region picker
     preferences.py       # Adw.PreferencesDialog
@@ -608,6 +608,21 @@ history and tray are parametrised). An **Area** tool joins the second tool row w
 Round area (O) and Point chain (J: click points, close on the first point or by double-click) — marking a region
 that Ctrl+C copies, Enter crops to (outside the shape cleared) and Delete clears to transparent as a `CUTOUT` layer.
 The naming (area, point chain, mark) is deliberately distinct from other image editors' selection vocabulary.
+
+### Amendment 2026-10-18 — rotate, page group, round handles
+
+Branch `feat/stage-rotate-fill`.
+
+1. Selection handles are round: 9 px white discs with a 1.5 px accent ring (were 8 px squares).
+2. A selected pasted image has a ninth, round handle on a stem 26 screen px above its top-centre: dragging it turns
+   the image about its centre (Shift: 15° steps). The image strip gains one compact **↻ N°** menu button (Angle spin,
+   90° left / right, upright); the long "Shift: free · Ctrl: centre" hint became an `info` icon with the same tooltip,
+   so the image strip is 923 px (was 955).
+3. The header's tool strip sits in a horizontally scrolling window, and the title / subtitle ellipsize, so no tool's
+   strip forces the window wider than its 1360 px default (a selected image used to force 1450 px).
+4. The open right rail gains a **PAGE** group between EDIT and LAYERS: Width and Height rows (spins), a Fill row
+   (switch + `Gtk.ColorDialogButton`) and a Stage row (reset + colour button).
+5. The clipboard tray's cells paste on double-click.
 
 ### Amendment 2026-10-16 — capture behaviour
 

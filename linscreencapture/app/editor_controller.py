@@ -7,13 +7,15 @@ import cairo
 from gi.repository import Gdk, GLib, Gtk, Graphene
 
 from . import tools
-from ..model.annotations import Annotation, Style, draw, _paint_eraser_ghost, area_path, constrain_square
-from ..model.document import expansion_for, expanded_base
-from ..model.undo import AddLayer, RemoveLayer, RemoveLayers, EditAnnotation, SetVisible, MoveLayer, TransformBase
+from ..model.annotations import (Annotation, Style, draw, _paint_eraser_ghost, area_path, constrain_square,
+                                 image_corners, normalise_angle)
+from ..model.document import expansion_for, expanded_base, resized_page
+from ..model.undo import (AddLayer, RemoveLayer, RemoveLayers, EditAnnotation, SetVisible, MoveLayer, TransformBase,
+                          SetPageFill)
 
 LOG = logging.getLogger("linscreencapture.editor")
 ACCENT = (0x4c / 255, 0x9d / 255, 1.0)
-HANDLE_PX = 8          # on-screen handle size
+HANDLE_PX = 9          # on-screen handle diameter (round handles)
 HIT_PX = 7             # on-screen hit tolerance around a handle
 
 
@@ -183,8 +185,9 @@ class EditorController:
         if tool in ("select", "move"):
             layer = self.selected_layer()
             tol = HIT_PX / self.state.zoom
-            if layer is not None and tools.handle_at(layer.annotation, x, y, tol):
-                self._mode = "handle:" + tools.handle_at(layer.annotation, x, y, tol)
+            hit = tools.handle_at(layer.annotation, x, y, tol, self.state.zoom) if layer is not None else None
+            if hit:
+                self._mode = "handle:" + hit
             else:
                 layer = self._layer_at(x, y)
                 self.select(layer.id if layer else None)
@@ -279,9 +282,12 @@ class EditorController:
                 layer.visible = True
                 if preview is not None and (dx or dy):
                     changes = {k: getattr(preview, k) for k in ("x1", "y1", "x2", "y2")}
+                    if preview.angle != layer.annotation.angle:
+                        changes["angle"] = preview.angle
                     if preview.points:
                         changes["points"] = preview.points
-                    self._commit(EditAnnotation(layer, changes, label="Move" if mode == "move" else "Resize"), select_new=False)
+                    label = "Move" if mode == "move" else "Rotate" if mode == "handle:rotate" else "Resize"
+                    self._commit(EditAnnotation(layer, changes, label=label), select_new=False)
                 else:
                     self.stage.refresh()
             self._orig = None
@@ -357,8 +363,12 @@ class EditorController:
             x, y = self.to_image(cx, cy)
             layer = self.selected_layer()
             tol = HIT_PX / self.state.zoom
-            h = tools.handle_at(layer.annotation, x, y, tol) if layer else None
-            if h in ("nw", "se"):
+            h = tools.handle_at(layer.annotation, x, y, tol, self.state.zoom) if layer else None
+            if h == "rotate":
+                name = "grab"
+            elif h and layer.annotation.kind == "image" and layer.annotation.angle:
+                name = "move"                   # a turned frame: the axis cursors would point the wrong way
+            elif h in ("nw", "se"):
                 name = "nwse-resize"
             elif h in ("ne", "sw"):
                 name = "nesw-resize"
@@ -603,7 +613,47 @@ class EditorController:
         w, h = max(1.0, round(w)), max(1.0, round(h))
         if (round(cw), round(ch)) == (w, h):
             return False
+        if layer.annotation.angle:                        # a turned layer keeps its centre (its corner has moved)
+            x, y = x + (cw - w) / 2, y + (ch - h) / 2
         self._commit(EditAnnotation(layer, {"x1": x, "y1": y, "x2": x + w, "y2": y + h}, label="Resize"), select_new=False)
+        return True
+
+    def set_layer_angle(self, degrees: float) -> bool:
+        """Turn the selected image layer to ``degrees`` clockwise about its centre."""
+        layer = self.selected_layer()
+        if layer is None or self.undo is None or layer.annotation.kind != "image":
+            return False
+        deg = normalise_angle(degrees)
+        if abs(deg - layer.annotation.angle) < 0.005:
+            return False
+        self._commit(EditAnnotation(layer, {"angle": deg}, label="Rotate"), select_new=False)
+        return True
+
+    def rotate_selected(self, delta: float) -> bool:
+        layer = self.selected_layer()
+        return layer is not None and self.set_layer_angle(layer.annotation.angle + delta)
+
+    # -- the page (right panel: Page) ----------------------------------------------
+    def set_page_size(self, width: int, height: int) -> bool:
+        """Set the page to ``width`` × ``height`` about its centre; layers keep their place on the picture."""
+        doc = self.doc
+        if not self._ready() or (int(width), int(height)) == (doc.width, doc.height):
+            return False
+        new, dx, dy = resized_page(doc.base, width, height)
+        self.cancel_crop()
+        self.cancel_area()
+        self.all_selected = False
+        self.undo.do(TransformBase(new, lambda x, y: (x + dx, y + dy), label="Page size"))
+        self.win.refresh_document()
+        return True
+
+    def set_page_fill(self, colour: str | None) -> bool:
+        """The colour behind the page's transparent parts (None: transparent); kept when saved or flattened."""
+        doc = self.doc
+        if not self._ready() or doc.background == colour:
+            return False
+        self.undo.do(SetPageFill(colour))
+        self.win.refresh_document()
         return True
 
     def natural_size(self) -> tuple[int, int] | None:
@@ -617,12 +667,14 @@ class EditorController:
         layer = self.selected_layer()
         if layer is None or self.undo is None or not self._ready():
             return False
-        _x, _y, w, h = layer.annotation.rect
+        a = layer.annotation
+        _x, _y, w, h = a.rect
         if w <= 0 or h <= 0:
             return False
-        bx, _by, bw, _bh = layer.annotation.bounding_box()
-        e = max(0.0, (bw - w) / 2)                           # its shadow fits inside the page too (no growth)
-        s = min(max(1.0, self.doc.width - 2 * e) / w, max(1.0, self.doc.height - 2 * e) / h)
+        _sx, _sy, aw, ah = tools.selection_rect(a)           # the picture's own extent (turned, if it is)
+        _bx, _by, bw, _bh = a.bounding_box()
+        e = max(0.0, (bw - aw) / 2)                          # its shadow fits inside the page too (no growth)
+        s = min(max(1.0, self.doc.width - 2 * e) / aw, max(1.0, self.doc.height - 2 * e) / ah)
         nw, nh = w * s, h * s
         x, y = (self.doc.width - nw) / 2, (self.doc.height - nh) / 2
         self._commit(EditAnnotation(layer, {"x1": x, "y1": y, "x2": x + nw, "y2": y + nh}, label="Fit"), select_new=False)
@@ -664,17 +716,29 @@ class EditorController:
             self.apply_style({"colour": self.state.colour})
 
     # -- overlay drawing ----------------------------------------------------
-    def _draw_size_readout(self, cr: cairo.Context, a: Annotation, ox: float, oy: float, z: float) -> None:
-        """While an image layer is resized: its frame and a "W × H px · N %" label under it."""
+    @staticmethod
+    def _frame_path(cr: cairo.Context, a: Annotation, ox: float, oy: float, z: float) -> None:
+        """An image layer's (turned) frame in canvas px."""
+        pts = [(ox + px * z, oy + py * z) for px, py in image_corners(a)]
+        cr.move_to(*pts[0])
+        for p in pts[1:]:
+            cr.line_to(*p)
+        cr.close_path()
+
+    def _draw_size_readout(self, cr: cairo.Context, a: Annotation, ox: float, oy: float, z: float, angle: bool = False) -> None:
+        """While an image layer is resized or turned: its frame and a "W × H px · N %" (or "N°") label under it."""
         x, y, w, h = a.rect
         cr.save()
         cr.set_source_rgba(*ACCENT, 0.95)
         cr.set_line_width(1)
-        cr.rectangle(ox + x * z + 0.5, oy + y * z + 0.5, w * z, h * z)
+        self._frame_path(cr, a, ox, oy, z)
         cr.stroke()
         text = f"{round(w)} × {round(h)} px"
         if a.surface is not None and a.surface.get_width() > 0:
             text += f" · {round(100 * w / a.surface.get_width())} %"
+        if angle:
+            text = f"{a.angle:g}°"
+        x, y, w, h = tools.selection_rect(a)
         cr.select_font_face("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         cr.set_font_size(11)
         ext = cr.text_extents(text)
@@ -708,15 +772,16 @@ class EditorController:
             elif p.kind == "eraser":
                 _paint_eraser_ghost(p, cr)          # clearing the canvas would also clear the checkerboard
             else:
-                if self._mode in ("draw", "stroke") and p.style.shadow:
+                if (self._mode in ("draw", "stroke", "handle:rotate")) and p.style.shadow:
                     # full colour while drawing; only the shadow waits for release: its blur changes with every
-                    # motion and costs 15-20 ms a frame on large shapes (moves reuse the cached shadow instead)
+                    # motion and costs 15-20 ms a frame on large shapes (moves reuse the cached shadow instead;
+                    # a turn changes the silhouette every frame, so it waits too)
                     p = p.copy()
                     p.style.shadow = False
                 draw(p, cr, None)                   # the real style: what is drawn is what is committed
             cr.restore()
             if p.kind == "image" and self._mode is not None and self._mode.startswith("handle:"):
-                self._draw_size_readout(cr, p, ox, oy, z)
+                self._draw_size_readout(cr, p, ox, oy, z, angle=self._mode == "handle:rotate")
         if (self.area is not None or self._chain) and self._ready():
             self._draw_area_overlay(cr, ox, oy, z)
         if self.all_selected and self._mode is None and self._ready():
@@ -755,7 +820,7 @@ class EditorController:
             return
         a = layer.annotation
         x, y, w, h = tools.selection_rect(a)
-        handles = tools.handles_for(a)
+        handles = tools.handles_for(a, z)
         cr.save()
         cr.set_source_rgba(*ACCENT, 0.9)
         cr.set_line_width(1)
@@ -770,12 +835,20 @@ class EditorController:
             for cx, cy, sx, sy in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
                 cr.move_to(cx, cy + sy * t); cr.line_to(cx, cy); cr.line_to(cx + sx * t, cy)
             cr.stroke()
-        if a.kind == "image" and not self.settings.selection_frame:   # the usual solid bounding box
-            cr.rectangle(ox + x * z + 0.5, oy + y * z + 0.5, w * z, h * z)
-            cr.stroke()
-        for hx, hy in handles.values():
+        if a.kind == "image":                              # the picture's own (turned) frame, and the rotate stem
+            if not self.settings.selection_frame:
+                self._frame_path(cr, a, ox, oy, z)
+                cr.stroke()
+            if "rotate" in handles:
+                tx, ty = handles["n"]
+                rx, ry = handles["rotate"]
+                cr.move_to(ox + tx * z, oy + ty * z)
+                cr.line_to(ox + rx * z, oy + ry * z)
+                cr.stroke()
+        for name, (hx, hy) in handles.items():
             sx, sy = ox + hx * z, oy + hy * z
-            cr.rectangle(sx - HANDLE_PX / 2, sy - HANDLE_PX / 2, HANDLE_PX, HANDLE_PX)
+            cr.new_sub_path()
+            cr.arc(sx, sy, HANDLE_PX / 2 + (0.5 if name == "rotate" else 0), 0, 6.2832)   # round handles
             cr.set_source_rgb(1, 1, 1)
             cr.fill_preserve()
             cr.set_source_rgb(*ACCENT)

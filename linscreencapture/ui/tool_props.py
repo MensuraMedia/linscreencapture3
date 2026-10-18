@@ -10,8 +10,9 @@ tool switch or an Enter in a spin (see app/shortcuts.py for the key routing).
 from __future__ import annotations
 from gi.repository import Gtk
 
-from .widgets import compact_spin, labelled, segmented, scale_with_value, switch
+from .widgets import compact_spin, labelled, segmented, scale_with_value, switch, rail_button
 from ..app.view_state import ViewState
+from ..services import icon_loader
 
 TOOL_TITLES = {"select": "Select", "arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text",
                "pen": "Pen", "marker": "Marker", "eraser": "Eraser", "blur": "Blur", "pixelate": "Pixelate", "fill": "Fill",
@@ -213,6 +214,10 @@ class ToolProps(Gtk.Box):
         finally:
             self._loading = False
 
+    def reload(self) -> None:
+        """Show the current values again (after an undo or redo changed the selected layer)."""
+        self._load(self.effective_tool())
+
     @staticmethod
     def _row(*widgets: Gtk.Widget) -> Gtk.Box:
         b = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14, valign=Gtk.Align.CENTER)
@@ -301,18 +306,50 @@ class ToolProps(Gtk.Box):
         self.img_w.connect("value-changed", lambda w: self._image_size("w", w.get_value()))
         self.img_h.connect("value-changed", lambda w: self._image_size("h", w.get_value()))
         self.img_scale.connect("value-changed", lambda w: self._image_scale(w.get_value()))
+        self.img_rotate = self._rotate_button()
         self.img_shadow = switch(True, "Drop shadow (kept when flattened)")
         self.img_intensity, img_inten = scale_with_value(0, 1, 0.45, digits=2, width=70, tooltip="Shadow intensity")
         return self._row(labelled("W", self.img_w), self.img_lock, labelled("H", self.img_h),
                          labelled("Scale %", self.img_scale), actual, fit,
-                         labelled("Shadow", self.img_shadow), labelled("Intensity", img_inten),
+                         self.img_rotate, labelled("Shadow", self.img_shadow), labelled("Intensity", img_inten),
                          self._image_hint())
 
+    def _rotate_button(self) -> Gtk.MenuButton:
+        """The angle as a compact button ("↻ 0°"); its popover: an angle spin, 90° left / right and Reset."""
+        btn = Gtk.MenuButton(valign=Gtk.Align.CENTER, tooltip_text="Rotate · or drag the round handle above the image")
+        btn.add_css_class("text-btn")
+        face = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        face.append(icon_loader.icon("arrow-clockwise", 14))
+        self.img_angle_label = Gtk.Label(label="0°")
+        face.append(self.img_angle_label)
+        btn.set_child(face)
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_top=6, margin_bottom=6,
+                      margin_start=8, margin_end=8)
+        self.img_angle = compact_spin(-180, 180, 0, tooltip="Angle (degrees clockwise)")
+        self.img_angle.set_wrap(True)
+        self.img_angle.connect("value-changed", lambda w: self._image_angle(w.get_value()))
+        self.img_angle.connect("activate", lambda *_: btn.popdown())
+        box.append(labelled("Angle", self.img_angle))
+        for icon, tip, action in (("arrow-counter-clockwise", "Rotate 90° left", "win.layer-rotate-left"),
+                                  ("arrow-clockwise", "Rotate 90° right", "win.layer-rotate-right")):
+            box.append(rail_button(icon, tip, action, classes=("small",), size=16))
+        reset = Gtk.Button(label="0°", valign=Gtk.Align.CENTER, tooltip_text="Upright again")
+        reset.add_css_class("text-btn")
+        reset.connect("clicked", lambda *_: self.editor and self.editor.set_layer_angle(0))
+        box.append(reset)
+        pop = Gtk.Popover(child=box)
+        pop.connect("closed", lambda *_: self.release_focus())
+        btn.set_popover(pop)
+        return btn
+
     @staticmethod
-    def _image_hint() -> Gtk.Label:
-        lbl = _hint("Shift: free · Ctrl: centre")
+    def _image_hint() -> Gtk.Widget:
+        lbl = icon_loader.icon("info", 16)
+        lbl.set_valign(Gtk.Align.CENTER)
+        lbl.add_css_class("sublabel")
         lbl.set_tooltip_text("Drag a corner handle to resize in proportion · Shift stretches freely · Ctrl resizes "
-                             "about the centre · edge handles stretch one side · drag inside to move · arrow keys "
+                             "about the centre · edge handles stretch one side · drag the round handle above the "
+                             "image to rotate it (Shift: 15° steps) · drag inside to move · arrow keys "
                              "nudge 1 px (Shift: 10 px)")
         return lbl
 
@@ -337,7 +374,13 @@ class ToolProps(Gtk.Box):
             self.editor.set_layer_size(size[0] * percent / 100, size[1] * percent / 100)
             self.release_focus()
 
+    def _image_angle(self, degrees: float) -> None:
+        if not self._loading and self.editor is not None:
+            self.editor.set_layer_angle(degrees)
+
     def _load_image(self, a) -> None:
+        self.img_angle.set_value(a.angle)
+        self.img_angle_label.set_label(f"{a.angle:g}°")
         _x, _y, w, h = a.rect
         self.img_w.set_value(round(w))
         self.img_h.set_value(round(h))

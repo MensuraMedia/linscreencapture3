@@ -121,6 +121,9 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._simple("resize", lambda: self._popover("resize"))
         self._simple("rotate", lambda: self._popover("rotate"))
         self._simple("adjust", lambda: self._popover("adjust"))
+        self._simple("layer-rotate-left", lambda: self.editor.rotate_selected(-90) or self.toast("Select a pasted image first"))
+        self._simple("layer-rotate-right", lambda: self.editor.rotate_selected(90) or self.toast("Select a pasted image first"))
+        self._simple("stage-colour-reset", lambda: self.panel_rail.page.reset_stage())
         self._popovers: dict = {}
         self.lookup_action("undo").set_enabled(False)
         self.lookup_action("redo").set_enabled(False)
@@ -216,6 +219,7 @@ class StudioWindow(Gtk.ApplicationWindow):
         if self.document is not None:
             self.state.subtitle = self.document.summary()
             self.panel_rail.set_document(self.document, self.editor.selected_id)
+            self.header.props.reload()               # undo / redo: the strip shows the selected layer's values again
 
     def _undo_changed(self) -> None:
         u = self.undo

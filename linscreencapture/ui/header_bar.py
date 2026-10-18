@@ -3,7 +3,7 @@
 Left: the title block. Centre: the tool-properties strip for the active tool. Right: window controls.
 """
 from __future__ import annotations
-from gi.repository import Gtk
+from gi.repository import Gtk, Pango
 
 from .tool_props import ToolProps
 from ..app.view_state import ViewState
@@ -27,16 +27,23 @@ class HeaderBar(Gtk.HeaderBar):
 
         block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER, halign=Gtk.Align.START)
         block.set_size_request(150, -1)
-        self.title = Gtk.Label(label=state.title, xalign=0.0)
+        self.title = Gtk.Label(label=state.title, xalign=0.0, ellipsize=Pango.EllipsizeMode.MIDDLE, max_width_chars=28)
         self.title.add_css_class("title")
-        self.subtitle = Gtk.Label(label=state.subtitle, xalign=0.0, visible=bool(state.subtitle))
+        self.subtitle = Gtk.Label(label=state.subtitle, xalign=0.0, visible=bool(state.subtitle),
+                                  ellipsize=Pango.EllipsizeMode.END, max_width_chars=40)
         self.subtitle.add_css_class("subtitle")
         block.append(self.title)
         block.append(self.subtitle)
         self.pack_start(block)
 
         self.props = ToolProps(state)
-        self.set_title_widget(self.props)
+        # the strip scrolls sideways when the window is narrower than its widest set (a selected image's), instead
+        # of forcing the window wider than a 1366 px screen
+        self.props_scroller = Gtk.ScrolledWindow(child=self.props, hscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+                                                 vscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_width=True,
+                                                 propagate_natural_height=True, valign=Gtk.Align.CENTER)
+        self.props_scroller.add_css_class("props-scroller")
+        self.set_title_widget(self.props_scroller)
 
         state.connect("notify::title", lambda s, _p: self.title.set_label(s.title))
         state.connect("notify::subtitle", self._subtitle_changed)

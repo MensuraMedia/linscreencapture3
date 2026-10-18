@@ -953,3 +953,84 @@ def test_shadow_switch_on_step_and_image_strips(window, tmp_path):
     assert not img.style.shadow and not window.settings.tools["image"].shadow
     window.undo.undo(); pump(20)
     assert img.style.shadow
+
+
+def test_rotating_a_pasted_image_from_the_strip_and_the_canvas_handle(window, tmp_path):
+    from linscreencapture.app import tools
+    _load_blank(window, tmp_path, (400, 300))
+    window.paste_texture(_texture(100, 40)); pump(50)
+    doc, ed, props = window.document, window.editor, window.header.props
+    img = doc.layers[-1].annotation
+    window.activate_action("win.layer-rotate-right", None); pump(20)
+    assert img.angle == 90 and props.img_angle.get_value() == 90
+    props.img_angle.set_value(-30); pump(20)
+    assert img.angle == -30
+    window.activate_action("win.undo", None); pump(20)
+    assert img.angle == 90 and props.img_angle.get_value() == 90
+    # the round handle above the picture: drag it a quarter turn back (Shift snaps to 15°)
+    ox, oy = window.stage.image_origin()
+    hx, hy = tools.handles_for(img, window.state.zoom)["rotate"]
+    cx, cy = img.rect[0] + img.rect[2] / 2, img.rect[1] + img.rect[3] / 2
+    g = _Gesture(shift=True)
+    window.state.tool = "select"
+    ed._drag_begin(g, ox + hx, oy + hy)
+    assert ed._mode == "handle:rotate"
+    ed._drag_update(g, cx - hx, (cy - 50) - hy)            # straight above the centre → 0°
+    ed._drag_end(g, cx - hx, (cy - 50) - hy); pump(20)
+    assert img.angle == 0 and window.undo.undo_label == "Rotate"
+
+
+def test_page_section_sets_size_and_fill_with_undo(window, tmp_path):
+    _load_blank(window, tmp_path, (400, 300))
+    _drag(window, "arrow", 20, 20, 120, 60)
+    arrow = window.document.layers[-1].annotation
+    page = window.panel_rail.page
+    assert (page.width.get_value(), page.height.get_value()) == (400, 300)
+    page.width.set_value(500); pump(20)
+    doc = window.document
+    assert (doc.width, doc.height) == (500, 300) and arrow.x1 == 70     # set about the centre: layers follow
+    window.activate_action("win.undo", None); pump(20)
+    assert doc.width == 400 and page.width.get_value() == 400 and arrow.x1 == 20
+    page.fill.set_active(True); pump(20)
+    assert doc.background == window.settings.page_fill == "#ffffff"
+    from gi.repository import Gdk
+    c = Gdk.RGBA(); c.parse("#336699")
+    page.fill_colour.set_rgba(c); pump(20)
+    assert doc.background == "#336699" and window.settings.page_fill == "#336699"
+    window.activate_action("win.undo", None); pump(20)
+    assert doc.background == "#ffffff" and page.fill.get_active()
+
+
+def test_stage_colour_is_a_setting_with_a_reset(window):
+    from gi.repository import Gdk
+    page = window.panel_rail.page
+    c = Gdk.RGBA(); c.parse("#102030")
+    page.stage_colour.set_rgba(c); pump(20)
+    assert window.settings.stage_colour == "#102030" and window.stage.stage_colour == "#102030"
+    window.activate_action("win.stage-colour-reset", None); pump(20)
+    assert window.settings.stage_colour == "" and window.stage.stage_colour == ""
+
+
+def test_selection_handles_are_round(window, tmp_path):
+    import cairo
+    _load_blank(window, tmp_path, (400, 300))
+    _drag(window, "box", 100, 100, 200, 160)
+    window.state.tool = "select"
+    window.editor.select(window.document.layers[-1].id); pump(20)
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 400, 300)
+    window.editor._draw_overlay(cairo.Context(surf), 0, 0, 1.0)
+    surf.flush()
+    def alpha(x, y):
+        return surf.get_data()[y * surf.get_stride() + x * 4 + 3]
+    assert alpha(100, 100) > 0                             # the nw handle's centre
+    assert alpha(104, 104) == 0                            # its square corner would be painted; a round one is not
+
+
+def test_a_selected_image_strip_never_widens_the_window(window, tmp_path):
+    _load_blank(window, tmp_path, (400, 300))
+    window.paste_texture(_texture(60, 40)); pump(50)
+    window.editor.set_layer_angle(-20); pump(300)
+    props = window.header.props
+    assert props.sets.get_visible_child_name() == "image" and props.img_angle_label.get_label() == "-20°"
+    assert window.get_width() == 1360                       # the strip scrolls in the header instead
+    assert window.header.measure(Gtk.Orientation.HORIZONTAL, -1)[0] < 1000
