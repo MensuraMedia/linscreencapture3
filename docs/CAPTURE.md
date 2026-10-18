@@ -193,15 +193,14 @@ Other copy paths (editor **Ctrl+C**, Library Copy, the tray slot's Copy) use the
 The overlay shows one fullscreen window per monitor. Coordinates are physical root pixels of the frozen surface,
 which makes it correct on multi-monitor and HiDPI setups. The veil is 45 % black outside the selection. A crosshair
 and a size chip follow the pointer. The mode bar at the top holds only the Region · Region Plus · Window · Full screen
-icons (tooltips name them); there is no key-hint text up there (removed 2026-10-17 at the operator's request). A
-small chip at the bottom right says "Release to capture" (Region Plus: arrows, Enter or double-click).
+icons (tooltips name them). There is no hint text anywhere on the overlay: the top key hints were removed on
+2026-10-17 and the bottom-right "Release to capture" chip on 2026-10-18, both at the operator's request.
 
 | | Region | Region Plus |
 | --- | --- | --- |
 | Draw | drag a box (Shift = square, Space held = move the box while drawing) | same |
 | Finish | **mouse release captures** | **Enter**, or a **double-click** inside the box |
 | Adjust | none | 8 handles; arrows nudge 1 px, Shift+arrows 10 px; drag inside to move |
-| Hints | "Release to capture" | "Arrows nudge 1 px · Shift+Arrows 10 px · Enter or double-click captures" |
 | Rail item | `selection` icon, `win.capture-mode::region` | `bounding-box` icon, `win.capture-mode::region-plus` |
 
 Common keys: **Esc** cancels and a click without a drag clears the box. **Ctrl+A** captures the whole screen at once

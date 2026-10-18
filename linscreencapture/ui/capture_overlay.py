@@ -120,9 +120,7 @@ class OverlayWindow(Gtk.Window):
         self.area = Gtk.DrawingArea(hexpand=True, vexpand=True, can_focus=True, focusable=True)
         self.area.set_draw_func(self._draw)
         overlay = Gtk.Overlay(child=self.area)
-        self._hint_label: Gtk.Label | None = None
         overlay.add_overlay(self._mode_bar())
-        overlay.add_overlay(self._hint_bar())
         self.set_child(overlay)
 
         motion = Gtk.EventControllerMotion()
@@ -174,24 +172,8 @@ class OverlayWindow(Gtk.Window):
             bar.append(b)
         return bar                  # only the mode icons (their tooltips name them); no key-hint text up here
 
-    @staticmethod
-    def _hint_text(simple: bool) -> str:
-        return "Release to capture" if simple else "Arrows nudge 1 px · Shift+Arrows 10 px · Enter or double-click captures"
-
     def refresh_hints(self) -> None:
-        if self._hint_label is not None:
-            self._hint_label.set_label(self._hint_text(self.session.simple))
-        self.area.queue_draw()
-
-    def _hint_bar(self) -> Gtk.Box:
-        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, halign=Gtk.Align.END, valign=Gtk.Align.END,
-                      margin_end=16, margin_bottom=16)
-        bar.add_css_class("chip")
-        lbl = Gtk.Label(label=self._hint_text(self.session.simple))
-        lbl.add_css_class("sublabel")
-        self._hint_label = lbl
-        bar.append(lbl)
-        return bar
+        self.area.queue_draw()      # no hint text on the overlay; the mode bar's icons are the only chrome
 
     # -- drawing ------------------------------------------------------------
     def _draw(self, _area, cr: cairo.Context, w: int, h: int) -> None:

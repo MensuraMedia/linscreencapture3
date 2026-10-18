@@ -247,7 +247,7 @@ Summary of `docs/CAPTURE.md` §5 (authoritative).
 | Region Plus | 8 handles resize, drag inside moves, **arrows** nudge 1 px, **Shift+arrows** 10 px; **Enter** or a double-click inside the box captures |
 | Both modes | **Esc** cancels; **Ctrl+A** selects the whole screen (then **Enter** captures); **Enter** and a double-click inside the box also confirm in Region; a click without a drag clears the box |
 | Window mode | hovering highlights the window under the pointer with its title; a click captures it including its frame |
-| Mode bar | Region · Region Plus · Window · Full screen icon toggles at the top, nothing else (tooltips name them); switching takes effect at once. The bottom-right chip names the confirm gesture for the mode |
+| Mode bar | Region · Region Plus · Window · Full screen icon toggles at the top, nothing else (tooltips name them); switching takes effect at once. No hint text anywhere on the overlay |
 | Readouts | size chip under the box (`W × H`); pointer position and the colour under it bottom-left |
 | Multi-monitor | one overlay window per monitor sharing one session; a selection cannot span monitors; integer HiDPI scale factors per monitor |
 
