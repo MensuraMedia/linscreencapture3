@@ -128,7 +128,11 @@ uses the live display. The app on this machine is installed with `./install.sh` 
   `bucket` annotation is a picture kind like `image`, `annotations.PICTURE_KINDS`); the Fill rectangle tool left the
   UI (`fill` stays a model kind); Shape fill = `win.shape-fill` (stateful, synced on selection and undo) in the right
   rail under the swatches, replacing the strip's Fill switch. 199 tests.
-- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.11.
+- Then: custom `bucket-fill` icon; eyedropper pointer (`icon_loader.eyedropper_cursor`, a texture cursor; `_motion`
+  keeps it while `editor.eyedropper`); documents open at 100 % from the top-left (`Stage.scroll_to_start`); default
+  save folder `~/Pictures/ScreenShots` with a one-time move off the old Pictures default (`[Meta] folder_default_v2`).
+  203 tests.
+- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.12.
 
 **Merge order** (PRs opened 2026-10-18): #1 `fix/tray-alttab-icons` → `feat/phase5` first (without it `make test`
 deletes the real autostart entry), then #2 `feat/editor-shadows-canvas` → `feat/phase5` (contains the docs branch),

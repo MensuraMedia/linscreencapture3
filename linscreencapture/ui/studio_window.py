@@ -37,6 +37,10 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.state = ViewState()
         self.state.left_collapsed = self.settings.left_collapsed
         self.state.right_collapsed = self.settings.right_collapsed
+        try:                                          # the save folder (default ~/Pictures/ScreenShots) exists from the start
+            os.makedirs(os.path.expanduser(self.settings.screenshot_path), exist_ok=True)
+        except OSError:
+            pass
         self.captures = CapturesIndex(self.settings.screenshot_path)
         self.tags = TagStore.load(self.settings.root)     # Library tags (tags.json; under the test root in tests)
         self.document: Document | None = None
@@ -208,7 +212,10 @@ class StudioWindow(Gtk.ApplicationWindow):
             self.state.library = False
             self.lookup_action("library").set_state(GLib.Variant("b", False))
             self.state.title = doc.name
-        GLib.idle_add(lambda: (setattr(self.state, "zoom", self.stage.fit_zoom()), False)[1])
+        # a new capture, an opened file, a paste or a Combine opens at 100 %, scrolled to the top-left corner. (It used to
+        # fit on the next idle; after a capture the window is still hidden then, so the fit came out tiny.)
+        self.state.zoom = 1.0
+        self.stage.scroll_to_start()
 
     def clear_document(self) -> None:
         self.document = None

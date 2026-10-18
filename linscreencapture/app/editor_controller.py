@@ -358,6 +358,10 @@ class EditorController:
         if self._chain:
             self._hover = self.to_image(cx, cy)
             self.stage.canvas.queue_draw()
+        if self.eyedropper:                     # the eyedropper keeps its own pointer until it has picked
+            from ..services.icon_loader import eyedropper_cursor
+            self.stage.canvas.set_cursor(eyedropper_cursor())
+            return
         name = "crosshair"
         if self._mode == "pan":
             name = "grabbing"
@@ -574,8 +578,9 @@ class EditorController:
 
     def start_eyedropper(self) -> None:
         if self._ready():
+            from ..services.icon_loader import eyedropper_cursor
             self.eyedropper = True
-            self.stage.canvas.set_cursor(Gdk.Cursor.new_from_name("crosshair"))
+            self.stage.canvas.set_cursor(eyedropper_cursor())
             self.win.toast("Click the image to pick a colour", timeout=2)
 
     def apply_crop(self) -> bool:

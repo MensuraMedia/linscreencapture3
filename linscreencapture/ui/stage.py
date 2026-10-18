@@ -1,7 +1,7 @@
 """Centre stage: empty-state placeholder now, the document canvas from Phase 4."""
 from __future__ import annotations
 import cairo
-from gi.repository import Gdk, Gtk, Graphene
+from gi.repository import Gdk, GLib, Gtk, Graphene
 
 from ..services import icon_loader
 from ..app.view_state import ViewState
@@ -217,6 +217,14 @@ class Stage(Gtk.Overlay):
                           (self.scroller.get_vadjustment(), origin[1] if origin else None, dy)):
             base = adj.get_value() if o is None else o
             adj.set_value(max(adj.get_lower(), min(base + d, adj.get_upper() - adj.get_page_size())))
+
+    def scroll_to_start(self) -> None:
+        """Show the page's top-left corner once the canvas has its new size (after the next layout)."""
+        def go():
+            for adj in (self.scroller.get_hadjustment(), self.scroller.get_vadjustment()):
+                adj.set_value(adj.get_lower())
+            return False
+        GLib.idle_add(go)
 
     def pan_origin(self) -> tuple[float, float]:
         return self.scroller.get_hadjustment().get_value(), self.scroller.get_vadjustment().get_value()

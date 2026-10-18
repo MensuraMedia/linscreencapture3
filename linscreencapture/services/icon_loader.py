@@ -53,6 +53,42 @@ def install_css() -> Gtk.CssProvider:
     return provider
 
 
+_cursors: dict = {}
+
+
+def eyedropper_cursor() -> Gdk.Cursor:
+    """A 28 px eyedropper pointer: the bundled glyph in black with a white outline (it shows on any picture), its
+    hotspot on the tip (bottom left). Falls back to the crosshair where cursors from textures are unsupported."""
+    if "eyedropper" not in _cursors:
+        try:
+            import io
+            import numpy as np
+            from PIL import Image, ImageFilter
+            from gi.repository import GdkPixbuf
+            data = Gio.resources_lookup_data(f"{RESOURCE_PREFIX}/icons/scalable/actions/{icon_name('eyedropper')}.svg",
+                                             Gio.ResourceLookupFlags.NONE).get_data()
+            loader = GdkPixbuf.PixbufLoader()
+            loader.set_size(22, 22)
+            loader.write(data)
+            loader.close()
+            glyph = Image.open(io.BytesIO(loader.get_pixbuf().save_to_bufferv("png", [], [])[1])).convert("RGBA")
+            alpha = Image.new("L", (28, 28)); alpha.paste(glyph.getchannel("A"), (3, 3))
+            halo = alpha.filter(ImageFilter.MaxFilter(5))           # a 2 px white outline around the black glyph
+            out = Image.new("RGBA", (28, 28), (255, 255, 255, 0))
+            out.putalpha(halo)
+            black = Image.new("RGBA", (28, 28), (0, 0, 0, 255)); black.putalpha(alpha)
+            out.alpha_composite(black)
+            buf = io.BytesIO(); out.save(buf, "PNG")
+            texture = Gdk.Texture.new_from_bytes(GLib.Bytes.new(buf.getvalue()))
+            # the tip of Phosphor's eyedropper sits at about (36, 219) of 256
+            hot_x, hot_y = 3 + round(36 / 256 * 22), 3 + round(219 / 256 * 22)
+            _cursors["eyedropper"] = Gdk.Cursor.new_from_texture(texture, hot_x, hot_y,
+                                                                 Gdk.Cursor.new_from_name("crosshair"))
+        except Exception:  # noqa: BLE001 — never let a cursor break the eyedropper
+            _cursors["eyedropper"] = Gdk.Cursor.new_from_name("crosshair")
+    return _cursors["eyedropper"]
+
+
 def icon_name(name: str) -> str:
     return f"lsc-{name}-symbolic"
 

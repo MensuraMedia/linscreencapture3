@@ -646,6 +646,9 @@ Branch `feat/stage-rotate-fill`.
    eyedropper, Tolerance, Contiguous, Opacity. Whether boxes and circles are filled moved from the shape strip's Fill
    switch to a **Shape fill** row under the right rail's swatches: Outline (`square`) · Filled (custom
    `square-filled`).
+10. The paint bucket's glyph is the app's own `bucket-fill` (a tipped pail with a handle and a falling drop: Phosphor's
+    diagonal `paint-bucket` does not read at 18 px). The eyedropper shows an eyedropper pointer while it waits for
+    its click. Documents open at 100 %.
 
 ### Amendment 2026-10-16 — capture behaviour
 

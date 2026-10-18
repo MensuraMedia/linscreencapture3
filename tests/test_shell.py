@@ -107,6 +107,7 @@ def test_page_and_arrange_sit_above_the_navigator_and_navigator_tracks_the_view(
     Image.new("RGBA", (2000, 1200), (90, 60, 30, 255)).save(tmp_path / "big.png")
     window.load_document(Document.open(str(tmp_path / "big.png")))
     pump(200)
+    window.activate_action("win.zoom-fit", None); pump(200)
     full = pr.navigator.visible_image_rect()
     assert full is not None and full[2] == 2000 and full[3] == 1200       # fit: everything visible
     window.state.zoom = 2.0
@@ -1269,3 +1270,29 @@ def test_shape_fill_buttons_fill_the_selected_shape_and_set_the_default(window, 
     _drag(window, "circle", 150, 50, 250, 150)
     assert window.document.layers[-1].annotation.style.fill        # new shapes follow the default (still Filled)
     assert "fill_row" not in vars(window.header.props)             # the header strip has no Fill switch any more
+
+
+def test_an_opened_image_shows_at_100_percent_from_its_top_left(window, tmp_path):
+    from PIL import Image
+    from linscreencapture.model.document import Document
+    window.state.zoom = 0.3
+    Image.new("RGBA", (2560, 1440), (90, 60, 30, 255)).save(tmp_path / "shot.png")
+    window.load_document(Document.open(str(tmp_path / "shot.png"))); pump(300)
+    assert window.state.zoom == 1.0                                  # not fitted (it came out tiny after a capture)
+    h, v = window.stage.scroller.get_hadjustment(), window.stage.scroller.get_vadjustment()
+    assert h.get_value() == h.get_lower() and v.get_value() == v.get_lower()
+
+
+def test_the_eyedropper_shows_an_eyedropper_pointer(window, tmp_path):
+    from linscreencapture.services.icon_loader import eyedropper_cursor
+    _load_blank(window, tmp_path, (200, 100))
+    cur = eyedropper_cursor()
+    assert cur.get_texture() is not None and cur.get_texture().get_width() == 28    # a picture, not a named cursor
+    assert (cur.get_hotspot_x(), cur.get_hotspot_y()) == (6, 22)                  # the tip, bottom left
+    window.activate_action("win.eyedropper", None); pump(20)
+    assert window.stage.canvas.get_cursor() is cur
+    ox, oy = window.stage.image_origin()
+    window.editor._motion(None, ox + 20, oy + 20)
+    assert window.stage.canvas.get_cursor() is cur                  # moving does not swap it for the tool's pointer
+    window.editor._click(None, 1, ox + 20, oy + 20); pump(20)
+    assert not window.editor.eyedropper and window.stage.canvas.get_cursor() is not cur

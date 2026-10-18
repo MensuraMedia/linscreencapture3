@@ -60,7 +60,7 @@ TOOLS_B = (
     _tool("polygon", "Point chain · click points, close on the first", "area_points", False, "edit"),
     _tool("drop-half", "Blur", "blur", True, "edit"),
     _tool("checkerboard", "Pixelate", "pixelate", False, "edit"),
-    _tool("paint-bucket", "Paint bucket · fill an area of the picture", "bucket", False, "edit"),
+    _tool("bucket-fill", "Paint bucket · fill an area of the picture", "bucket", False, "edit"),   # data/icons/custom
     _tool("number-circle-one", "Step number", "step", True, "edit"),
     _tool("chat-teardrop", "Callout", "callout", False, "edit"),
     _tool("crop", "Crop", "crop", True, "edit"),

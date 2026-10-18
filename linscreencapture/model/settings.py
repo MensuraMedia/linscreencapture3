@@ -50,8 +50,22 @@ def legacy_file(root: str | None = None) -> pathlib.Path:
     return pathlib.Path(root or GLib.get_user_config_dir()) / LEGACY_DIR / FILE
 
 
-def _default_pictures() -> str:
+SCREENSHOTS_DIR = "ScreenShots"     # the default save folder: <Pictures>/ScreenShots (2026-10-18)
+
+
+def _pictures() -> str:
     return GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PICTURES) or os.path.expanduser("~/Pictures")
+
+
+def _default_pictures() -> str:
+    return os.path.join(_pictures(), SCREENSHOTS_DIR)
+
+
+def _moved_to_default_folder(path: str) -> str:
+    """The pre-2026-10-18 default was the Pictures folder itself; a setting still on it moves to Pictures/ScreenShots.
+    Any other folder the user chose is kept."""
+    same = os.path.normpath(os.path.expanduser(path)) == os.path.normpath(_pictures())
+    return _default_pictures() if same else path
 
 
 def parse_colour(text: str) -> str | None:
@@ -197,6 +211,8 @@ class Settings:
         self.right_collapsed = g.bool("Window", "right_collapsed", self.right_collapsed)
         self.selection_frame = g.bool("Window", "selection_frame", self.selection_frame)
         self.screenshot_path = g.str("Capture", "screenshot_path", self.screenshot_path)
+        if not g.bool("Meta", "folder_default_v2", False):          # once: the old default moves to ScreenShots
+            self.screenshot_path = _moved_to_default_folder(self.screenshot_path)
         self.prefix = g.str("Capture", "prefix", self.prefix)
         self.numbering = g.choice("Capture", "numbering", NUMBERING, self.numbering)
         self.format = g.choice("Capture", "format", FORMATS, self.format)
@@ -239,7 +255,7 @@ class Settings:
         """Map the 1.4 ``[Settings]`` group onto the 2.0 fields."""
         g = _Getter(kf)
         S = "Settings"
-        self.screenshot_path = g.str(S, "screenshot_path", self.screenshot_path)
+        self.screenshot_path = _moved_to_default_folder(g.str(S, "screenshot_path", self.screenshot_path))
         fmt = g.int(S, "filename_format", 2)      # 1.4 default: LinShot prefix + timestamp
         self.prefix = PREFIXES[fmt % 2]            # 0,2 -> LinScreenCapture_ (was LinShot_); 1,3 -> Screenshot_
         self.numbering = "timestamp" if fmt >= 2 else "sequence"
@@ -316,6 +332,7 @@ class Settings:
         kf.set_string("Stage", "page_fill", self.page_fill)
         if self.migrated_from:
             kf.set_string("Meta", "migrated_from", self.migrated_from)
+        kf.set_boolean("Meta", "folder_default_v2", True)   # the ScreenShots default is applied: a later pick of Pictures stays
         self.path.parent.mkdir(parents=True, exist_ok=True)
         kf.save_to_file(str(self.path))
 
