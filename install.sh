@@ -72,7 +72,7 @@ if [ "$UNINSTALL" = 1 ]; then
   run rm -rf "$LIB"
   run rm -f "$BIN" "$APPS/$APP_ID.desktop" "$ICONS/scalable/apps/$APP_ID.svg"
   for s in "${SIZES[@]}"; do run rm -f "$ICONS/${s}x${s}/apps/$APP_ID.png"; done
-  if [ "$MODE" = user ]; then
+  if [ "$MODE" = user ] && [ -z "$DESTDIR" ]; then   # a staged (--destdir) uninstall never touches $HOME
     rm -f "$HOME/.config/autostart/$APP_ID.desktop"
     echo "Your settings stay in ~/.config/linscreencapture; delete that folder to remove them too."
     echo "The PrintScreen shortcut stays in Cinnamon's Custom Shortcuts until you remove it there."

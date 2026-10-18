@@ -49,6 +49,31 @@ Update 2026-10-14: `docs/FEATURES.md` rewritten as the complete 16-section featu
 selected layer is off by default (handles only; corner ticks for handle-less layers; `Settings.selection_frame` and a
 Settings → Window switch restore it). 106 tests. Awaiting the operator's on-screen sign-off and the PR into `main`.
 
+## 0a. 2026-10-18 — branch `fix/tray-alttab-icons` (second machine)
+
+Two machines work on this repository; pull before a session, push after it. Branch `fix/tray-alttab-icons` is cut
+from `feat/phase5` at `01f5606` (the other machine's icon / installer / .deb work). It adds:
+
+- `docs/ICONOGRAPHY.md`: the one application icon (master SVG + eight PNG renders, theme name `APP_ID`), its
+  placement (menu, panel window list / Alt+Tab, tray, Startup Applications) with the recognition requirement for each,
+  and rules. Linked from README and FEATURES.
+- Fix: the autostart entry still wrote `Icon=linscreencapture3`, the retired theme name that `make launcher` now
+  deletes, so Startup Applications showed a blank icon. It writes `Icon=<APP_ID>`; `test_agent` asserts it.
+- Fix: **`make test` deleted the real `~/.config/autostart/<APP_ID>.desktop`**, so Run at startup silently went off
+  on the development machine after every test run (and the app then honours the missing entry as "off").
+  `install.sh --uninstall --destdir …` (run by `test_install_script_uninstalls`) removed `$HOME`'s autostart entry
+  even when staging; it now skips `$HOME` under `--destdir`. Also `PreferencesDialog` defaulted `autostart_root` to
+  the real config dir; it now defaults to `settings.root`. Guarded by
+  `test_staged_uninstall_leaves_the_users_autostart_entry_alone` (fake `HOME`) and
+  `test_preferences_autostart_switch_stays_in_the_settings_root`. Verified with a sentinel entry over the full suite.
+- `tools/launch.sh` and `ui/style.css` header comments say LinScreenCapture 3; §8.0 points at the real tray icon file.
+
+The same machine had found the tray (`tray.py` prgname) and `WM_CLASS` bugs independently; the other machine's
+commits fixed both first, so that work was dropped in the rebase (kept locally as tag
+`backup/fix-tray-alttab-icons-pre-rebase`). On this machine every earlier build (1.4 `linshot3`, LinScreenCapture2,
+`gnome-screenshot`) was removed after a tar backup in `~/backups/`; `xvfb` is not installed here, so `make test`
+uses the live display. Pending: PR `fix/tray-alttab-icons` → `feat/phase5`.
+
 ## 1. Mission
 
 Rebuild the 1.4 C/GTK3 screenshot tool as **LinScreenCapture 3: Python 3 + GTK 4 + libadwaita**,
@@ -258,7 +283,7 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
    PrintScreen. Tests run with `GSETTINGS_BACKEND=memory`, `LSC_NO_HOTKEY=1` and `LSC_NO_TRAY=1` (conftest), so they
    never touch the real desktop. Gotcha: never `set_model` on an `Adw.ComboRow` from its own `notify::selected`
    handler; it froze the dialog.
-   Same day, later: the panel icon is orange #ffa222 (`resources/icons/linscreencapture-tray.svg`), shown whenever
+   Same day, later: the panel icon is orange #ffa222 (now the app icon itself, `data/icons/hicolor/scalable/apps/com.mensuramedia.LinScreenCapture.svg`; see `docs/ICONOGRAPHY.md`), shown whenever
    the app runs, double-click opens the editor (`tray.DoubleClick`); pasted images resize like in an image editor
    (`tools.image_resize`: corners keep proportions, Shift free, Ctrl about the centre; header W / lock / H / Scale %
    / 100 % / Fit; arrow keys nudge); user guide `docs/PRINTSCREEN.md`. Gotcha: XApp derives the icon's bus name from

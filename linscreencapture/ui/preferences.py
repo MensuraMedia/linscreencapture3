@@ -21,7 +21,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
         super().__init__(title="Settings", search_enabled=False)
         self.settings = settings
         self.on_change = on_change
-        self.autostart_root = autostart_root
+        # default to the settings' own root: a dialog built on test settings must never touch ~/.config/autostart
+        self.autostart_root = autostart_root if autostart_root is not None else settings.root
         self.suspend_hotkey = suspend_hotkey or (lambda _on: None)
         self.add(self._capture_page())
         self.add(self._system_page())
