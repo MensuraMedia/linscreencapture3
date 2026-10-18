@@ -312,3 +312,14 @@ def test_autostart_sync_first_run_then_follows_the_entry(tmp_path):
     p.write_text(p.read_text().replace("X-GNOME-Autostart-enabled=true", "X-GNOME-Autostart-enabled=false"))
     assert not autostart.is_enabled(root) and not autostart.sync(True, False, root, which)  # desktop's choice wins
     assert not autostart.sync(False, True, str(tmp_path / "b"), which)
+
+
+def test_tray_icon_is_orange_and_double_click_opens_the_editor():
+    from linscreencapture import tray
+    assert tray.ICON_FILE.name == "linscreencapture-tray.svg" and tray.TRAY_COLOUR in tray.ICON_FILE.read_text()
+    assert tray.TRAY_COLOUR == "#ffa222" and tray.icon_source() == str(tray.ICON_FILE)
+    assert tray.PRGNAME == "linscreencapture-tray"              # not "tray.py": Mint's helpers own that bus name
+    dc = tray.DoubleClick(400)
+    assert not dc.click(1, 1000) and dc.click(1, 1300)          # two left clicks within the interval
+    assert not dc.click(1, 2000) and not dc.click(1, 2600)      # too slow: two single clicks
+    assert not dc.click(3, 2700) and not dc.click(1, 2800)      # another button resets the pair

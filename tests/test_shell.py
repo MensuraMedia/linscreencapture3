@@ -825,3 +825,40 @@ def test_selection_frame_is_optional(window, settings):
     from linscreencapture.model.settings import Settings
     assert Settings.load(root=settings.root).selection_frame is True
     window.settings_changed("selection_frame", False)               # the dialog's live hook redraws the stage
+
+
+def test_pasted_image_resizes_like_an_image_editor(window, tmp_path):
+    from gi.repository import Gdk, GLib
+    import cairo
+    from linscreencapture.app import tools
+    _load_blank(window, tmp_path, (400, 300))
+    s = cairo.ImageSurface(cairo.FORMAT_ARGB32, 40, 20)
+    cairo.Context(s).paint(); s.flush()
+    tex = Gdk.MemoryTexture.new(40, 20, Gdk.MemoryFormat.B8G8R8A8_PREMULTIPLIED, GLib.Bytes.new(bytes(s.get_data())), s.get_stride())
+    window.paste_texture(tex); pump(50)
+    doc, ed = window.document, window.editor
+    a = doc.layers[-1].annotation
+    assert a.rect == (180, 140, 40, 20)
+    # corners keep proportions, Shift stretches freely, Ctrl resizes about the centre, edges stretch one side
+    assert tools.handle_changes(a, "se", 260, 150) == {"x1": 180, "y1": 140, "x2": 260, "y2": 180}
+    assert tools.handle_changes(a, "se", 260, 150, shift=True) == {"x1": 180, "y1": 140, "x2": 260, "y2": 150}
+    assert tools.handle_changes(a, "nw", 160, 0) == {"x1": -100, "y1": 0, "x2": 220, "y2": 160}   # height x8, width follows
+    assert tools.handle_changes(a, "e", 240, 999) == {"x1": 180, "y1": 140, "x2": 240, "y2": 160}
+    assert tools.handle_changes(a, "se", 240, 150, ctrl=True) == {"x1": 160, "y1": 130, "x2": 240, "y2": 170}
+    ch = tools.handle_changes(a, "se", 0, 0)                   # never inside out: stops at the minimum
+    assert ch["x1"] == 180 and ch["x2"] - ch["x1"] >= tools.MIN_IMAGE_PX
+    # the header strip shows the image controls, and W / H / % / 100 % / Fit / arrows resize and move it
+    props = window.header.props
+    assert props.sets.get_visible_child_name() == "image"
+    assert (props.img_w.get_value(), props.img_h.get_value(), props.img_scale.get_value()) == (40, 20, 100)
+    props.img_w.set_value(80); pump(20)
+    assert a.rect == (180, 140, 80, 40) and props.img_scale.get_value() == 200
+    props.img_lock.set_active(False)
+    props.img_h.set_value(10); pump(20)
+    assert a.rect == (180, 140, 80, 10)
+    props._image_scale(100); pump(20)
+    assert a.rect == (180, 140, 40, 20)
+    assert ed.fit_selected() and a.rect == (0, 50, 400, 200)
+    window.undo.undo(); pump(20)
+    assert a.rect == (180, 140, 40, 20)
+    assert ed.nudge_selected(-10, 1) and a.rect == (170, 141, 40, 20)

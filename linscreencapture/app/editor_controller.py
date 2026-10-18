@@ -205,7 +205,7 @@ class EditorController:
             self.preview.move_by(x - self._start[0], y - self._start[1])
         elif self._mode.startswith("handle:") and self._orig is not None:
             self.preview = self._orig.copy()
-            for k, v in tools.handle_changes(self._orig, self._mode[7:], x, y, ctrl).items():
+            for k, v in tools.handle_changes(self._orig, self._mode[7:], x, y, ctrl, shift).items():
                 setattr(self.preview, k, v)
         self.stage.canvas.queue_draw()
 
@@ -566,6 +566,47 @@ class EditorController:
         if layer is not None:
             self._commit(MoveLayer(layer, index), select_new=False)
 
+    # -- image layer size (the header strip's W / H / % controls) -----------------
+    def set_layer_size(self, w: float, h: float) -> bool:
+        """Resize the selected layer to ``w`` × ``h`` image px, anchored at its top-left corner."""
+        layer = self.selected_layer()
+        if layer is None or self.undo is None:
+            return False
+        x, y, cw, ch = layer.annotation.rect
+        w, h = max(1.0, round(w)), max(1.0, round(h))
+        if (round(cw), round(ch)) == (w, h):
+            return False
+        self._commit(EditAnnotation(layer, {"x1": x, "y1": y, "x2": x + w, "y2": y + h}, label="Resize"), select_new=False)
+        return True
+
+    def natural_size(self) -> tuple[int, int] | None:
+        """The selected image layer's own pixel size (100 %)."""
+        layer = self.selected_layer()
+        s = layer.annotation.surface if layer is not None and layer.annotation.kind == "image" else None
+        return (s.get_width(), s.get_height()) if s is not None else None
+
+    def fit_selected(self) -> bool:
+        """Scale the selected image layer to fit the canvas, keeping its proportions, and centre it."""
+        layer = self.selected_layer()
+        if layer is None or self.undo is None or not self._ready():
+            return False
+        _x, _y, w, h = layer.annotation.rect
+        if w <= 0 or h <= 0:
+            return False
+        s = min(self.doc.width / w, self.doc.height / h)
+        nw, nh = w * s, h * s
+        x, y = (self.doc.width - nw) / 2, (self.doc.height - nh) / 2
+        self._commit(EditAnnotation(layer, {"x1": x, "y1": y, "x2": x + nw, "y2": y + nh}, label="Fit"), select_new=False)
+        return True
+
+    def nudge_selected(self, dx: float, dy: float) -> bool:
+        """Arrow keys: move the selected layer by (dx, dy) image px."""
+        layer = self.selected_layer()
+        if layer is None or self.undo is None or self._mode is not None:
+            return False
+        self._commit(EditAnnotation(layer, tools.move_changes(layer.annotation, dx, dy), label="Move"), select_new=False)
+        return True
+
     def apply_style(self, changes: dict) -> None:
         """Change style fields of the selected annotation (from the header strip or the palette)."""
         layer = self.selected_layer()
@@ -594,6 +635,29 @@ class EditorController:
             self.apply_style({"colour": self.state.colour})
 
     # -- overlay drawing ----------------------------------------------------
+    def _draw_size_readout(self, cr: cairo.Context, a: Annotation, ox: float, oy: float, z: float) -> None:
+        """While an image layer is resized: its frame and a "W × H px · N %" label under it."""
+        x, y, w, h = a.rect
+        cr.save()
+        cr.set_source_rgba(*ACCENT, 0.95)
+        cr.set_line_width(1)
+        cr.rectangle(ox + x * z + 0.5, oy + y * z + 0.5, w * z, h * z)
+        cr.stroke()
+        text = f"{round(w)} × {round(h)} px"
+        if a.surface is not None and a.surface.get_width() > 0:
+            text += f" · {round(100 * w / a.surface.get_width())} %"
+        cr.select_font_face("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+        cr.set_font_size(11)
+        ext = cr.text_extents(text)
+        bx, by = ox + (x + w / 2) * z - ext.width / 2 - 6, oy + (y + h) * z + 8
+        cr.set_source_rgba(0.08, 0.09, 0.11, 0.85)
+        cr.rectangle(bx, by, ext.width + 12, 18)
+        cr.fill()
+        cr.set_source_rgb(1, 1, 1)
+        cr.move_to(bx + 6 - ext.x_bearing, by + 9 - ext.height / 2 - ext.y_bearing)
+        cr.show_text(text)
+        cr.restore()
+
     def _draw_overlay(self, cr: cairo.Context, ox: float, oy: float, z: float) -> None:
         """Preview and selection, drawn on top of the composite in canvas coordinates."""
         if self.preview is not None:
@@ -620,6 +684,8 @@ class EditorController:
                     ghost.style.opacity = min(ghost.style.opacity, 0.6)
                 draw(ghost, cr, None)
             cr.restore()
+            if p.kind == "image" and self._mode is not None and self._mode.startswith("handle:"):
+                self._draw_size_readout(cr, p, ox, oy, z)
         if (self.area is not None or self._chain) and self._ready():
             self._draw_area_overlay(cr, ox, oy, z)
         if self.all_selected and self._mode is None and self._ready():
@@ -672,6 +738,9 @@ class EditorController:
             x0, y0, x1, y1 = ox + x * z + 0.5, oy + y * z + 0.5, ox + (x + w) * z - 0.5, oy + (y + h) * z - 0.5
             for cx, cy, sx, sy in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
                 cr.move_to(cx, cy + sy * t); cr.line_to(cx, cy); cr.line_to(cx + sx * t, cy)
+            cr.stroke()
+        if a.kind == "image" and not self.settings.selection_frame:   # the usual solid bounding box
+            cr.rectangle(ox + x * z + 0.5, oy + y * z + 0.5, w * z, h * z)
             cr.stroke()
         for hx, hy in handles.values():
             sx, sy = ox + hx * z, oy + hy * z

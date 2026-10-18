@@ -251,6 +251,12 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
    PrintScreen. Tests run with `GSETTINGS_BACKEND=memory`, `LSC_NO_HOTKEY=1` and `LSC_NO_TRAY=1` (conftest), so they
    never touch the real desktop. Gotcha: never `set_model` on an `Adw.ComboRow` from its own `notify::selected`
    handler; it froze the dialog.
+   Same day, later: the panel icon is orange #ffa222 (`resources/icons/linscreencapture-tray.svg`), shown whenever
+   the app runs, double-click opens the editor (`tray.DoubleClick`); pasted images resize like in an image editor
+   (`tools.image_resize`: corners keep proportions, Shift free, Ctrl about the centre; header W / lock / H / Scale %
+   / 100 % / Fit; arrow keys nudge); user guide `docs/PRINTSCREEN.md`. Gotcha: XApp derives the icon's bus name from
+   the program name, and `tray.py` collided with Mint's own `tray.py` (mintreport), so the icon never showed. The
+   helper now calls `GLib.set_prgname("linscreencapture-tray")`.
 1. `services/hotkey_registrar.py`: **done for Cinnamon** (2026-10-16; reuses our `customN`, never overwrites another
    application's slot, frees the six built-in screenshot keys, reloads through `org.Cinnamon.Eval`; re-applied at
    every agent start while `register_hotkey` is on; `docs/CAPTURE.md` §4). Still to port from `keybinding_manager.c`:

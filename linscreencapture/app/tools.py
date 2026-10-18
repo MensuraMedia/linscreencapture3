@@ -70,9 +70,45 @@ def handle_at(a: Annotation, px: float, py: float, tolerance: float) -> str | No
     return None
 
 
-def handle_changes(a: Annotation, handle: str, px: float, py: float, ctrl: bool = False) -> dict:
-    """Field changes that move ``handle`` of ``a`` to (px, py)."""
+MIN_IMAGE_PX = 4.0
+
+
+def image_resize(a: Annotation, handle: str, px: float, py: float, keep: bool = True, centre: bool = False) -> dict:
+    """Resize an image layer the way image editors do.
+
+    Corner handles keep the layer's proportions (``keep``; Shift turns it off for a free stretch); edge handles
+    stretch one side. ``centre`` (Ctrl) resizes about the centre. The box never flips inside out: it stops at
+    ``MIN_IMAGE_PX``."""
+    x, y, w, h = a.rect
+    l, t, r, b = x, y, x + w, y + h
+    cx, cy = x + w / 2, y + h / 2
+    horiz = "w" in handle or "e" in handle
+    vert = "n" in handle or "s" in handle
+    if centre:
+        nw = 2 * abs(px - cx) if horiz else w
+        nh = 2 * abs(py - cy) if vert else h
+    else:
+        nw = ((px - l) if "e" in handle else (r - px)) if horiz else w
+        nh = ((py - t) if "s" in handle else (b - py)) if vert else h
+    nw, nh = max(MIN_IMAGE_PX, nw), max(MIN_IMAGE_PX, nh)
+    if keep and horiz and vert and w > 0 and h > 0:
+        s = max(nw / w, nh / h)                       # follow the pointer along the axis that moved more
+        nw, nh = max(MIN_IMAGE_PX, w * s), max(MIN_IMAGE_PX, h * s)
+    if centre:
+        l, t = cx - nw / 2, cy - nh / 2
+    else:
+        if horiz:
+            l = r - nw if "w" in handle else l
+        if vert:
+            t = b - nh if "n" in handle else t
+    return {"x1": l, "y1": t, "x2": l + nw, "y2": t + nh}
+
+
+def handle_changes(a: Annotation, handle: str, px: float, py: float, ctrl: bool = False, shift: bool = False) -> dict:
+    """Field changes that move ``handle`` of ``a`` to (px, py). Image layers: see ``image_resize``."""
     k = a.kind
+    if k == "image":
+        return image_resize(a, handle, px, py, keep=not shift, centre=ctrl)
     if k in ("arrow", "line"):
         return {"x1": px, "y1": py} if handle == "start" else {"x2": px, "y2": py}
     if k == "callout":

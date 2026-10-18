@@ -72,7 +72,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
                                      description="The hotkey runs a region capture that is saved and copied to the clipboard")
         agent.add(self._switch("Keep running in the background",
                                "Closing the window hides it; Quit (Ctrl+Q or the tray menu) ends the agent", "keep_running"))
-        agent.add(self._switch("Tray icon", "Capture · Open editor · Quit", "tray_icon"))
+        agent.add(self._switch("Panel icon", "The orange icon in the panel while the app runs · double-click opens "
+                               "the editor · right-click: Capture, Open editor, Quit", "tray_icon"))
         agent.add(self._switch("The hotkey opens the editor",
                                "Off: the capture goes to the clipboard, the save folder and the studio without popping it up",
                                "hotkey_opens_editor"))

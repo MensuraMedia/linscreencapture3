@@ -112,6 +112,7 @@ class Application(Adw.Application):
         LOG.debug("actions: %d app actions, %d accelerators", len(self.list_actions()), len(ACCELS))
         if s.keep_running or self._background or self._capture_on_start:
             self.become_agent()
+        self.update_tray()                              # the orange panel icon, whenever the app runs
         self.sync_autostart()
         if s.register_hotkey:
             GLib.idle_add(lambda: (self.apply_hotkey(), False)[1])   # re-asserted at every start, as in 1.4
@@ -162,7 +163,7 @@ class Application(Adw.Application):
 
     def update_tray(self) -> None:
         """Start or stop the status-icon helper to match ``Settings.tray_icon``."""
-        want = self._agent and self.settings.tray_icon and os.environ.get("LSC_NO_TRAY") != "1"
+        want = self.settings.tray_icon and os.environ.get("LSC_NO_TRAY") != "1"   # whenever the app runs
         if want and self._tray is None:
             launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.NONE)
             pkg_parent = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

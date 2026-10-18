@@ -8,6 +8,7 @@ A screenshot studio for Linux, rebuilt from the ground up on **GTK 4 + Python**.
 | --- | --- |
 | Design canvas | [LinScreenCapture 3 — Studio Redesign Mockups](https://claude.ai/artifact/NTRyK2yrrpnhbW6sUmnBoA) |
 | Feature reference | [docs/FEATURES.md](docs/FEATURES.md) — everything implemented so far, by function |
+| PrintScreen guide | [docs/PRINTSCREEN.md](docs/PRINTSCREEN.md) — using the hotkey, the panel icon, changing the key, run at startup, troubleshooting |
 | Capture reference | [docs/CAPTURE.md](docs/CAPTURE.md) — hotkey, agent, capture modes, overlay, clipboard, save path (authoritative) |
 | Technical specification | [docs/GUI_SPEC.md](docs/GUI_SPEC.md) (living copy: [Claude Doc](https://claude.ai/code/artifact/5e6387bf-76b0-45f6-9874-a6ba13f90732)) |
 | Artboard sources | [docs/mockups/](docs/mockups/) (`*.dc.html`, plus the generator for the feature boards) |
@@ -82,7 +83,7 @@ The nine design artboards (`screenshots/01`–`09`) remain in the repository as 
 - The application runs as a small background agent: closing the studio only hides it, and the agent keeps running with no window until you choose **Quit** (Ctrl+Q or the tray menu).
 - The capture hotkey (PrintScreen by default; `linscreencapture --capture`) works everywhere, including inside the studio, and always runs the fast Region capture. The capture is copied to the clipboard, saved and loaded into the studio without popping it up: a hidden studio stays hidden, a visible one is shown again holding the capture. Settings → System → *PrintScreen opens the editor* presents the studio after every hotkey capture.
 - On Cinnamon, Settings → System → *Register with the desktop* writes the hotkey as a custom shortcut, frees the key from Cinnamon's built-in screenshot bindings and re-applies it at every agent start. Other desktops need a manual binding.
-- A tray icon (XApp on Cinnamon, MATE and Xfce; Ayatana AppIndicator elsewhere) offers *Capture region to clipboard*, *Open editor* and *Quit*. A left click opens the editor.
+- An orange (#ffa222) panel icon is shown whenever the app runs (XApp on Cinnamon, MATE and Xfce; Ayatana AppIndicator elsewhere). **Double-click** opens the editor; right-click offers *Capture region to clipboard*, *Open editor* and *Quit*.
 - `linscreencapture --background` starts the agent without a window. Settings → System → *Run at startup* (on by default; the first start creates it) writes `~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop`, which does this at login.
 - If a hotkey capture fails while no window is shown, a desktop notification reports the error.
 
@@ -92,7 +93,7 @@ The nine design artboards (`screenshots/01`–`09`) remain in the repository as 
 - Blur and Pixelate redaction as movable layers; Crop with live dimensions; Resize, Rotate and Flip; Brightness, Contrast, Grayscale and Invert with live preview.
 - Layers panel with thumbnails, kind badges, visibility toggles and drag reordering; Flatten merges everything into the base image.
 - Undo and Redo, 20 levels deep, across annotations and image operations.
-- Shift-drag snaps lines and arrows to 45°; Ctrl-drag constrains boxes and circles; Ctrl+V pastes an image as a new layer.
+- Shift-drag snaps lines and arrows to 45°; Ctrl-drag constrains boxes and circles; Ctrl+V pastes an image as a new layer that resizes like in an image editor: corner handles keep its proportions (Shift: free, Ctrl: about the centre), edge handles stretch one side, the header shows W / H (with a proportions lock), Scale %, *100 %* and *Fit*, and the arrow keys nudge it.
 
 **Colour**
 
@@ -153,7 +154,7 @@ linscreencapture/
   tray.py     status-icon helper: a separate GTK 3 process (python3 -m linscreencapture.tray)
   backends/   portal, x11, cli
 data/         icons (Phosphor, -symbolic), gresource.xml, .desktop
-docs/         GUI_SPEC.md, FEATURES.md, CAPTURE.md, mockups/
+docs/         GUI_SPEC.md, FEATURES.md, CAPTURE.md, PRINTSCREEN.md, mockups/
 tests/
 ```
 

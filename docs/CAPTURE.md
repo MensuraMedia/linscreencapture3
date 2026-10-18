@@ -1,5 +1,7 @@
 # Screen capture — technical reference
 
+User guide: [PRINTSCREEN.md](PRINTSCREEN.md).
+
 This is the authoritative description of how LinScreenCapture 3 takes screenshots: the hotkey, the background agent,
 the capture modes, the overlay, the clipboard and the save path. Other documents summarise it and point here:
 `README.md`, `docs/FEATURES.md` §1, §11 and §12, `HANDOFF.md`, `INSTALL.md`, `KNOWN_ISSUES.md`. When the code and this
@@ -40,7 +42,7 @@ Cinnamon (X11, 2560×1080) by driving the real hotkey and mouse through XTest.
 | Save | `services/file_store.py` | `save_capture()`: the next name in the save folder (`Settings.next_filename()`) |
 | Hotkey registrar | `services/hotkey_registrar.py` | writes the Cinnamon custom keybinding and makes Cinnamon reload it (§4) |
 | Autostart | `services/autostart.py` | `~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop` → `linscreencapture --background` |
-| Tray | `tray.py` | a GTK 3 status-icon helper process: *Capture region to clipboard*, *Open editor*, *Quit* |
+| Tray | `tray.py` | a GTK 3 status-icon helper process, shown whenever the app runs: an orange #ffa222 icon (`resources/icons/linscreencapture-tray.svg`); double-click → *Open editor*; menu *Capture region to clipboard*, *Open editor*, *Quit* |
 
 ## 3. Triggers
 

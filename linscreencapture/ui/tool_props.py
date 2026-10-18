@@ -16,12 +16,12 @@ from ..app.view_state import ViewState
 TOOL_TITLES = {"select": "Select", "arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text",
                "pen": "Pen", "marker": "Marker", "eraser": "Eraser", "blur": "Blur", "pixelate": "Pixelate", "fill": "Fill",
                "step": "Step number", "callout": "Callout", "crop": "Crop", "move": "Move", "hand": "Hand",
-               "area_box": "Box area", "area_round": "Round area", "area_points": "Point chain"}
+               "area_box": "Box area", "area_round": "Round area", "area_points": "Point chain", "image": "Image"}
 # which control set each tool shows
 GROUP = {"arrow": "shape", "line": "shape", "box": "shape", "circle": "shape", "pen": "stroke", "marker": "stroke",
          "eraser": "eraser", "text": "text", "callout": "text", "step": "step", "fill": "fill", "blur": "redact",
          "pixelate": "redact", "crop": "crop", "select": "select", "move": "select", "hand": "hand",
-         "area_box": "area", "area_round": "area", "area_points": "area"}
+         "area_box": "area", "area_round": "area", "area_points": "area", "image": "image"}
 AREA_HINTS = {"area_box": "Drag a box · Shift keeps it square · then Ctrl+C copies the area · Enter crops to it · Delete clears it · Esc drops it",
               "area_round": "Drag an oval · Shift keeps it round · then Ctrl+C copies the area · Enter crops to it · Delete clears it · Esc drops it",
               "area_points": "Click points to chain them · click the first point (or double-click) to close · Backspace removes the last · Esc cancels"}
@@ -58,6 +58,7 @@ class ToolProps(Gtk.Box):
         self.sets.add_named(self._row(_hint("Drag to pan the view · also: hold Space, or drag with the middle button")), "hand")
         self.area_hint = _hint("")
         self.sets.add_named(self._row(self.area_hint), "area")
+        self.sets.add_named(self._image(), "image")
         self.append(self.sets)
         self.settings = None
         self.editor = None
@@ -201,6 +202,8 @@ class ToolProps(Gtk.Box):
             self.text_shadow.set_active(shadow)
             self.step_size.set_value(step)
             self.block.set_value(block)
+            if a is not None and a.kind == "image":
+                self._load_image(a)
         finally:
             self._loading = False
 
@@ -272,6 +275,63 @@ class ToolProps(Gtk.Box):
         self.mode = segmented(("Pixelate", "Blur"), tooltip="Redaction")
         self.block, blk = scale_with_value(2, 32, 12, width=90, tooltip="Block size")
         return self._row(labelled("Mode", self.mode), labelled("Block", blk))
+
+    def _image(self) -> Gtk.Box:
+        """A selected image layer (a paste): exact size, proportions lock, scale %, 100 % and Fit."""
+        self.img_w = compact_spin(1, 20000, 100, tooltip="Width (px)")
+        self.img_h = compact_spin(1, 20000, 100, tooltip="Height (px)")
+        self.img_lock = Gtk.ToggleButton(icon_name="changes-prevent-symbolic", active=True, valign=Gtk.Align.CENTER,
+                                         tooltip_text="Keep proportions")
+        self.img_lock.add_css_class("flat")
+        self.img_scale = compact_spin(1, 2000, 100, tooltip="Scale (% of the pasted image's own size)")
+        actual = Gtk.Button(label="100 %", valign=Gtk.Align.CENTER, tooltip_text="Original size (1:1 pixels)")
+        actual.add_css_class("text-btn")
+        actual.connect("clicked", lambda *_: self._image_scale(100))
+        fit = Gtk.Button(label="Fit", valign=Gtk.Align.CENTER, tooltip_text="Fit inside the image and centre it")
+        fit.add_css_class("text-btn")
+        fit.connect("clicked", lambda *_: (self.editor and self.editor.fit_selected(), self.release_focus()))
+        self.img_w.connect("value-changed", lambda w: self._image_size("w", w.get_value()))
+        self.img_h.connect("value-changed", lambda w: self._image_size("h", w.get_value()))
+        self.img_scale.connect("value-changed", lambda w: self._image_scale(w.get_value()))
+        return self._row(labelled("W", self.img_w), self.img_lock, labelled("H", self.img_h),
+                         labelled("Scale %", self.img_scale), actual, fit,
+                         self._image_hint())
+
+    @staticmethod
+    def _image_hint() -> Gtk.Label:
+        lbl = _hint("Shift: free · Ctrl: centre")
+        lbl.set_tooltip_text("Drag a corner handle to resize in proportion · Shift stretches freely · Ctrl resizes "
+                             "about the centre · edge handles stretch one side · drag inside to move · arrow keys "
+                             "nudge 1 px (Shift: 10 px)")
+        return lbl
+
+    def _image_size(self, which: str, value: float) -> None:
+        if self._loading or self.editor is None:
+            return
+        a = self._selected_annotation()
+        if a is None:
+            return
+        _x, _y, w, h = a.rect
+        if which == "w":
+            nw, nh = value, (h * value / w if self.img_lock.get_active() and w else h)
+        else:
+            nw, nh = (w * value / h if self.img_lock.get_active() and h else w), value
+        self.editor.set_layer_size(nw, nh)
+
+    def _image_scale(self, percent: float) -> None:
+        if self._loading or self.editor is None:
+            return
+        size = self.editor.natural_size()
+        if size is not None:
+            self.editor.set_layer_size(size[0] * percent / 100, size[1] * percent / 100)
+            self.release_focus()
+
+    def _load_image(self, a) -> None:
+        _x, _y, w, h = a.rect
+        self.img_w.set_value(round(w))
+        self.img_h.set_value(round(h))
+        s = a.surface
+        self.img_scale.set_value(round(100 * w / s.get_width()) if s is not None and s.get_width() else 100)
 
     def _sync(self, *_a) -> None:
         tool = self.effective_tool()

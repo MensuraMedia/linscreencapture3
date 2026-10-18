@@ -4,6 +4,10 @@ GTK 4 has no status-icon API and a process cannot load GTK 3 next to GTK 4, so t
 helper. The agent (``app/application.py``) starts it and it talks back only over D-Bus: menu items activate the
 agent's exported application actions (``hotkey-capture``, ``show-editor``, ``quit``) and the helper exits as soon as
 the agent's bus name vanishes. XApp.StatusIcon is used on Cinnamon/MATE/Xfce; AyatanaAppIndicator3 elsewhere.
+
+The icon is orange (``TRAY_COLOUR`` #ffa222, ``resources/icons/linscreencapture-tray.svg``, a full-colour SVG so the
+panel does not recolour it). A **double-click** opens the editor; a right-click opens the menu. AppIndicator has no
+click events, so there the menu's *Open editor* is the way in.
 """
 from __future__ import annotations
 import logging
@@ -12,9 +16,12 @@ import sys
 
 from . import APP_ID
 OBJECT_PATH = "/" + APP_ID.replace(".", "/")
-ICON_FILE = pathlib.Path(__file__).resolve().parent.parent / "resources" / "icons" / "linscreencapture-48.png"
+ICONS = pathlib.Path(__file__).resolve().parent.parent / "resources" / "icons"
+ICON_FILE = ICONS / "linscreencapture-tray.svg"
+TRAY_COLOUR = "#ffa222"
+PRGNAME = "linscreencapture-tray"   # unique: XApp derives the D-Bus name from it
 FALLBACK_ICON = "linscreencapture3"
-TOOLTIP = "LinScreenCapture: PrintScreen copies a region to the clipboard"
+TOOLTIP = "LinScreenCapture · double-click to open the editor · PrintScreen captures a region"
 # (label, application action) — None is a separator
 MENU = (("Capture region to clipboard", "hotkey-capture"), ("Open editor", "show-editor"), None, ("Quit", "quit"))
 
@@ -23,6 +30,24 @@ LOG = logging.getLogger("linscreencapture.tray")
 
 def icon_source() -> str:
     return str(ICON_FILE) if ICON_FILE.is_file() else FALLBACK_ICON
+
+
+class DoubleClick:
+    """Turns single ``activate`` events (button, X time in ms) into double-clicks."""
+
+    def __init__(self, interval_ms: int = 400):
+        self.interval = interval_ms
+        self._last = None
+
+    def click(self, button: int, time_ms: int) -> bool:
+        if button != 1:
+            self._last = None
+            return False
+        if self._last is not None and 0 <= time_ms - self._last <= self.interval:
+            self._last = None
+            return True
+        self._last = time_ms
+        return False
 
 
 def build_menu(Gtk, activate) -> object:
@@ -48,7 +73,13 @@ def _xapp_icon(Gtk, menu, activate):
     icon.set_icon_name(icon_source())
     icon.set_tooltip_text(TOOLTIP)
     icon.set_secondary_menu(menu)
-    icon.connect("activate", lambda *_: activate("show-editor"))   # left click opens the editor
+    settings = Gtk.Settings.get_default()
+    clicks = DoubleClick(settings.get_property("gtk-double-click-time") if settings else 400)
+
+    def activated(_icon, button, time_ms):
+        if clicks.click(button, time_ms):
+            activate("show-editor")                  # double-click opens the editor
+    icon.connect("activate", activated)
     icon.set_visible(True)
     return icon
 
@@ -72,7 +103,10 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="tray: %(message)s")
     import gi
     gi.require_version("Gtk", "3.0")
-    from gi.repository import Gio, Gtk
+    from gi.repository import Gio, GLib, Gtk
+    # XApp names the icon's bus name after the program: as plain "tray.py" it collided with Linux Mint's own
+    # tray.py helpers (mintreport), never acquired org.x.StatusIcon.tray_py and the icon stayed invisible.
+    GLib.set_prgname(PRGNAME)
     if not Gtk.init_check()[0]:
         LOG.error("no display")
         return 1

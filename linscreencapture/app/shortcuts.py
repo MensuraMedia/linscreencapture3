@@ -30,6 +30,8 @@ TOOL_KEY_LABELS = {"V": "Select", "A": "Arrow", "L": "Line", "B": "Box", "C": "C
                    "M": "Marker", "E": "Eraser", "U": "Blur", "X": "Pixelate", "N": "Step number", "K": "Crop",
                    "H": "Hand (pan)", "R": "Box area", "O": "Round area", "J": "Point chain"}
 KEY_FOR_TOOL = {tool: Gdk.keyval_name(k).upper() for k, tool in TOOL_KEYS.items()}
+NUDGE = {Gdk.KEY_Left: (-1, 0), Gdk.KEY_Right: (1, 0), Gdk.KEY_Up: (0, -1), Gdk.KEY_Down: (0, 1),
+         Gdk.KEY_KP_Left: (-1, 0), Gdk.KEY_KP_Right: (1, 0), Gdk.KEY_KP_Up: (0, -1), Gdk.KEY_KP_Down: (0, 1)}
 
 
 def focus_kind(window: Gtk.Window) -> str:
@@ -145,6 +147,10 @@ class ShortcutRouter:
                 win.editor.select(None)
                 return True
             return False
+        if keyval in NUDGE and not alt and not library and win.editor.selected_id is not None:
+            dx, dy = NUDGE[keyval]
+            step = 10 if shift else 1                     # arrows move the selected layer 1 px, Shift+arrows 10 px
+            return win.editor.nudge_selected(dx * step, dy * step) or True
         if not alt and not shift and lower in TOOL_KEYS:
             if win.editor._mode is not None or library:
                 return True                               # swallow: never switch tools mid-drag

@@ -511,7 +511,7 @@ class StudioWindow(Gtk.ApplicationWindow):
         a = Annotation("image", x, y, x + pw, y + ph, style=Style(colour=self.state.colour), surface=surf)
         self.state.tool = "select"
         self.editor._commit(AddLayer(a))
-        self.toast("Pasted as a layer · drag to move, handles resize")
+        self.toast("Pasted as a layer · corners resize in proportion (Shift: free) · W, H and % in the header")
 
     # -- image operations ----------------------------------------------------
     def image_op(self, op: str, *args) -> None:
