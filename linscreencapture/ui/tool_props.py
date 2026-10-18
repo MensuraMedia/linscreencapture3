@@ -127,15 +127,18 @@ class ToolProps(Gtk.Box):
         self.bold.connect("toggled", lambda w: self._put_global("text_bold", w.get_active(), "bold"))
         self.italic.connect("toggled", lambda w: self._put_global("text_italic", w.get_active(), "italic"))
         self.text_shadow.connect("notify::active", lambda w, _p: self._put("shadow", w.get_active()))
+        self.step_shadow.connect("notify::active", lambda w, _p: self._put("shadow", w.get_active()))
+        self.img_shadow.connect("notify::active", lambda w, _p: self._put("shadow", w.get_active()))
+        self.img_intensity.connect("value-changed", lambda w: self._put("shadow_intensity", w.get_value()))
         self.step_size.connect("value-changed", lambda w: self._put_global("step_size", w.get_value(), "font_size"))
         self.block.connect("value-changed", lambda w: self._put_global("blur_block", int(w.get_value()), "blur_block"))
         self.mode.get_first_child().connect("toggled", lambda b: b.get_active() and self._set_tool("pixelate"))
         self.mode.get_last_child().connect("toggled", lambda b: b.get_active() and self._set_tool("blur"))
 
     def _targets(self) -> tuple[str, ...]:
-        if self.settings is not None and self.settings.universal:
-            from ..model.settings import TOOLS
-            return TOOLS
+        from ..model.settings import TOOLS
+        if self.settings is not None and self.settings.universal and self.effective_tool() in TOOLS:
+            return TOOLS                                 # a pasted image never follows the universal style
         return (self.effective_tool(),)
 
     def _put(self, field: str, value) -> None:
@@ -200,6 +203,9 @@ class ToolProps(Gtk.Box):
             self.bold.set_active(bold)
             self.italic.set_active(italic)
             self.text_shadow.set_active(shadow)
+            self.step_shadow.set_active(shadow)
+            self.img_shadow.set_active(shadow)
+            self.img_intensity.set_value(inten)
             self.step_size.set_value(step)
             self.block.set_value(block)
             if a is not None and a.kind == "image":
@@ -257,7 +263,9 @@ class ToolProps(Gtk.Box):
 
     def _step(self) -> Gtk.Box:
         self.step_size = compact_spin(8, 48, 14, tooltip="Badge size")
-        return self._row(labelled("Size", self.step_size), self._opacity(), _hint("Each click places the next number"))
+        self.step_shadow = switch(False, "Shadow")
+        return self._row(labelled("Size", self.step_size), labelled("Shadow", self.step_shadow), self._opacity(),
+                         _hint("Each click places the next number"))
 
     def _fill(self) -> Gtk.Box:
         return self._row(self._opacity(), _hint("Drag a rectangle · fills with the current colour"))
@@ -293,8 +301,11 @@ class ToolProps(Gtk.Box):
         self.img_w.connect("value-changed", lambda w: self._image_size("w", w.get_value()))
         self.img_h.connect("value-changed", lambda w: self._image_size("h", w.get_value()))
         self.img_scale.connect("value-changed", lambda w: self._image_scale(w.get_value()))
+        self.img_shadow = switch(True, "Drop shadow (kept when flattened)")
+        self.img_intensity, img_inten = scale_with_value(0, 1, 0.45, digits=2, width=70, tooltip="Shadow intensity")
         return self._row(labelled("W", self.img_w), self.img_lock, labelled("H", self.img_h),
                          labelled("Scale %", self.img_scale), actual, fit,
+                         labelled("Shadow", self.img_shadow), labelled("Intensity", img_inten),
                          self._image_hint())
 
     @staticmethod

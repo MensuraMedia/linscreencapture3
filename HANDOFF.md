@@ -49,6 +49,52 @@ Update 2026-10-14: `docs/FEATURES.md` rewritten as the complete 16-section featu
 selected layer is off by default (handles only; corner ticks for handle-less layers; `Settings.selection_frame` and a
 Settings → Window switch restore it). 106 tests. Awaiting the operator's on-screen sign-off and the PR into `main`.
 
+## 0a. 2026-10-18 — branch `fix/tray-alttab-icons` (second machine)
+
+Two machines work on this repository; pull before a session, push after it. Branch `fix/tray-alttab-icons` is cut
+from `feat/phase5` at `01f5606` (the other machine's icon / installer / .deb work). It adds:
+
+- `docs/ICONOGRAPHY.md`: the one application icon (master SVG + eight PNG renders, theme name `APP_ID`), its
+  placement (menu, panel window list / Alt+Tab, tray, Startup Applications) with the recognition requirement for each,
+  and rules. Linked from README and FEATURES.
+- Fix: the autostart entry still wrote `Icon=linscreencapture3`, the retired theme name that `make launcher` now
+  deletes, so Startup Applications showed a blank icon. It writes `Icon=<APP_ID>`; `test_agent` asserts it.
+- Fix: **`make test` deleted the real `~/.config/autostart/<APP_ID>.desktop`**, so Run at startup silently went off
+  on the development machine after every test run (and the app then honours the missing entry as "off").
+  `install.sh --uninstall --destdir …` (run by `test_install_script_uninstalls`) removed `$HOME`'s autostart entry
+  even when staging; it now skips `$HOME` under `--destdir`. Also `PreferencesDialog` defaulted `autostart_root` to
+  the real config dir; it now defaults to `settings.root`. Guarded by
+  `test_staged_uninstall_leaves_the_users_autostart_entry_alone` (fake `HOME`) and
+  `test_preferences_autostart_switch_stays_in_the_settings_root`. Verified with a sentinel entry over the full suite.
+- `tools/launch.sh` and `ui/style.css` header comments say LinScreenCapture 3; §8.0 points at the real tray icon file.
+
+The same machine had found the tray (`tray.py` prgname) and `WM_CLASS` bugs independently; the other machine's
+commits fixed both first, so that work was dropped in the rebase (kept locally as tag
+`backup/fix-tray-alttab-icons-pre-rebase`). On this machine every earlier build (1.4 `linshot3`, LinScreenCapture2,
+`gnome-screenshot`) was removed after a tar backup in `~/backups/`; `xvfb` is not installed here, so `make test`
+uses the live display. The app on this machine is installed with `./install.sh` (`~/.local`); re-run it after a pull.
+
+**Editor work, same day — branch `feat/editor-shadows-canvas`** (from `docs/editor-paste-shadow-concepts`, with
+`fix/tray-alttab-icons` merged in). Full account: `docs/CHANGES-2026-10-18.md`.
+
+- The arrow no longer fades while being drawn: the 60 % preview cap in `_draw_overlay` is gone; while drawing only
+  the shadow waits for release (a shadow blur per motion measured 16–21 ms on large shapes).
+- A Shadow switch on every marking tool: `SHADOW_KINDS` + `step`, `callout` (its switch was dead), `image`;
+  new switches in the Step and Image strip sets.
+- Pasted images cast a shadow of their own alpha (sigma 6 / offset 4), on by default (`[Tools] shadow_image`,
+  `Settings.STYLED`, never universal), baked by flatten / save / copy. The blurred silhouette is cached module-wide by
+  shape relative to the layer's origin, so moves reuse it.
+- Page growth: an image layer pasted or moved past the page grows it to its painted extent + `EXPAND_PADDING` (20 px)
+  in the same undo step (`EditorController._grow_page_for` from `_commit`, `UndoStack.amend` / `Compound`,
+  `document.expansion_for` / `expanded_base`, `MAX_PAGE` 16384). Pastes are 1:1; Fit fits the image with its shadow.
+- 144 tests. Design: `docs/EDITOR-SHADOWS-AND-PREVIEW.md`, `docs/EDITOR-CANVAS-EXPANSION.md` (differences from the
+  design at the top of each). The 4-up clipboard tray (`docs/CLIPBOARD-TRAY-4UP.md`) is on `feat/clip-tray-4up`,
+  drafted by the GLM worker and reviewed before acceptance.
+
+**Merge order:** `fix/tray-alttab-icons` first (without it `make test` deletes the real autostart entry), then
+`feat/editor-shadows-canvas` (contains the docs branch), then `feat/clip-tray-4up`. Open questions for the operator:
+`docs/CHANGES-2026-10-18.md` §6.
+
 ## 1. Mission
 
 Rebuild the 1.4 C/GTK3 screenshot tool as **LinScreenCapture 3: Python 3 + GTK 4 + libadwaita**,
@@ -229,6 +275,13 @@ data/ icons, gresource.xml, .desktop files
 
 Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operator's call):
 
+- **Design docs 2026-10-18 (shadows, preview and page growth implemented on `feat/editor-shadows-canvas`; see §0a):**
+  `docs/EDITOR-CANVAS-EXPANSION.md` (the page grows to fit a pasted or moved image, 20 px padding, one undo step),
+  `docs/CLIPBOARD-TRAY-4UP.md` (the tray as a 2 × 2 grid of the last four copies; supersedes the item below),
+  `docs/EDITOR-SHADOWS-AND-PREVIEW.md` (pasted-image shadow kept through flatten; a Shadow switch on every
+  marking tool, fixing the dead Callout switch; the drawing preview at full colour: the 60 % cap in
+  `EditorController._draw_overlay` is the fading arrow). Suggested order: preview fix, shadow switches,
+  image shadow, canvas expansion, 4-up tray.
 - Clipboard tray with several slots (three or more, newest first). `ClipHistory.limit` and `clip_tray.SLOTS` already
   parametrise it; the tray was reduced to one slot on 2026-10-13 to keep the rail quiet.
 - Area tool follow-ups: move / restyle the marked region as a group, feather the edge, invert the area, Ctrl+X cut.
@@ -251,7 +304,7 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
    PrintScreen. Tests run with `GSETTINGS_BACKEND=memory`, `LSC_NO_HOTKEY=1` and `LSC_NO_TRAY=1` (conftest), so they
    never touch the real desktop. Gotcha: never `set_model` on an `Adw.ComboRow` from its own `notify::selected`
    handler; it froze the dialog.
-   Same day, later: the panel icon is orange #ffa222 (`resources/icons/linscreencapture-tray.svg`), shown whenever
+   Same day, later: the panel icon is orange #ffa222 (now the app icon itself, `data/icons/hicolor/scalable/apps/com.mensuramedia.LinScreenCapture.svg`; see `docs/ICONOGRAPHY.md`), shown whenever
    the app runs, double-click opens the editor (`tray.DoubleClick`); pasted images resize like in an image editor
    (`tools.image_resize`: corners keep proportions, Shift free, Ctrl about the centre; header W / lock / H / Scale %
    / 100 % / Fit; arrow keys nudge); user guide `docs/PRINTSCREEN.md`. Gotcha: XApp derives the icon's bus name from

@@ -858,7 +858,98 @@ def test_pasted_image_resizes_like_an_image_editor(window, tmp_path):
     assert a.rect == (180, 140, 80, 10)
     props._image_scale(100); pump(20)
     assert a.rect == (180, 140, 40, 20)
-    assert ed.fit_selected() and a.rect == (0, 50, 400, 200)
+    assert ed.fit_selected()
+    x, y, w, h = a.rect                                        # fitted with its drop shadow inside the page
+    bx, by, bw, bh = a.bounding_box()
+    assert (doc.width, doc.height) == (400, 300) and w / h == 2 and w > 300
+    assert bx >= 0 and by >= 0 and bx + bw <= 400 and by + bh <= 300
     window.undo.undo(); pump(20)
     assert a.rect == (180, 140, 40, 20)
     assert ed.nudge_selected(-10, 1) and a.rect == (170, 141, 40, 20)
+
+
+def test_drawing_preview_is_full_colour_like_the_committed_layer(window, tmp_path):
+    """The arrow being dragged out is not faded (it was capped at 60 % opacity until release)."""
+    import cairo
+    _load_blank(window, tmp_path)
+    ed = window.editor
+    window.state.tool = "line"
+    ox, oy = window.stage.image_origin()
+    g = _Gesture()
+    ed._drag_begin(g, ox + 20, oy + 100)
+    ed._drag_update(g, 300, 0)                       # still dragging: only the preview exists
+    assert ed.preview is not None and not window.document.layers
+
+    def alpha_at(paint):
+        surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 500, 400)
+        paint(cairo.Context(surf))
+        surf.flush()
+        stride = surf.get_stride()
+        return surf.get_data()[100 * stride + 170 * 4 + 3]      # middle of the line, alpha byte
+
+    ed.preview.style.shadow = False
+    previewed = alpha_at(lambda cr: ed._draw_overlay(cr, 0, 0, 1.0))
+    ed._drag_end(g, 300, 0)
+    layer = window.document.layers[-1].annotation
+    layer.style.shadow = False
+    from linscreencapture.model.annotations import draw
+    committed = alpha_at(lambda cr: draw(layer, cr, None))
+    assert previewed == committed == 255
+
+
+def _texture(w, h, rgba=(0, 0.6, 0, 1)):
+    from gi.repository import Gdk, GLib
+    import cairo
+    s = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+    cr = cairo.Context(s); cr.set_source_rgba(*rgba); cr.paint(); s.flush()
+    return Gdk.MemoryTexture.new(w, h, Gdk.MemoryFormat.B8G8R8A8_PREMULTIPLIED, GLib.Bytes.new(bytes(s.get_data())), s.get_stride())
+
+
+def test_a_paste_bigger_than_the_page_grows_it_at_full_size(window, tmp_path):
+    from linscreencapture.model.document import EXPAND_PADDING
+    _load_blank(window, tmp_path, (400, 300))
+    window.paste_texture(_texture(600, 200)); pump(50)
+    doc = window.document
+    a = doc.layers[-1].annotation
+    assert a.style.shadow                                       # a pasted image has a drop shadow by default
+    x, y, w, h = a.rect
+    bx, by, bw, bh = a.bounding_box()
+    assert (w, h) == (600, 200)                                 # 1:1, not shrunk to the page
+    assert doc.width == round(bw) + 2 * EXPAND_PADDING and doc.height == 300
+    assert bx == EXPAND_PADDING and bx + bw == doc.width - EXPAND_PADDING
+    window.undo.undo(); pump(20)
+    assert (doc.width, doc.height) == (400, 300) and not doc.layers   # one Ctrl+Z: paste and growth together
+
+
+def test_moving_an_image_past_the_edge_grows_the_page_and_shifts_every_layer(window, tmp_path):
+    from linscreencapture.model.document import EXPAND_PADDING
+    _load_blank(window, tmp_path, (400, 300))
+    _drag(window, "arrow", 20, 20, 120, 60)
+    arrow = window.document.layers[-1].annotation
+    window.paste_texture(_texture(100, 50)); pump(50)
+    doc, ed = window.document, window.editor
+    img = doc.layers[-1].annotation
+    assert (doc.width, doc.height) == (400, 300)                # fits: no growth
+    ed.nudge_selected(-200, 0); pump(20)                         # past the left edge
+    bx = img.bounding_box()[0]
+    assert bx == EXPAND_PADDING and doc.width > 400
+    grown = doc.width - 400
+    assert (arrow.x1, arrow.y1) == (20 + grown, 20)              # the arrow kept its place on the old page
+    window.undo.undo(); pump(20)
+    assert doc.width == 400 and (arrow.x1, arrow.y1) == (20, 20) and img.rect[0] == 150
+
+
+def test_shadow_switch_on_step_and_image_strips(window, tmp_path):
+    _load_blank(window, tmp_path, (400, 300))
+    props = window.header.props
+    window.state.tool = "step"; pump(20)
+    assert props.sets.get_visible_child_name() == "step" and props.step_shadow is not None
+    props.step_shadow.set_active(True); pump(20)
+    assert window.settings.tools["step"].shadow and window.editor.style_for("step").shadow
+    window.paste_texture(_texture(60, 40)); pump(50)
+    img = window.document.layers[-1].annotation
+    assert props.sets.get_visible_child_name() == "image" and props.img_shadow.get_active()
+    props.img_shadow.set_active(False); pump(20)
+    assert not img.style.shadow and not window.settings.tools["image"].shadow
+    window.undo.undo(); pump(20)
+    assert img.style.shadow
