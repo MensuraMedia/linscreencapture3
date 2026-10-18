@@ -51,7 +51,7 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.breakpoint_bin = Adw.BreakpointBin()
         self.breakpoint_bin.set_size_request(MIN_WIDTH, MIN_HEIGHT)
         body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self.clips = ClipHistory()                    # the last three copies, shown in the left rail's tray
+        self.clips = ClipHistory()                    # the last four copies, shown in the left rail's 2 × 2 tray
         self.tool_rail = ToolRail(self.state, self.clips, self._paste_clip)
         self.stage = Stage(self.state, self.captures)
         self.panel_rail = PanelRail(self.state)

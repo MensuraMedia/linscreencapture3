@@ -662,8 +662,8 @@ def test_clip_history_and_tray(window, tmp_path):
     assert len(h) == 2 and h._current is None
     # the window's tray follows the window's history
     tray = window.tool_rail.tray
-    assert tray.get_height() == 116 and len(tray.slots) == 1 and not tray.slots[0].get_sensitive()   # one slot for now
-    assert len(window.clips.entries) == 0 and window.clips.limit == 1
+    assert tray.get_height() == 116 and len(tray.slots) == 4 and not tray.slots[0].get_sensitive()   # 2 × 2 grid
+    assert len(window.clips.entries) == 0 and window.clips.limit == 4
     _load_blank(window, tmp_path)
     window.activate_action("win.copy", None); pump(50)
     assert tray.slots[0].get_sensitive() and "current" in tray.slots[0].get_css_classes()
