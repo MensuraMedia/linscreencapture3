@@ -11,7 +11,7 @@ from ..model.annotations import (Annotation, Style, draw, _paint_eraser_ghost, a
                                  image_corners, normalise_angle)
 from ..model.document import expansion_for, expanded_base, resized_page
 from ..model.undo import (AddLayer, RemoveLayer, RemoveLayers, EditAnnotation, SetVisible, MoveLayer, TransformBase,
-                          SetPageFill)
+                          SetPageFill, Compound)
 
 LOG = logging.getLogger("linscreencapture.editor")
 ACCENT = (0x4c / 255, 0x9d / 255, 1.0)
@@ -661,27 +661,34 @@ class EditorController:
         return layer is not None and self.set_layer_angle(layer.annotation.angle + delta)
 
     # -- the page (right panel: Page) ----------------------------------------------
-    def set_page_size(self, width: int, height: int) -> bool:
-        """Set the page to ``width`` × ``height`` about its centre; layers keep their place on the picture."""
+    def apply_page(self, width: int, height: int, fill: str | None,
+                   anchor: tuple[float, float] = (0.5, 0.5)) -> bool:
+        """The Page dialog's Apply: the page size (the picture stays at ``anchor``; layers keep their place on it)
+        and the fill behind its transparent parts (None: transparent), as one undo step."""
         doc = self.doc
-        if not self._ready() or (int(width), int(height)) == (doc.width, doc.height):
+        if not self._ready():
             return False
-        new, dx, dy = resized_page(doc.base, width, height)
+        steps = []
+        if (int(width), int(height)) != (doc.width, doc.height):
+            new, dx, dy = resized_page(doc.base, width, height, anchor)
+            steps.append(TransformBase(new, lambda x, y: (x + dx, y + dy), label="Page size"))
+        if fill != doc.background:
+            steps.append(SetPageFill(fill))
+        if not steps:
+            return False
         self.cancel_crop()
         self.cancel_area()
         self.all_selected = False
-        self.undo.do(TransformBase(new, lambda x, y: (x + dx, y + dy), label="Page size"))
+        self.undo.do(steps[0] if len(steps) == 1 else Compound(steps, label="Page settings"))
         self.win.refresh_document()
         return True
 
+    def set_page_size(self, width: int, height: int, anchor: tuple[float, float] = (0.5, 0.5)) -> bool:
+        return self.apply_page(width, height, self.doc.background if self.doc else None, anchor)
+
     def set_page_fill(self, colour: str | None) -> bool:
-        """The colour behind the page's transparent parts (None: transparent); kept when saved or flattened."""
         doc = self.doc
-        if not self._ready() or doc.background == colour:
-            return False
-        self.undo.do(SetPageFill(colour))
-        self.win.refresh_document()
-        return True
+        return doc is not None and self.apply_page(doc.width, doc.height, colour)
 
     def natural_size(self) -> tuple[int, int] | None:
         """The selected image layer's own pixel size (100 %)."""

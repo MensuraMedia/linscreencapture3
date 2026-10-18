@@ -79,7 +79,8 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.breakpoint_bin.add_breakpoint(self.breakpoint)
 
         self._install_actions()
-        self._arrange_changed()
+        self._undo_changed()                          # undo/redo, arrange and Page start disabled (no document)
+        self.stage.set_stage_colour(self.settings.stage_colour)
         self.connect("close-request", self._on_close)
         # keyboard focus starts on the canvas, never on a rail button (Space/Enter would activate it)
         self.connect("map", lambda *_: GLib.idle_add(lambda: (self.stage.canvas.grab_focus(), False)[1]))
@@ -125,7 +126,7 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._simple("adjust", lambda: self._popover("adjust"))
         self._simple("layer-rotate-left", lambda: self.editor.rotate_selected(-90) or self.toast("Select a pasted image first"))
         self._simple("layer-rotate-right", lambda: self.editor.rotate_selected(90) or self.toast("Select a pasted image first"))
-        self._simple("stage-colour-reset", lambda: self.panel_rail.page.reset_stage())
+        self._simple("page-settings", self._page_settings)
         for where in ("front", "forward", "backward", "back"):
             self._simple(f"layer-{where}", lambda w=where: self.editor.arrange_selected(w))
         self._popovers: dict = {}
@@ -230,6 +231,15 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.lookup_action("undo").set_enabled(bool(u and u.can_undo))
         self.lookup_action("redo").set_enabled(bool(u and u.can_redo))
         self._arrange_changed()
+        action = self.lookup_action("page-settings")
+        if action is not None:
+            action.set_enabled(self.document is not None and not self.document.empty)
+
+    def _page_settings(self) -> None:
+        from .page_dialog import PageDialog
+        if self.document is not None and not self.document.empty:
+            self.page_dialog = PageDialog(self.editor)
+            self.page_dialog.present(self)
 
     def _arrange_changed(self) -> None:
         """The four arrange actions are enabled only when the selected layer can move that way."""

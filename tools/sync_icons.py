@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Copy the Phosphor icons the app names into data/icons as GTK symbolic SVGs
-and regenerate the GResource manifest.
+"""Copy the Phosphor icons the app names into data/icons as GTK symbolic SVGs, add the app's own icons
+from data/icons/custom (drawn in Phosphor's style: 256 grid, 16 px weight, fill="currentColor"), and
+regenerate the GResource manifest.
 
     python3 tools/sync_icons.py --source ~/projects/assets/icons/regular
 """
@@ -10,6 +11,7 @@ import argparse, pathlib, shutil, sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LIST = ROOT / "data" / "icons" / "icons.txt"
 OUT = ROOT / "data" / "icons" / "scalable" / "actions"
+CUSTOM = ROOT / "data" / "icons" / "custom"          # our own glyphs (arrange: layer-front/forward/backward/back)
 XML = ROOT / "data" / "linscreencapture.gresource.xml"
 PREFIX = "/com/mensuramedia/linscreencapture"
 APP_ICON = "com.mensuramedia.LinScreenCapture"
@@ -34,6 +36,10 @@ def main() -> int:
     for n in names:
         dest = OUT / f"lsc-{n}-symbolic.svg"
         shutil.copyfile(src / f"{n}.svg", dest)
+        files.append(dest.relative_to(ROOT / "data").as_posix())
+    for svg in sorted(CUSTOM.glob("*.svg")):
+        dest = OUT / f"lsc-{svg.stem}-symbolic.svg"
+        shutil.copyfile(svg, dest)
         files.append(dest.relative_to(ROOT / "data").as_posix())
     for lic in ("LICENSE", "LICENSE.md", "LICENSE.txt"):
         cand = src.parent / lic

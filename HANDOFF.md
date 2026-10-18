@@ -98,9 +98,11 @@ uses the live display. The app on this machine is installed with `./install.sh` 
   Canvas: a round rotate handle above the top edge (`tools.handles_for(a, zoom)`, `image_rotate`, Shift 15°);
   turned resize along the picture's own sides (`image_resize_turned`). Strip: a `↻ N°` popover button.
 - Round selection handles (`HANDLE_PX` 9).
-- Right rail **PAGE** group (`panel_rail.PageSection`): page size about the centre (`set_page_size`,
-  `document.resized_page`), page fill (`Document.background`, `SetPageFill`, painted first by `Document.render`),
-  stage colour (`Stage.set_stage_colour`, a display CSS provider). Settings `[Stage] colour`, `page_fill`.
+- Page size, fill and stage colour: the **Page dialog** (`ui/page_dialog.py`, from EDIT's `win.page-settings`;
+  first built as an in-rail PAGE group, replaced at the operator's request): size with an anchor
+  (`document.resized_page(…, anchor)`), fill (`Document.background`, `SetPageFill`, painted first by
+  `Document.render`), stage colour (`Stage.set_stage_colour`, a display CSS provider); Apply = one undo step
+  (`EditorController.apply_page`). Settings `[Stage] colour`, `page_fill`.
 - Clipboard tray: double-click pastes (`ClipTray._pressed`, capture-phase `GestureClick`; single click pops the
   preview after the double-click time).
 - Fixes found on the way: after Ctrl+Z / Ctrl+Y the header strip still showed the old values (`refresh_document`
@@ -109,8 +111,10 @@ uses the live display. The app on this machine is installed with `./install.sh` 
 - 173 tests (`cde6405`). Then, at the operator's request, the **Layers list was removed**: the EDIT group has four
   arrange buttons (to front, forward, backward, to back; `win.layer-*`, Ctrl+(Shift+)Page Up / Down, enabled only
   when the selected layer can move that way), Ctrl+click picks the layer beneath the selected one, `LayerRow` and
-  the layer thumbnails are deleted; 175 tests.
-- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.7.
+  the layer thumbnails are deleted; 175 tests (`e816c44`). Then the Page group moved into the Page dialog and the
+  arrange buttons got their own ARRANGE group with the app's own glyphs (`data/icons/custom/`, bundled by
+  `tools/sync_icons.py`); 177 tests.
+- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.8.
 
 **Merge order** (PRs opened 2026-10-18): #1 `fix/tray-alttab-icons` → `feat/phase5` first (without it `make test`
 deletes the real autostart entry), then #2 `feat/editor-shadows-canvas` → `feat/phase5` (contains the docs branch),
@@ -378,7 +382,7 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
 - The header strip (`ui/tool_props.py`) follows `ViewState.tool` or, under Select/Move, the selected layer; it
   writes `Settings` and applies "Style" edits to the selection. The palette recolours the selection too and
   persists the colour to every tool entry.
-- (2026-10-18) The layer list is gone; `PanelRail.set_document` only refreshes the Page group. Restacking:
+- (2026-10-18) The layer list is gone; `PanelRail.set_document` is now a no-op kept for callers. Restacking:
   `EditorController.arrange_selected` (`MoveLayer`), actions `win.layer-front/forward/backward/back`.
 
 ## 9. Capture notes (Phase 3)

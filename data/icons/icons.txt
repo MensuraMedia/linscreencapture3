@@ -62,7 +62,4 @@ selection-all
 bounding-box
 polygon
 drop-half
-arrow-line-up
-arrow-up
-arrow-down
-arrow-line-down
+frame-corners

@@ -36,6 +36,14 @@ The Alt+Tab icon appears only while a studio window exists; the background agent
 panel's tray area only. Check a running build with `xprop WM_CLASS _NET_WM_ICON` (click the window) and
 `gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.ListNames | grep StatusIcon`.
 
+## Action glyphs
+
+Buttons use Phosphor (regular weight) through the resource bundle (`lsc-<name>-symbolic`, `data/icons/icons.txt`).
+Where Phosphor has no clear glyph the app draws its own in the same style — 256 grid, 16 px weight,
+`fill="currentColor"` so GTK recolours it — in `data/icons/custom/`, bundled by `tools/sync_icons.py`. Today: the
+four arrange glyphs `layer-back`, `layer-backward`, `layer-forward`, `layer-front` (the filled square is the
+selected layer). These are action glyphs, never a substitute for the application icon.
+
 ## Rules
 
 - Use this icon for every place the desktop represents the application. Do not substitute a Phosphor glyph,

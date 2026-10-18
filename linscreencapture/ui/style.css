@@ -185,3 +185,7 @@ button.clip-slot picture { border-radius: 4px; }
 
 /* library head */
 .library-head .rail-btn { margin-left: 2px; }
+
+/* Page dialog: the 3 × 3 anchor grid */
+button.anchor-cell { min-width: 18px; min-height: 18px; padding: 0; border-radius: 3px; }
+button.anchor-cell:checked { background: @accent; }

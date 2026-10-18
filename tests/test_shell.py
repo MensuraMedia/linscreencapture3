@@ -91,7 +91,8 @@ def test_page_and_arrange_sit_above_the_navigator_and_navigator_tracks_the_view(
     c = page.get_first_child()
     while c is not None:
         kids.append(c); c = c.get_next_sibling()
-    assert kids.index(pr.arrange_buttons[0].get_parent()) < kids.index(pr.page) < kids.index(pr.navigator)
+    assert kids.index(pr.edit_buttons[0].get_parent()) < kids.index(pr.arrange_buttons[0].get_parent()) < kids.index(pr.navigator)
+    assert [b.lsc_icon for b in pr.arrange_buttons] == ["layer-back", "layer-backward", "layer-forward", "layer-front"]
     assert not any(isinstance(w, Gtk.ListBox) for w in _walk(page))      # no layer list in the rail
     assert all(not (isinstance(k, Gtk.Label) and k.get_label() == "LAYERS") for k in kids)
     assert all(not (isinstance(k, Gtk.Label) and k.get_label() == "NAVIGATOR") for k in kids)
@@ -117,7 +118,7 @@ def test_right_rail_holds_view_and_edit(window):
     pump(50)
     assert pr.zoom.value.get_label() == "104%"            # 4 % steps (view_state.next_zoom)
     window.activate_action("win.zoom-fit", None)
-    assert [b.get_action_name() for b in pr.edit_buttons] == ["win.copy", "win.flatten"]
+    assert [b.get_action_name() for b in pr.edit_buttons] == ["win.copy", "win.flatten", "win.page-settings"]
     left_actions = [b.get_tooltip_text() for b in _buttons(window.tool_rail.get_child_by_name("open")) if b.get_action_name() in ("win.copy", "win.flatten")]
     assert left_actions == []
 
@@ -215,14 +216,14 @@ def test_document_shows_on_stage_and_in_layers(window, tmp_path):
     assert window.stage.pages.get_visible_child_name() == "canvas"
     assert window.header.title.get_label() == "cap.png"
     assert window.header.subtitle.get_visible() and "400×300 · PNG · 1 layer · saved" in window.header.subtitle.get_label()
-    assert window.panel_rail.page.width.get_value() == 400 and window.panel_rail.page.width.get_sensitive()
+    assert window.lookup_action("page-settings").get_enabled()
     assert window.stage.hud.get_label().endswith("%")
     window.activate_action("win.zoom-fit", None)
     assert 0.1 <= window.state.zoom <= 1.0
     window.activate_action("win.discard", None)
     pump(50)
     assert window.stage.pages.get_visible_child_name() == "empty" and window.header.title.get_label() == "LinScreenCapture"
-    assert not window.panel_rail.page.width.get_sensitive()              # no document: the Page rows rest
+    assert not window.lookup_action("page-settings").get_enabled()       # no document: no Page dialog
 
 
 def test_capture_actions_exist(app, window):
@@ -976,35 +977,62 @@ def test_rotating_a_pasted_image_from_the_strip_and_the_canvas_handle(window, tm
     assert img.angle == 0 and window.undo.undo_label == "Rotate"
 
 
-def test_page_section_sets_size_and_fill_with_undo(window, tmp_path):
+def _page_dialog(window):
+    window.activate_action("win.page-settings", None); pump(150)
+    return window.page_dialog
+
+
+def test_page_dialog_sets_size_anchor_and_fill_as_one_undo_step(window, tmp_path):
+    from gi.repository import Gdk
     _load_blank(window, tmp_path, (400, 300))
     _drag(window, "arrow", 20, 20, 120, 60)
     arrow = window.document.layers[-1].annotation
-    page = window.panel_rail.page
-    assert (page.width.get_value(), page.height.get_value()) == (400, 300)
-    page.width.set_value(500); pump(20)
     doc = window.document
-    assert (doc.width, doc.height) == (500, 300) and arrow.x1 == 70     # set about the centre: layers follow
-    window.activate_action("win.undo", None); pump(20)
-    assert doc.width == 400 and page.width.get_value() == 400 and arrow.x1 == 20
-    page.fill.set_active(True); pump(20)
-    assert doc.background == window.settings.page_fill == "#ffffff"
-    from gi.repository import Gdk
+    dlg = _page_dialog(window)
+    assert (dlg.width.get_value(), dlg.height.get_value()) == (400, 300) and dlg.anchor == (0.5, 0.5)
+    assert not dlg.fill.get_active()
+    dlg.width.set_value(500); dlg.height.set_value(340)
+    dlg.set_anchor(0)                                           # the picture stays top-left
     c = Gdk.RGBA(); c.parse("#336699")
-    page.fill_colour.set_rgba(c); pump(20)
-    assert doc.background == "#336699" and window.settings.page_fill == "#336699"
+    dlg.fill_colour.set_rgba(c); pump(20)                       # choosing a colour turns the fill on
+    assert dlg.fill.get_active()
+    assert (doc.width, doc.background) == (400, None)           # nothing changes before Apply
+    dlg.apply(); pump(50)
+    assert (doc.width, doc.height, doc.background) == (500, 340, "#336699")
+    assert arrow.x1 == 20                                        # anchored top-left: layers did not move
+    assert window.settings.page_fill == "#336699" and window.undo.undo_label == "Page settings"
     window.activate_action("win.undo", None); pump(20)
-    assert doc.background == "#ffffff" and page.fill.get_active()
+    assert (doc.width, doc.height, doc.background) == (400, 300, None)   # one step undid both
 
 
-def test_stage_colour_is_a_setting_with_a_reset(window):
+def test_page_dialog_keeps_proportions_and_centres_by_default(window, tmp_path):
+    _load_blank(window, tmp_path, (400, 200))
+    _drag(window, "arrow", 20, 20, 120, 60)
+    arrow = window.document.layers[-1].annotation
+    dlg = _page_dialog(window)
+    dlg.keep.set_active(True)
+    dlg.width.set_value(600)
+    assert dlg.height.get_value() == 300
+    dlg.apply(); pump(50)
+    assert (window.document.width, window.document.height) == (600, 300) and arrow.x1 == 120
+
+
+def test_page_dialog_stage_colour_and_reset(window, tmp_path):
     from gi.repository import Gdk
-    page = window.panel_rail.page
+    _load_blank(window, tmp_path, (200, 100))
+    dlg = _page_dialog(window)
     c = Gdk.RGBA(); c.parse("#102030")
-    page.stage_colour.set_rgba(c); pump(20)
+    dlg.stage_colour.set_rgba(c); dlg.apply(); pump(50)
     assert window.settings.stage_colour == "#102030" and window.stage.stage_colour == "#102030"
-    window.activate_action("win.stage-colour-reset", None); pump(20)
+    assert not window.undo.can_undo                              # a setting, not an edit of the image
+    dlg = _page_dialog(window)
+    dlg._reset_stage(); dlg.apply(); pump(50)
     assert window.settings.stage_colour == "" and window.stage.stage_colour == ""
+
+
+def test_page_settings_needs_a_document(window):
+    assert not window.lookup_action("page-settings").get_enabled()
+    assert [b.get_action_name() for b in window.panel_rail.edit_buttons][-1] == "win.page-settings"
 
 
 def test_selection_handles_are_round(window, tmp_path):
@@ -1051,7 +1079,7 @@ def test_arrange_buttons_restack_the_selected_layer_with_undo(window, tmp_path):
     ed.select(None); pump(20)
     assert not any(enabled(w) for w in ("front", "forward", "backward", "back"))
     assert [btn.get_action_name() for btn in window.panel_rail.arrange_buttons] == [
-        "win.layer-front", "win.layer-forward", "win.layer-backward", "win.layer-back"]
+        "win.layer-back", "win.layer-backward", "win.layer-forward", "win.layer-front"]      # low to high
 
 
 def test_ctrl_page_keys_and_ctrl_click_pick_and_restack(window, tmp_path):

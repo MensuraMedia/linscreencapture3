@@ -1,20 +1,22 @@
-"""Right rail: colour palette, view (zoom), edit (copy, flatten, arrange the selected layer), page (size, fill,
-stage), navigator, Settings. There is no layer list: layers are picked on the canvas (Ctrl+click: the one beneath)."""
+"""Right rail: colour palette, view (zoom), edit (copy, flatten, the Page dialog), arrange (the selected layer's place
+in the stack), navigator, Settings. There is no layer list: layers are picked on the canvas (Ctrl+click: the one
+beneath)."""
 from __future__ import annotations
 import cairo
-from gi.repository import Gdk, Gtk
+from gi.repository import Gtk
 
-from .widgets import (rail_button, group_label, hairline, SwatchGrid, PALETTE, rail_page, pin_width, ZoomPill,
-                      compact_spin, switch)
+from .widgets import rail_button, group_label, hairline, SwatchGrid, PALETTE, rail_page, pin_width, ZoomPill
 from ..services import icon_loader
 from ..app.view_state import ViewState
 
 OPEN_WIDTH, COLLAPSED_WIDTH = 220, 56
-EDIT_ITEMS = (("copy", "Copy the image with its annotations", "win.copy", "Ctrl+C"), ("stack-simple", "Flatten", "win.flatten", None))
-ARRANGE_ITEMS = (("arrow-line-up", "Bring to front", "win.layer-front", "Ctrl+Shift+Page Up"),
-                 ("arrow-up", "Bring forward", "win.layer-forward", "Ctrl+Page Up"),
-                 ("arrow-down", "Send backward", "win.layer-backward", "Ctrl+Page Down"),
-                 ("arrow-line-down", "Send to back", "win.layer-back", "Ctrl+Shift+Page Down"))
+EDIT_ITEMS = (("copy", "Copy the image with its annotations", "win.copy", "Ctrl+C"), ("stack-simple", "Flatten", "win.flatten", None),
+              ("frame-corners", "Page: size, fill and stage colour", "win.page-settings", None))
+# low to high, left to right; the filled square in each glyph is the selected layer (data/icons/custom)
+ARRANGE_ITEMS = (("layer-back", "Send to back", "win.layer-back", "Ctrl+Shift+Page Down"),
+                 ("layer-backward", "Send backward", "win.layer-backward", "Ctrl+Page Down"),
+                 ("layer-forward", "Bring forward", "win.layer-forward", "Ctrl+Page Up"),
+                 ("layer-front", "Bring to front", "win.layer-front", "Ctrl+Shift+Page Up"))
 
 
 def _settings_button() -> Gtk.Button:
@@ -172,138 +174,6 @@ class Navigator(Gtk.DrawingArea):
             adj.set_value(max(adj.get_lower(), min(target, adj.get_upper() - adj.get_page_size())))
 
 
-def _rgba(hx: str) -> Gdk.RGBA:
-    c = Gdk.RGBA()
-    c.parse(hx)
-    return c
-
-
-def _hex(c: Gdk.RGBA) -> str:
-    return "#%02x%02x%02x" % tuple(max(0, min(255, round(v * 255))) for v in (c.red, c.green, c.blue))
-
-
-class PageSection(Gtk.Box):
-    """The page: its size (set about the centre), a fill colour behind its transparent parts (kept when saved or
-    flattened) and the stage colour around it. Size and fill are undoable document edits; the stage colour and the
-    last fill colour are settings."""
-
-    def __init__(self):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_top=4, margin_bottom=10)
-        self.editor = None
-        self._loading = False
-        size = Gtk.Grid(row_spacing=4, column_spacing=8)
-        self.width = compact_spin(1, 16384, 1, tooltip="Page width (px) · set about the centre")
-        self.height = compact_spin(1, 16384, 1, tooltip="Page height (px) · set about the centre")
-        for row, (text, spin) in enumerate((("Width", self.width), ("Height", self.height))):
-            lbl = Gtk.Label(label=text, xalign=0.0, hexpand=True)
-            lbl.add_css_class("sublabel")
-            size.attach(lbl, 0, row, 1, 1)
-            size.attach(spin, 1, row, 1, 1)
-        self.append(size)
-        for spin in (self.width, self.height):
-            spin.connect("value-changed", lambda *_: self._size_changed())
-        fill = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        lbl = Gtk.Label(label="Fill", xalign=0.0, hexpand=True)
-        lbl.add_css_class("sublabel")
-        fill.append(lbl)
-        self.fill = switch(False, "Fill the page's transparent parts (kept when saved or flattened)")
-        self.fill.connect("notify::active", lambda *_: self._fill_changed())
-        fill.append(self.fill)
-        self.fill_colour = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog(title="Page fill", with_alpha=False),
-                                                 valign=Gtk.Align.CENTER, tooltip_text="Page fill colour")
-        self.fill_colour.add_css_class("page-colour")
-        self.fill_colour.connect("notify::rgba", lambda *_: self._fill_colour_changed())
-        fill.append(self.fill_colour)
-        self.append(fill)
-        stage = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        lbl = Gtk.Label(label="Stage", xalign=0.0, hexpand=True)
-        lbl.add_css_class("sublabel")
-        stage.append(lbl)
-        self.stage_reset = rail_button("arrow-counter-clockwise", "Stage colour: back to the theme's", "win.stage-colour-reset",
-                                       classes=("small",), size=14)
-        self.stage_reset.set_valign(Gtk.Align.CENTER)
-        stage.append(self.stage_reset)
-        self.stage_colour = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog(title="Stage colour", with_alpha=False),
-                                                  valign=Gtk.Align.CENTER, tooltip_text="Stage colour (around the page)")
-        self.stage_colour.add_css_class("page-colour")
-        self.stage_colour.connect("notify::rgba", lambda b, _p: self._loading or self._set_stage(_hex(b.get_rgba())))
-        stage.append(self.stage_colour)
-        self.append(stage)
-
-    def bind(self, editor) -> None:
-        self.editor = editor
-        self._loading = True
-        try:
-            s = editor.settings
-            self.fill_colour.set_rgba(_rgba(s.page_fill))
-            self.stage_colour.set_rgba(_rgba(s.stage_colour or "#242424"))
-            self.stage_reset.set_sensitive(bool(s.stage_colour))
-        finally:
-            self._loading = False
-        editor.stage.set_stage_colour(editor.settings.stage_colour)
-
-    def set_document(self, doc) -> None:
-        """Show ``doc``'s size and fill (no document: the size and fill rows are insensitive)."""
-        has = doc is not None and not doc.empty
-        self._loading = True
-        try:
-            for w in (self.width, self.height, self.fill, self.fill_colour):
-                w.set_sensitive(has)
-            if has:
-                self.width.set_value(doc.width)
-                self.height.set_value(doc.height)
-                self.fill.set_active(doc.background is not None)
-                if doc.background:
-                    self.fill_colour.set_rgba(_rgba(doc.background))
-        finally:
-            self._loading = False
-
-    def _size_changed(self) -> None:
-        if not self._loading and self.editor is not None:
-            self.editor.set_page_size(int(self.width.get_value()), int(self.height.get_value()))
-
-    def _fill_changed(self) -> None:
-        if not self._loading and self.editor is not None:
-            self.editor.set_page_fill(_hex(self.fill_colour.get_rgba()) if self.fill.get_active() else None)
-
-    def _fill_colour_changed(self) -> None:
-        if self._loading or self.editor is None:
-            return
-        hx = _hex(self.fill_colour.get_rgba())
-        s = self.editor.settings
-        s.page_fill = hx
-        _save(s)
-        if self.fill.get_active():
-            self.editor.set_page_fill(hx)
-        else:
-            self.fill.set_active(True)          # choosing a colour turns the fill on
-
-    def reset_stage(self) -> None:
-        self._set_stage("")
-
-    def _set_stage(self, hx: str) -> None:
-        if self.editor is None:
-            return
-        s = self.editor.settings
-        s.stage_colour = hx
-        _save(s)
-        self.stage_reset.set_sensitive(bool(hx))
-        if not hx:
-            self._loading = True
-            try:
-                self.stage_colour.set_rgba(_rgba("#242424"))
-            finally:
-                self._loading = False
-        self.editor.stage.set_stage_colour(hx)
-
-
-def _save(settings) -> None:
-    try:
-        settings.save()
-    except Exception as exc:  # noqa: BLE001
-        print(f"settings not saved: {exc}")
-
-
 class PanelRail(Gtk.Stack):
     def __init__(self, state: ViewState):
         super().__init__(hhomogeneous=False, vhomogeneous=True, interpolate_size=True,
@@ -344,19 +214,17 @@ class PanelRail(Gtk.Stack):
         for b in self.edit_buttons:
             edit.append(b)
         box.append(edit)
-        arrange = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_bottom=10)
+        box.append(hairline())
+        lbl = group_label("Arrange")
+        lbl.set_margin_top(10)
+        lbl.set_tooltip_text("The selected layer's place in the stack · Ctrl+click picks the layer beneath")
+        box.append(lbl)
+        arrange = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_top=4, margin_bottom=10)
         arrange.update_property([Gtk.AccessibleProperty.LABEL], ["Arrange the selected layer"])
         self.arrange_buttons = [rail_button(icon, label, action, key=key) for icon, label, action, key in ARRANGE_ITEMS]
         for b in self.arrange_buttons:
             arrange.append(b)
-        edit.set_margin_bottom(4)
         box.append(arrange)
-        box.append(hairline())
-        lbl = group_label("Page")
-        lbl.set_margin_top(10)
-        box.append(lbl)
-        self.page = PageSection()
-        box.append(self.page)
         box.append(Gtk.Box(vexpand=True))            # the navigator sits at the bottom
         self.navigator = Navigator()
         self.navigator.set_margin_top(6)
@@ -371,12 +239,10 @@ class PanelRail(Gtk.Stack):
         self.navigator.attach(stage)
 
     def set_document(self, doc, selected_id: int | None = None) -> None:
-        """A new or changed document: refresh the Page section (``selected_id`` is kept for the window's calls)."""
-        self.page.set_document(doc)
+        """Nothing to rebuild since the layer list went; kept for the window's calls after every edit."""
 
     def bind_editor(self, editor) -> None:
         self.editor = editor
-        self.page.bind(editor)
 
     # -- collapsed page ----------------------------------------------------
     def _build_collapsed(self) -> Gtk.Box:
@@ -401,7 +267,9 @@ class PanelRail(Gtk.Stack):
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
         box.append(hairline(30))
-        for icon, label, action, key in EDIT_ITEMS + ARRANGE_ITEMS:
+        for n, (icon, label, action, key) in enumerate(EDIT_ITEMS + ARRANGE_ITEMS):
+            if n == len(EDIT_ITEMS):
+                box.append(hairline(30))
             b = rail_button(icon, label, action, key=key)
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
