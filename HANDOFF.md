@@ -91,8 +91,11 @@ uses the live display. The app on this machine is installed with `./install.sh` 
   design at the top of each). The 4-up clipboard tray (`docs/CLIPBOARD-TRAY-4UP.md`) is on `feat/clip-tray-4up`
   (rebased onto `feat/editor-shadows-canvas`; GLM draft, reviewed and completed; 150 tests).
 
-**Merge order:** `fix/tray-alttab-icons` first (without it `make test` deletes the real autostart entry), then
-`feat/editor-shadows-canvas` (contains the docs branch), then `feat/clip-tray-4up`. Open questions for the operator:
+**Merge order** (PRs opened 2026-10-18): #1 `fix/tray-alttab-icons` → `feat/phase5` first (without it `make test`
+deletes the real autostart entry), then #2 `feat/editor-shadows-canvas` → `feat/phase5` (contains the docs branch),
+then #3 `feat/clip-tray-4up` (based on `feat/editor-shadows-canvas`; retarget it to `feat/phase5` if #2's branch is
+kept after merging). `gh` in this checkout resolves to the archived `MensuraMedia/linscreencapture`; pass
+`-R MensuraMedia/linscreencapture3`. Installed on this machine from `feat/clip-tray-4up`. Open questions for the operator:
 `docs/CHANGES-2026-10-18.md` §6.
 
 ## 1. Mission
