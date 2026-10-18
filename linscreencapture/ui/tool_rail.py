@@ -70,12 +70,11 @@ TOOLS_B = (
     _tool("arrows-out-cardinal", "Move", "move", False, "edit"),
     Item("copy-simple", "Duplicate", "win.duplicate-file", None, False, False, (), "edit"),
 )
-LIBRARY = Item("images", "Library", "win.library", None, True, True, (), "library", "Ctrl+L")
 ACTIONS = (
     Item("trash", "Discard", "win.discard", None, True, False, ("danger",), "actions"),
     Item("download-simple", "Save", "win.save", None, True, False, ("primary",), "actions", "Ctrl+S"),
 )
-ALL_ITEMS = CAPTURE + TOOLS_A + TOOLS_B + (LIBRARY,) + ACTIONS
+ALL_ITEMS = CAPTURE + TOOLS_A + TOOLS_B + ACTIONS        # Library moved to the right rail's top row (2026-10-18)
 
 
 def make(item: Item) -> Gtk.Button:
@@ -138,10 +137,6 @@ class ToolRail(Gtk.Stack):
             self.tray.set_margin_top(4)
             self.tray.set_margin_bottom(10)
             box.append(self.tray)
-        self.library = make(LIBRARY)                 # always visible, just above the Actions line
-        self.library.set_halign(Gtk.Align.START)
-        self.library.set_margin_bottom(10)
-        box.append(self.library)
         box.append(hairline())
         lbl = group_label("Actions")
         lbl.set_margin_top(8)
@@ -183,9 +178,6 @@ class ToolRail(Gtk.Stack):
             self.tray_button = ClipTrayButton(self.clips, self.on_paste)
             self.tray_button.set_halign(Gtk.Align.CENTER)
             box.append(self.tray_button)
-        lib = make(LIBRARY)
-        lib.set_halign(Gtk.Align.CENTER)
-        box.append(lib)
         box.append(hairline(30))
         for item in ACTIONS:
             if item.collapsed:

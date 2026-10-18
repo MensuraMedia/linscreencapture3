@@ -107,6 +107,10 @@ class ShortcutRouter:
                 return act("paste")
             if lower == Gdk.KEY_a:
                 return act("library-select-all" if library else "select-all")
+            if keyval in (Gdk.KEY_Page_Up, Gdk.KEY_KP_Page_Up) and not library:
+                return act("layer-front" if shift else "layer-forward")
+            if keyval in (Gdk.KEY_Page_Down, Gdk.KEY_KP_Page_Down) and not library:
+                return act("layer-back" if shift else "layer-backward")
             return False
         if keyval in (Gdk.KEY_space, Gdk.KEY_KP_Space) and not alt:
             if library:
@@ -127,6 +131,8 @@ class ShortcutRouter:
             return False                                  # digits, Enter, Delete, arrows edit the number
         if keyval in (Gdk.KEY_Delete, Gdk.KEY_KP_Delete):
             return act("library-delete" if library else "delete-layer")
+        if keyval == Gdk.KEY_F2 and library:
+            return act("library-rename")
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
             if library:
                 return act("library-open")

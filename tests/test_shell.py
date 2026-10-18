@@ -74,24 +74,35 @@ def test_defaults_are_collapsed_and_breakpoint_restores_them(tmp_path, app):
     win.destroy()
 
 
-def test_library_is_always_visible_above_the_actions_line(window):
+def test_library_sits_top_right_in_the_right_rail_like_capture_on_the_left(window):
     for page in ("open", "collapsed"):
-        btns = _buttons(window.tool_rail.get_child_by_name(page))
-        lib = [b for b in btns if b.get_action_name() == "win.library"]
-        assert len(lib) == 1, page
-        assert isinstance(lib[0].get_next_sibling(), Gtk.Separator), page   # the hairline right below it
+        assert not [b for b in _buttons(window.tool_rail.get_child_by_name(page)) if b.get_action_name() == "win.library"]
+        lib = [b for b in _buttons(window.panel_rail.get_child_by_name(page)) if b.get_action_name() == "win.library"]
+        assert len(lib) == 1 and isinstance(lib[0], Gtk.ToggleButton), page
+    btn = window.panel_rail.library_btn
+    row = btn.get_parent()
+    assert btn.get_next_sibling() is None and row.get_first_child().get_action_name() == "win.toggle-right-rail"
+    assert row.get_prev_sibling() is None                                   # the rail's top row, as Capture's on the left
+    from gi.repository import Graphene
+    cap = window.tool_rail.capture.compute_point(window, Graphene.Point().init(0, 0))[1]
+    lib_pt = btn.compute_point(window, Graphene.Point().init(0, 0))[1]
+    assert cap.y == lib_pt.y                                                # same height as Capture
 
 
-def test_layers_sit_above_the_navigator_and_navigator_tracks_the_view(window, tmp_path):
+def test_page_and_arrange_sit_above_the_navigator_and_navigator_tracks_the_view(window, tmp_path):
     from PIL import Image
     from linscreencapture.model.document import Document
     pr = window.panel_rail
     page = pr.get_child_by_name("open").get_child().get_child()  # scrolled window -> viewport -> box
+    editor = pr.middle.get_child_by_name("editor")                # the editor groups (the Library panel swaps in)
     kids = []
-    c = page.get_first_child()
+    c = editor.get_first_child()
     while c is not None:
         kids.append(c); c = c.get_next_sibling()
-    assert kids.index(pr.layers.get_parent().get_parent().get_parent()) < kids.index(pr.navigator)
+    assert kids.index(pr.edit_buttons[0].get_parent()) < kids.index(pr.arrange_buttons[0].get_parent()) < kids.index(pr.navigator)
+    assert [b.lsc_icon for b in pr.arrange_buttons] == ["layer-back", "layer-backward", "layer-forward", "layer-front"]
+    assert not any(isinstance(w, Gtk.ListBox) for w in _walk(page))      # no layer list in the rail
+    assert all(not (isinstance(k, Gtk.Label) and k.get_label() == "LAYERS") for k in kids)
     assert all(not (isinstance(k, Gtk.Label) and k.get_label() == "NAVIGATOR") for k in kids)
     Image.new("RGBA", (2000, 1200), (90, 60, 30, 255)).save(tmp_path / "big.png")
     window.load_document(Document.open(str(tmp_path / "big.png")))
@@ -179,7 +190,7 @@ def test_library_page_toggles(window):
     pump(100)
     assert window.state.library and window.stage.pages.get_visible_child_name() == "library"
     assert window.header.title.get_label() == "Library"
-    lib_btn = next(b for b in _buttons(window.tool_rail) if b.get_tooltip_text().startswith("Library"))
+    lib_btn = window.panel_rail.library_btn
     assert isinstance(lib_btn, Gtk.ToggleButton) and lib_btn.get_active()
     window.activate_action("win.library", None)
     pump(100)
@@ -189,10 +200,45 @@ def test_library_page_toggles(window):
 
 def test_settings_button_is_last_in_right_rail(window):
     btn = window.panel_rail.settings_btn
-    assert btn.get_action_name() == "app.preferences" and btn.get_tooltip_text() == "Settings"
-    gear = next(b for b in _buttons(window.panel_rail) if b.get_action_name() == "app.preferences")
-    assert gear.get_tooltip_text() == "Settings\nCtrl+,"
+    assert btn.get_action_name() == "app.preferences" and btn.has_css_class("rail-btn") and btn.get_child().__class__ is Gtk.Image
+    assert btn.get_tooltip_text() == "Settings\nCtrl+,"                       # an icon button, no text label
     assert btn.get_next_sibling() is None and btn.get_halign() == Gtk.Align.END
+    row = btn.get_parent()
+    assert row.get_next_sibling() is None and isinstance(row.get_prev_sibling().get_prev_sibling(), Gtk.Separator)
+
+
+def _last_separator(page):
+    box, seps = page.get_child().get_child(), []
+    c = box.get_first_child()
+    while c is not None:
+        if isinstance(c, Gtk.Separator):
+            seps.append(c)
+        c = c.get_next_sibling()
+    return seps[-1]
+
+
+def test_both_rails_bottom_lines_are_level_open_and_collapsed(window):
+    from gi.repository import Graphene
+    for collapsed in (False, True):
+        window.state.left_collapsed = window.state.right_collapsed = collapsed; pump(400)
+        page = "collapsed" if collapsed else "open"
+        ys = [_last_separator(rail.get_child_by_name(page)).compute_point(window, Graphene.Point().init(0, 0))[1].y
+              for rail in (window.tool_rail, window.panel_rail)]
+        assert ys[0] == ys[1], (page, ys)
+
+
+def test_page_button_sits_beside_fit_and_the_stage_has_no_page_shadow(window, tmp_path):
+    import cairo
+    pr = window.panel_rail
+    assert pr.page_btn.get_prev_sibling() is pr.zoom and pr.zoom.fit.get_next_sibling() is None
+    assert pr.page_btn.get_action_name() == "win.page-settings"
+    assert pr.page_btn.get_parent().measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= 196    # fits the rail's content
+    _load_blank(window, tmp_path, (200, 100))
+    st = window.stage
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 300, 200)
+    st._draw_canvas(None, cairo.Context(surf), 300, 200)           # page at (50, 50)-(250, 150)
+    surf.flush()
+    assert surf.get_data()[(155) * surf.get_stride() + 150 * 4 + 3] == 0   # just below the page: nothing painted
 
 
 def test_close_saves_settings(window):
@@ -213,15 +259,14 @@ def test_document_shows_on_stage_and_in_layers(window, tmp_path):
     assert window.stage.pages.get_visible_child_name() == "canvas"
     assert window.header.title.get_label() == "cap.png"
     assert window.header.subtitle.get_visible() and "400×300 · PNG · 1 layer · saved" in window.header.subtitle.get_label()
-    rows = [r for r in _walk(window.panel_rail.layers) if isinstance(r, Gtk.ListBoxRow)]
-    assert len(rows) == 1 and rows[0].name.get_label() == "Base capture"
+    assert window.lookup_action("page-settings").get_enabled()
     assert window.stage.hud.get_label().endswith("%")
     window.activate_action("win.zoom-fit", None)
     assert 0.1 <= window.state.zoom <= 1.0
     window.activate_action("win.discard", None)
     pump(50)
     assert window.stage.pages.get_visible_child_name() == "empty" and window.header.title.get_label() == "LinScreenCapture"
-    assert window.panel_rail.layers_empty.get_visible()
+    assert not window.lookup_action("page-settings").get_enabled()       # no document: no Page dialog
 
 
 def test_capture_actions_exist(app, window):
@@ -316,9 +361,7 @@ def test_drawing_tools_create_layers_with_undo(window, tmp_path):
     assert doc.layers[1].annotation.rect == (40, 40, 100, 100)          # Ctrl made it square
     assert doc.layers[0].annotation.style.colour == window.state.colour
     assert window.editor.selected_id == doc.layers[-1].id                 # the new layer is selected
-    rows = [r for r in _walk(window.panel_rail.layers) if isinstance(r, Gtk.ListBoxRow)]
-    assert [r.name.get_label() for r in rows] == ["3", "2", "1", "Base capture"]           # numbered by stack position
-    assert [r.kind.get_label() for r in rows] == ["PIXELATE", "BOX", "ARROW", "IMG"]       # the label names the tool
+    assert [l.badge for l in doc.layers] == ["ARROW", "BOX", "PIXELATE"]                    # the label names the tool
     assert "4 layers · unsaved" in window.header.subtitle.get_label()
     assert window.lookup_action("undo").get_enabled()
     window.activate_action("win.undo", None); pump(30)
@@ -620,7 +663,7 @@ def test_clipboard_image_detection_accepts_texture_subclasses(window, tmp_path):
 
 # ---- review round 2 (2026-10-13): library controls, select all, tray, eraser, pan, tooltips -----------------
 def test_tooltips_carry_the_shortcut_under_the_caption(window):
-    tips = {b.get_tooltip_text() for b in _buttons(window.tool_rail)}
+    tips = {b.get_tooltip_text() for b in _buttons(window.tool_rail) + _buttons(window.panel_rail)}
     assert "Arrow\nA" in tips and "Eraser (clears to transparent)\nE" in tips and "Hand · drag to pan the view\nH" in tips
     assert "Capture a new screenshot\nCtrl+N" in tips and "Library\nCtrl+L" in tips and "Save\nCtrl+S" in tips
     for b in _buttons(window.tool_rail):
@@ -701,8 +744,7 @@ def test_eraser_clears_to_transparent_and_png_keeps_alpha(window, tmp_path):
     doc.save(str(jpg))
     with Image.open(jpg) as img:
         assert img.mode == "RGB" and img.getpixel((50, 40))[0] > 240       # transparent lands on white in JPEG
-    rows = [r for r in _walk(window.panel_rail.layers) if isinstance(r, Gtk.ListBoxRow)]
-    assert rows[0].kind.get_label() == "ERASER"
+    assert doc.layers[-1].badge == "ERASER"
 
 
 def test_hand_space_and_middle_button_pan_the_view(window, tmp_path):
@@ -815,8 +857,6 @@ def test_area_tools_mark_copy_clear_and_crop(window, tmp_path):
     assert d[2 * st + 50 * 4 + 3] == 255 and d[170 * st + 2 * 4 + 3] == 0         # inside near the top edge · outside corner
     window.activate_action("win.undo", None); pump(30)
     assert (doc.width, doc.height) == (300, 200)
-    rows = [row for row in _walk(window.panel_rail.layers) if isinstance(row, Gtk.ListBoxRow)]
-    assert rows[-1].kind.get_label() == "IMG"
 
 
 def test_selection_frame_is_optional(window, settings):
@@ -953,3 +993,234 @@ def test_shadow_switch_on_step_and_image_strips(window, tmp_path):
     assert not img.style.shadow and not window.settings.tools["image"].shadow
     window.undo.undo(); pump(20)
     assert img.style.shadow
+
+
+def test_rotating_a_pasted_image_from_the_strip_and_the_canvas_handle(window, tmp_path):
+    from linscreencapture.app import tools
+    _load_blank(window, tmp_path, (400, 300))
+    window.paste_texture(_texture(100, 40)); pump(50)
+    doc, ed, props = window.document, window.editor, window.header.props
+    img = doc.layers[-1].annotation
+    window.activate_action("win.layer-rotate-right", None); pump(20)
+    assert img.angle == 90 and props.img_angle.get_value() == 90
+    props.img_angle.set_value(-30); pump(20)
+    assert img.angle == -30
+    window.activate_action("win.undo", None); pump(20)
+    assert img.angle == 90 and props.img_angle.get_value() == 90
+    # the round handle above the picture: drag it a quarter turn back (Shift snaps to 15°)
+    ox, oy = window.stage.image_origin()
+    hx, hy = tools.handles_for(img, window.state.zoom)["rotate"]
+    cx, cy = img.rect[0] + img.rect[2] / 2, img.rect[1] + img.rect[3] / 2
+    g = _Gesture(shift=True)
+    window.state.tool = "select"
+    ed._drag_begin(g, ox + hx, oy + hy)
+    assert ed._mode == "handle:rotate"
+    ed._drag_update(g, cx - hx, (cy - 50) - hy)            # straight above the centre → 0°
+    ed._drag_end(g, cx - hx, (cy - 50) - hy); pump(20)
+    assert img.angle == 0 and window.undo.undo_label == "Rotate"
+
+
+def _page_dialog(window):
+    window.activate_action("win.page-settings", None); pump(150)
+    return window.page_dialog
+
+
+def test_page_dialog_sets_size_anchor_and_fill_as_one_undo_step(window, tmp_path):
+    from gi.repository import Gdk
+    _load_blank(window, tmp_path, (400, 300))
+    _drag(window, "arrow", 20, 20, 120, 60)
+    arrow = window.document.layers[-1].annotation
+    doc = window.document
+    dlg = _page_dialog(window)
+    assert (dlg.width.get_value(), dlg.height.get_value()) == (400, 300) and dlg.anchor == (0.5, 0.5)
+    assert not dlg.fill.get_active()
+    dlg.width.set_value(500); dlg.height.set_value(340)
+    dlg.set_anchor(0)                                           # the picture stays top-left
+    c = Gdk.RGBA(); c.parse("#336699")
+    dlg.fill_colour.set_rgba(c); pump(20)                       # choosing a colour turns the fill on
+    assert dlg.fill.get_active()
+    assert (doc.width, doc.background) == (400, None)           # nothing changes before Apply
+    dlg.apply(); pump(50)
+    assert (doc.width, doc.height, doc.background) == (500, 340, "#336699")
+    assert arrow.x1 == 20                                        # anchored top-left: layers did not move
+    assert window.settings.page_fill == "#336699" and window.undo.undo_label == "Page settings"
+    window.activate_action("win.undo", None); pump(20)
+    assert (doc.width, doc.height, doc.background) == (400, 300, None)   # one step undid both
+
+
+def test_page_dialog_keeps_proportions_and_centres_by_default(window, tmp_path):
+    _load_blank(window, tmp_path, (400, 200))
+    _drag(window, "arrow", 20, 20, 120, 60)
+    arrow = window.document.layers[-1].annotation
+    dlg = _page_dialog(window)
+    dlg.keep.set_active(True)
+    dlg.width.set_value(600)
+    assert dlg.height.get_value() == 300
+    dlg.apply(); pump(50)
+    assert (window.document.width, window.document.height) == (600, 300) and arrow.x1 == 120
+
+
+def test_page_dialog_stage_colour_and_reset(window, tmp_path):
+    from gi.repository import Gdk
+    _load_blank(window, tmp_path, (200, 100))
+    dlg = _page_dialog(window)
+    c = Gdk.RGBA(); c.parse("#102030")
+    dlg.stage_colour.set_rgba(c); dlg.apply(); pump(50)
+    assert window.settings.stage_colour == "#102030" and window.stage.stage_colour == "#102030"
+    assert not window.undo.can_undo                              # a setting, not an edit of the image
+    dlg = _page_dialog(window)
+    dlg._reset_stage(); dlg.apply(); pump(50)
+    assert window.settings.stage_colour == "" and window.stage.stage_colour == ""
+
+
+def test_page_settings_needs_a_document(window):
+    assert not window.lookup_action("page-settings").get_enabled()
+    assert window.panel_rail.page_btn.get_action_name() == "win.page-settings"
+
+
+def test_selection_handles_are_round(window, tmp_path):
+    import cairo
+    _load_blank(window, tmp_path, (400, 300))
+    _drag(window, "box", 100, 100, 200, 160)
+    window.state.tool = "select"
+    window.editor.select(window.document.layers[-1].id); pump(20)
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 400, 300)
+    window.editor._draw_overlay(cairo.Context(surf), 0, 0, 1.0)
+    surf.flush()
+    def alpha(x, y):
+        return surf.get_data()[y * surf.get_stride() + x * 4 + 3]
+    assert alpha(100, 100) > 0                             # the nw handle's centre
+    assert alpha(104, 104) == 0                            # its square corner would be painted; a round one is not
+
+
+def test_a_selected_image_strip_never_widens_the_window(window, tmp_path):
+    _load_blank(window, tmp_path, (400, 300))
+    window.paste_texture(_texture(60, 40)); pump(50)
+    window.editor.set_layer_angle(-20); pump(300)
+    props = window.header.props
+    assert props.sets.get_visible_child_name() == "image" and props.img_angle_label.get_label() == "-20°"
+    assert window.get_width() == 1360                       # the strip scrolls in the header instead
+    assert window.header.measure(Gtk.Orientation.HORIZONTAL, -1)[0] < 1000
+
+
+def test_arrange_buttons_restack_the_selected_layer_with_undo(window, tmp_path):
+    _load_blank(window, tmp_path, (400, 300))
+    for x in (20, 40, 60):
+        _drag(window, "box", x, x, x + 100, x + 80)
+    doc, ed = window.document, window.editor
+    a, b, c = doc.layers
+    ed.select(a.id); pump(20)                                     # the bottom layer
+    enabled = lambda w: window.lookup_action(f"layer-{w}").get_enabled()
+    assert enabled("front") and enabled("forward") and not enabled("backward") and not enabled("back")
+    window.activate_action("win.layer-forward", None); pump(20)
+    assert doc.layers == [b, a, c] and ed.selected_id == a.id
+    window.activate_action("win.layer-front", None); pump(20)
+    assert doc.layers == [b, c, a] and not enabled("front") and enabled("back")
+    assert window.undo.undo_label == "Bring to front"
+    window.activate_action("win.undo", None); pump(20)
+    assert doc.layers == [b, a, c]
+    ed.select(None); pump(20)
+    assert not any(enabled(w) for w in ("front", "forward", "backward", "back"))
+    assert [btn.get_action_name() for btn in window.panel_rail.arrange_buttons] == [
+        "win.layer-back", "win.layer-backward", "win.layer-forward", "win.layer-front"]      # low to high
+
+
+def test_ctrl_page_keys_and_ctrl_click_pick_and_restack(window, tmp_path):
+    from gi.repository import Gdk
+    _load_blank(window, tmp_path, (400, 300))
+    _drag(window, "box", 50, 50, 150, 150)
+    _drag(window, "box", 60, 60, 160, 160)                       # on top of the first
+    doc, ed, r = window.document, window.editor, window.shortcuts
+    low, top = doc.layers
+    window.state.tool = "select"
+    ox, oy = window.stage.image_origin()
+    ed._drag_begin(_Gesture(), ox + 100, oy + 100); ed._drag_end(_Gesture(), 0, 0)
+    assert ed.selected_id == top.id                              # a plain click: the topmost
+    ed._drag_begin(_Gesture(ctrl=True), ox + 100, oy + 100); ed._drag_end(_Gesture(ctrl=True), 0, 0)
+    assert ed.selected_id == low.id                              # Ctrl+click: the one beneath
+    assert r.handle(Gdk.KEY_Page_Up, Gdk.ModifierType.CONTROL_MASK) is True; pump(20)
+    assert doc.layers == [top, low]
+    assert r.handle(Gdk.KEY_Page_Down, Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK) is True; pump(20)
+    assert doc.layers == [low, top]
+
+
+def _library_with(window, tmp_path, sizes):
+    from PIL import Image
+    folder = tmp_path / "pics"; folder.mkdir(exist_ok=True)
+    for n, size in enumerate(sizes):
+        Image.new("RGBA", size, (40 * n, 120, 200, 255)).save(folder / f"shot{n}.png")
+    window.captures.scan(); pump(600)
+    window.activate_action("win.library", None); pump(150)
+    return window.stage.library, folder
+
+
+def test_library_panel_replaces_the_editor_groups_and_follows_the_selection(window, tmp_path):
+    lib, _folder = _library_with(window, tmp_path, [(40, 30), (50, 30), (60, 30)])
+    pr, panel = window.panel_rail, window.panel_rail.library_panel
+    assert pr.middle.get_visible_child_name() == "library" and pr.middle_collapsed.get_visible_child_name() == "library"
+    by = {b.get_action_name(): b for b in panel.buttons}
+    assert set(by) >= {"win.library-open", "win.library-combine", "win.library-copy", "win.library-duplicate",
+                       "win.library-rename", "win.library-show", "win.library-delete", "win.library-select-all"}
+    assert not by["win.library-open"].get_sensitive() and panel.info_name.get_label() == "Nothing selected"
+    lib.selection.select_item(0, True); pump(30)
+    assert by["win.library-rename"].get_sensitive() and not by["win.library-combine"].get_sensitive()
+    assert "40 × 30 px" in panel.info_detail.get_label() or "60 × 30 px" in panel.info_detail.get_label()
+    lib.select_all(); pump(30)
+    assert by["win.library-combine"].get_sensitive() and not by["win.library-rename"].get_sensitive()
+    assert panel.info_name.get_label() == "3 images selected"
+    window.activate_action("win.library", None); pump(100)
+    assert pr.middle.get_visible_child_name() == "editor"
+
+
+def test_tags_from_the_panel_show_on_cells_filter_and_follow_renames(window, tmp_path):
+    lib, folder = _library_with(window, tmp_path, [(40, 30), (50, 30)])
+    panel = window.panel_rail.library_panel
+    lib.selection.select_item(0, True); pump(30)
+    first = lib.selected
+    assert panel.add_tag("#Bug report") and window.tags.get(first.path) == ["Bug report"]
+    assert [c.get_child().get_label() for c in _walk(panel.chips) if isinstance(c, Gtk.FlowBoxChild)] == ["Bug report  ×"]
+    cell = next(c for c in lib._cells if c.entry is first)
+    assert cell.tag_label.get_visible() and cell.tag_label.get_label() == "#Bug report"
+    lib.search.set_text("bug"); lib._refilter(); pump(50)
+    assert lib.filtered.get_n_items() == 1 and lib.filtered.get_item(0) is first
+    lib.search.set_text(""); lib._refilter(); pump(50)
+    new = window.rename_file(first.path, "renamed"); pump(600)
+    assert new == str(folder / "renamed.png") and window.tags.get(new) == ["Bug report"] and window.tags.get(first.path) == []
+    other = next(lib.filtered.get_item(n) for n in range(lib.filtered.get_n_items()) if lib.filtered.get_item(n).path != new)
+    assert window.rename_file(new, other.name[:-4]) is None                # a name in use is refused
+    lib.selection.unselect_all(); pump(10)
+    i = next(n for n in range(lib.filtered.get_n_items()) if lib.filtered.get_item(n).path == new)
+    lib.selection.select_item(i, True); pump(30)
+    assert panel.remove_tag("bug report") and window.tags.get(new) == []
+
+
+def test_combine_tiles_the_selection_side_by_side_as_layers(window, tmp_path):
+    from linscreencapture.app.tiling import GAP, MARGIN
+    lib, _folder = _library_with(window, tmp_path, [(120, 80), (100, 80)])
+    lib.select_all(); pump(30)
+    window.activate_action("win.library-combine", None); pump(200)
+    doc = window.document
+    assert not window.state.library and len(doc.layers) == 2 and all(l.annotation.kind == "image" for l in doc.layers)
+    (ax, ay, aw, ah), (bx, by, bw, bh) = (l.annotation.rect for l in doc.layers)
+    assert ay == by == MARGIN and min(ax, bx) == MARGIN and abs(bx - ax) == (aw if ax < bx else bw) + GAP
+    assert (doc.width, doc.height) == (2 * MARGIN + 220 + GAP, 2 * MARGIN + 80)
+    assert not any(l.annotation.style.shadow for l in doc.layers) and doc.dirty
+    assert window.header.title.get_label() == "Combined · 2 images"
+    # the hidden Library panel must not widen the rail (it pushed the Library button and navigator off the edge)
+    assert window.panel_rail.middle.measure(Gtk.Orientation.HORIZONTAL, -1)[1] <= 196
+
+
+def test_combine_needs_two_and_the_context_menu_selects_the_clicked_cell(window, tmp_path):
+    lib, _folder = _library_with(window, tmp_path, [(40, 30), (50, 30), (60, 30)])
+    lib.selection.select_item(0, True); pump(30)
+    window.activate_action("win.library-combine", None); pump(50)
+    assert window.document is None                                         # one image: nothing combined
+    lib.context_menu(2, 10, 10); pump(100)
+    assert lib.menu.get_visible() and [e.name for e in lib.selected_entries] == [lib.selection.get_item(2).name]
+    labels = [lib.menu.get_menu_model().get_item_link(s, "section").get_item_attribute_value(i, "label", None).get_string()
+              for s in range(lib.menu.get_menu_model().get_n_items())
+              for i in range(lib.menu.get_menu_model().get_item_link(s, "section").get_n_items())]
+    assert "Combine on one page" in labels and "Rename…" in labels and "Add a tag…" in labels
+    lib.menu.popdown(); lib.grid.grab_focus(); pump(50)
+    from gi.repository import Gdk
+    assert window.shortcuts.handle(Gdk.KEY_F2, 0) is True; pump(100)     # F2 opens the rename dialog

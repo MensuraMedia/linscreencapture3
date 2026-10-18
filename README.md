@@ -37,7 +37,7 @@ Rails are 220 px open, 56 px collapsed — collapsed by default on first run, au
 
 ![A capture annotated with an arrow, a selected box, step numbers, text, a callout and a pixelate block](screenshots/dev/shell_annotated.png)
 
-Every capture lands on the stage as a document, and every annotation is an undoable layer: here an arrow, a selected box (dashed outline, eight handles — the header strip reads "BOX · SELECTED"), self-renumbering step numbers, text, a callout and a pixelate redaction block. The Layers list follows the selection — a row click selects, the eye toggles visibility undoably — the palette recolours the selection, and the navigator tracks the viewport.
+Every capture lands on the stage as a document, and every annotation is an undoable layer: here an arrow, a selected box (dashed outline, eight handles — the header strip reads "BOX · SELECTED"), self-renumbering step numbers, text, a callout and a pixelate redaction block. Arrange buttons in the right rail bring the selected layer forward or send it back (Ctrl+click picks a layer beneath another), the palette recolours the selection, and the navigator tracks the viewport.
 
 ### Tool properties in the header
 

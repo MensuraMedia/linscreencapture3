@@ -96,3 +96,28 @@ def test_collapsed_rail_button_holds_four_cells(window):
     tray = window.tool_rail.tray_button.tray
     assert len(tray.slots) == SLOTS == LIMIT == 4
     assert tray.get_size_request() == (200, TRAY_HEIGHT)
+
+
+def test_double_clicking_a_cell_pastes_it_into_the_stage(window):
+    h, tray = window.clips, window.tool_rail.tray
+    _fill(window)
+    assert window.document is None
+    tray.paste(1); pump(50)                                     # what a double-click on cell 2 does
+    assert window.document is not None and (window.document.width, window.document.height) == (40, 30)
+    tray.paste(0); pump(50)                                     # on an open image: a layer
+    assert window.document.layers[-1].annotation.kind == "image"
+    assert "double-click pastes" in tray.slots[0].get_tooltip_text()
+
+
+def test_a_single_click_waits_then_opens_the_preview_and_a_double_click_does_not(window):
+    tray = window.tool_rail.tray
+    _fill(window)
+
+    class _G:
+        def set_state(self, _s):
+            pass
+    tray._pressed(_G(), 2, 1); pump(600)                        # one click: the preview pops up after the wait
+    assert tray.previews[2].get_visible()
+    tray.previews[2].popdown(); pump(50)
+    tray._pressed(_G(), 3, 1); tray._pressed(_G(), 3, 2); pump(600)   # a double-click: pasted, no preview
+    assert not tray.previews[3].get_visible() and window.document is not None

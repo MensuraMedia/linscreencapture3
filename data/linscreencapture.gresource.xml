@@ -67,5 +67,14 @@
     <file>icons/scalable/actions/lsc-bounding-box-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-polygon-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-drop-half-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-frame-corners-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-squares-four-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-cursor-text-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-arrow-square-out-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-selection-slash-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-layer-back-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-layer-backward-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-layer-forward-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-layer-front-symbolic.svg</file>
   </gresource>
 </gresources>

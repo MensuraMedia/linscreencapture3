@@ -1,64 +1,25 @@
-"""Right rail: layers, colour palette, view (zoom), edit (copy, flatten), navigator, Settings."""
+"""Right rail. Top row: collapse caret and the Library toggle (mirroring the left rail's Capture button). Middle, for the
+editor: colour palette, view (zoom, the Page dialog), edit (copy, flatten), arrange (the selected layer's place in the
+stack), navigator; while the Library is open, the Library panel instead (``ui/library_panel.py``). Bottom: Settings.
+There is no layer list: layers are picked on the canvas (Ctrl+click: the one beneath)."""
 from __future__ import annotations
 import cairo
 from gi.repository import Gtk
 
-from .widgets import (rail_button, group_label, hairline, SwatchGrid, LayerRow, PALETTE,
-                      colour_class, rail_page, pin_width, ZoomPill)
+from .widgets import rail_button, group_label, hairline, SwatchGrid, PALETTE, rail_page, pin_width, ZoomPill
 from ..services import icon_loader
 from ..app.view_state import ViewState
+from .library_panel import LibraryPanel, LibraryColumn
 
 OPEN_WIDTH, COLLAPSED_WIDTH = 220, 56
 EDIT_ITEMS = (("copy", "Copy the image with its annotations", "win.copy", "Ctrl+C"), ("stack-simple", "Flatten", "win.flatten", None))
-
-
-def _settings_button() -> Gtk.Button:
-    b = Gtk.Button()
-    bb = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-    bb.append(icon_loader.icon("gear", 18))
-    bb.append(Gtk.Label(label="Settings"))
-    b.set_child(bb)
-    b.add_css_class("text-btn")
-    b.set_tooltip_text("Settings")
-    b.update_property([Gtk.AccessibleProperty.LABEL], ["Settings"])
-    b.set_action_name("app.preferences")
-    b.set_halign(Gtk.Align.END)
-    return b
-
-
-def _layer_thumbnail(doc, layer):
-    """A 40×28 texture: the annotation alone (or the base image) scaled to fit."""
-    from gi.repository import Gdk, GLib
-    from ..model.annotations import draw
-    w, h = max(1, doc.width), max(1, doc.height)
-    scale = min(40 / w, 28 / h)
-    tw, th = max(1, int(w * scale)), max(1, int(h * scale))
-    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 40, 28)
-    cr = cairo.Context(surf)
-    cr.set_source_rgb(0x2f / 255, 0x34 / 255, 0x3b / 255)
-    cr.paint()
-    cr.translate((40 - tw) / 2, (28 - th) / 2)
-    cr.scale(scale, scale)
-    if layer is None:
-        if doc.base is not None:
-            cr.set_source_surface(doc.base, 0, 0)
-            cr.get_source().set_filter(cairo.FILTER_GOOD)
-            cr.paint()
-    else:
-        a = layer.annotation
-        if a.kind in ("blur", "pixelate"):
-            x, y, bw, bh = a.rect
-            cr.set_source_rgba(1, 1, 1, 0.5)
-            cr.rectangle(x, y, bw, bh)
-            cr.fill()
-        elif a.kind in ("eraser", "cutout"):
-            from ..model.annotations import _paint_eraser_ghost, _paint_cutout_ghost
-            (_paint_eraser_ghost if a.kind == "eraser" else _paint_cutout_ghost)(a, cr)   # clearing a thumbnail shows nothing
-        else:
-            draw(a, cr, None)
-    surf.flush()
-    return Gdk.MemoryTexture.new(40, 28, Gdk.MemoryFormat.B8G8R8A8_PREMULTIPLIED,
-                                 GLib.Bytes.new(bytes(surf.get_data())), surf.get_stride())
+LIBRARY_ITEM = ("images", "Library", "win.library", "Ctrl+L")                    # top right, a toggle
+PAGE_ITEM = ("frame-corners", "Page: size, fill and stage colour", "win.page-settings", None)   # beside Fit in VIEW
+# low to high, left to right; the filled square in each glyph is the selected layer (data/icons/custom)
+ARRANGE_ITEMS = (("layer-back", "Send to back", "win.layer-back", "Ctrl+Shift+Page Down"),
+                 ("layer-backward", "Send backward", "win.layer-backward", "Ctrl+Page Down"),
+                 ("layer-forward", "Bring forward", "win.layer-forward", "Ctrl+Page Up"),
+                 ("layer-front", "Bring to front", "win.layer-front", "Ctrl+Shift+Page Up"))
 
 
 class ColourPalette(Gtk.Box):
@@ -214,15 +175,34 @@ class PanelRail(Gtk.Stack):
         self.add_named(pin_width(self._build_collapsed(), COLLAPSED_WIDTH), "collapsed")
         state.connect("notify::right-collapsed", self._sync)
         state.connect("notify::colour", self._colour_changed)
+        state.connect("notify::library", self._mode)
         self._sync()
+        self._mode()
 
     # -- open page ---------------------------------------------------------
     def _build_open(self) -> Gtk.Box:
         box = rail_page(OPEN_WIDTH)
         box.add_css_class("rail")
-        top = Gtk.Box(halign=Gtk.Align.START, margin_bottom=6)
+        top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_bottom=10)   # as the left rail's top row
         top.append(rail_button("caret-right", "Collapse panels", "win.toggle-right-rail", key="Ctrl+]"))
+        top.append(Gtk.Box(hexpand=True))
+        icon, label, action, key = LIBRARY_ITEM
+        self.library_btn = rail_button(icon, label, action, toggle=True, key=key)
+        top.append(self.library_btn)
         box.append(top)
+        self.middle = Gtk.Stack(vhomogeneous=False, hhomogeneous=False, vexpand=True,   # sized by the visible page only
+                                transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=120)
+        editor = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+        self.middle.add_named(editor, "editor")
+        self.library_panel = LibraryPanel()
+        self.middle.add_named(self.library_panel, "library")
+        box.append(self.middle)
+        self._build_editor_groups(editor)
+        self._build_settings(box)
+        self.state.connect("notify::zoom", lambda s, _p: self.zoom.set_zoom(s.zoom))
+        return box
+
+    def _build_editor_groups(self, box: Gtk.Box) -> None:
         self.palette = ColourPalette(self.state)
         self.palette.set_margin_bottom(10)
         box.append(self.palette)
@@ -230,10 +210,15 @@ class PanelRail(Gtk.Stack):
         lbl = group_label("View")
         lbl.set_margin_top(10)
         box.append(lbl)
+        view = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4, margin_top=4)
         self.zoom = ZoomPill()
         self.zoom.set_halign(Gtk.Align.START)
-        self.zoom.set_margin_top(4)
-        box.append(self.zoom)
+        view.append(self.zoom)
+        icon, label, action, key = PAGE_ITEM
+        self.page_btn = rail_button(icon, label, action, key=key)
+        self.page_btn.set_valign(Gtk.Align.CENTER)
+        view.append(self.page_btn)
+        box.append(view)
         lbl = group_label("Edit")
         lbl.set_margin_top(10)
         box.append(lbl)
@@ -243,98 +228,50 @@ class PanelRail(Gtk.Stack):
             edit.append(b)
         box.append(edit)
         box.append(hairline())
-        lbl = group_label("Layers")
+        lbl = group_label("Arrange")
         lbl.set_margin_top(10)
+        lbl.set_tooltip_text("The selected layer's place in the stack · Ctrl+click picks the layer beneath")
         box.append(lbl)
-        box.append(self._build_layers())             # grows to fill; sits directly above the navigator
+        arrange = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_top=4, margin_bottom=10)
+        arrange.update_property([Gtk.AccessibleProperty.LABEL], ["Arrange the selected layer"])
+        self.arrange_buttons = [rail_button(icon, label, action, key=key) for icon, label, action, key in ARRANGE_ITEMS]
+        for b in self.arrange_buttons:
+            arrange.append(b)
+        box.append(arrange)
+        box.append(Gtk.Box(vexpand=True))            # the navigator sits at the bottom
         self.navigator = Navigator()
         self.navigator.set_margin_top(6)
         box.append(self.navigator)
-        self.settings_btn = _settings_button()
-        self.settings_btn.set_margin_top(6)
-        box.append(self.settings_btn)
-        self.state.connect("notify::zoom", lambda s, _p: self.zoom.set_zoom(s.zoom))
-        return box
+
+    def _build_settings(self, box: Gtk.Box) -> None:
+        # the bottom group mirrors the left rail's ACTIONS (hairline, group label, a 30 px button row), so the two
+        # rails' bottom hairlines sit at the same height
+        hl = hairline()
+        hl.set_margin_top(10)
+        box.append(hl)
+        lbl = group_label("Settings")
+        lbl.set_margin_top(8)
+        box.append(lbl)
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.settings_btn = rail_button("gear", "Settings", "app.preferences", key="Ctrl+,")
+        self.settings_btn.set_hexpand(True)
+        self.settings_btn.set_halign(Gtk.Align.END)
+        row.append(self.settings_btn)
+        box.append(row)
+        self.bottom_hairline = hl
 
     def attach_stage(self, stage) -> None:
         self.navigator.attach(stage)
 
-    def _build_layers(self) -> Gtk.Box:
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_top=6, margin_bottom=10)
-        self.layers = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
-        self.layers.add_css_class("layer-list")
-        self.layers.set_accessible_role(Gtk.AccessibleRole.LIST)
-        self.layers_empty = Gtk.Label(label="No layers yet", halign=Gtk.Align.FILL, valign=Gtk.Align.START, hexpand=True)
-        self.layers_empty.add_css_class("empty-box")
-        self.layers_empty.set_size_request(-1, 60)
-        scroller = Gtk.ScrolledWindow(child=self.layers, hscrollbar_policy=Gtk.PolicyType.NEVER,
-                                      vscrollbar_policy=Gtk.PolicyType.AUTOMATIC, vexpand=True, propagate_natural_height=True)
-        scroller.add_css_class("rail-pin")
-        box.append(scroller)
-        box.append(self.layers_empty)
-        box.set_vexpand(True)
-        self.set_document(None)
-        return box
-
     def set_document(self, doc, selected_id: int | None = None) -> None:
-        """Rebuild the layer list: annotation layers top-first, then the base image."""
-        self._rebuilding = True
-        try:
-            child = self.layers.get_first_child()
-            while child is not None:
-                nxt = child.get_next_sibling()
-                self.layers.remove(child)
-                child = nxt
-            has = doc is not None and not doc.empty
-            self.layers.get_parent().get_parent().set_visible(has)  # the scrolled window
-            self.layers_empty.set_visible(not has)
-            if not has:
-                return
-            chosen = None
-            for number, layer in reversed(list(enumerate(doc.layers, start=1))):
-                # rows are numbered by stack position (1 = bottom); the label names the tool that made the layer
-                row = LayerRow(str(number), layer.badge, "#5b6572", thumbnail=_layer_thumbnail(doc, layer))
-                row.layer_id = layer.id
-                row.eye.set_active(layer.visible)
-                row.eye.connect("toggled", lambda b, lid=layer.id: self._eye(lid, b.get_active()))
-                self.layers.append(row)
-                if layer.id == selected_id:
-                    chosen = row
-            base = LayerRow("Base capture", "img", "#c6cedb", thumbnail=_layer_thumbnail(doc, None))
-            base.layer_id = 0
-            base.eye.set_sensitive(False)
-            self.layers.append(base)
-            self.layers.select_row(chosen if chosen is not None else base)
-        finally:
-            self._rebuilding = False
+        """Nothing to rebuild since the layer list went; kept for the window's calls after every edit."""
 
     def bind_editor(self, editor) -> None:
         self.editor = editor
-        editor.on_selection.append(self._editor_selected)
-        self.layers.connect("row-selected", self._row_selected)
 
-    def _row_selected(self, _lb, row) -> None:
-        if getattr(self, "_rebuilding", False) or self.editor is None or row is None:
-            return
-        self.editor.select(row.layer_id or None, notify=False)
-
-    def _editor_selected(self, layer_id) -> None:
-        if getattr(self, "_rebuilding", False):
-            return
-        self._rebuilding = True
-        try:
-            row = self.layers.get_first_child()
-            while row is not None:
-                if getattr(row, "layer_id", None) == (layer_id or 0):
-                    self.layers.select_row(row)
-                    break
-                row = row.get_next_sibling()
-        finally:
-            self._rebuilding = False
-
-    def _eye(self, layer_id: int, visible: bool) -> None:
-        if not getattr(self, "_rebuilding", False) and self.editor is not None:
-            self.editor.set_visible(layer_id, visible)
+    def bind_library(self, library, tags) -> None:
+        self.library_panel.bind(library, tags)
+        self.library_column.bind(library)
 
     # -- collapsed page ----------------------------------------------------
     def _build_collapsed(self) -> Gtk.Box:
@@ -344,27 +281,43 @@ class PanelRail(Gtk.Stack):
         exp = rail_button("caret-left", "Expand panels", "win.toggle-right-rail", classes=("outlined",), key="Ctrl+]")
         exp.set_halign(Gtk.Align.CENTER)
         box.append(exp)
+        icon, label, action, key = LIBRARY_ITEM
+        lib = rail_button(icon, label, action, toggle=True, key=key)
+        lib.set_halign(Gtk.Align.CENTER)
+        box.append(lib)
+        self.middle_collapsed = Gtk.Stack(vhomogeneous=False, hhomogeneous=False, vexpand=True)
+        editor = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, vexpand=True)
+        self.middle_collapsed.add_named(editor, "editor")
+        self.library_column = LibraryColumn()
+        self.middle_collapsed.add_named(self.library_column, "library")
+        box.append(self.middle_collapsed)
+        outer, box = box, editor
         box.append(hairline(30))
         self.dots = SwatchGrid(PALETTE[:6], on_select=lambda hx: setattr(self.state, "colour", hx), per_row=1)
         self.dots.set_halign(Gtk.Align.CENTER)
-        self.dots.set_row_spacing(10)
+        self.dots.set_row_spacing(8)                  # 8, not 10: the column also holds the Library button
         box.append(self.dots)
         ed = rail_button("eyedropper", "Eyedropper", "win.eyedropper")
         ed.set_halign(Gtk.Align.CENTER)
         box.append(ed)
         box.append(hairline(30))
         for icon, label, action, key in (("minus", "Zoom out", "win.zoom-out", "Ctrl+−"), ("plus", "Zoom in", "win.zoom-in", "Ctrl++"),
-                                         ("arrows-in", "Fit to window", "win.zoom-fit", "Ctrl+0")):
+                                         ("arrows-in", "Fit to window", "win.zoom-fit", "Ctrl+0"), PAGE_ITEM):
             b = rail_button(icon, label, action, key=key)
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
         box.append(hairline(30))
-        for icon, label, action, key in EDIT_ITEMS:
+        for n, (icon, label, action, key) in enumerate(EDIT_ITEMS + ARRANGE_ITEMS):
+            if n == len(EDIT_ITEMS):
+                box.append(hairline(30))
             b = rail_button(icon, label, action, key=key)
             b.set_halign(Gtk.Align.CENTER)
             box.append(b)
-        box.append(Gtk.Box(vexpand=True))
+        box = outer
         box.append(hairline(30))
+        slot = Gtk.Box()                              # the left rail has Discard + Save under its line: an empty
+        slot.set_size_request(30, 30)                 # 30 px slot keeps both lines level and the gear beside Save
+        box.append(slot)
         gear = rail_button("gear", "Settings", "app.preferences", key="Ctrl+,")
         gear.set_halign(Gtk.Align.CENTER)
         box.append(gear)
@@ -374,6 +327,12 @@ class PanelRail(Gtk.Stack):
     # -- state sync --------------------------------------------------------
     def _sync(self, *_a) -> None:
         self.set_visible_child_name("collapsed" if self.state.right_collapsed else "open")
+
+    def _mode(self, *_a) -> None:
+        """The Library open: its panel replaces the editor groups (open and collapsed)."""
+        name = "library" if self.state.library else "editor"
+        self.middle.set_visible_child_name(name)
+        self.middle_collapsed.set_visible_child_name(name)
 
     def _colour_changed(self, *_a) -> None:
         self.dots.select(self.state.colour)
