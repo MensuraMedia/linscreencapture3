@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch the development build of LinScreenCapture 2 from a menu entry.
+# Launch the development build of LinScreenCapture 3 from a menu entry.
 # Rebuilds the GResource bundle when data/ or style.css changed, then runs the app.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
