@@ -11,7 +11,7 @@ from gi.repository import Gdk, Gtk  # noqa: E402
 if not Gtk.init_check() or Gdk.Display.get_default() is None:
     pytest.skip("no X display (run under xvfb-run)", allow_module_level=True)
 
-from tests.conftest import pump  # noqa: E402
+from conftest import pump  # noqa: E402
 from linscreencapture.services.clip_history import LIMIT  # noqa: E402
 from linscreencapture.ui.clip_tray import SLOTS, TRAY_HEIGHT  # noqa: E402
 from linscreencapture.ui.tool_rail import OPEN_WIDTH  # noqa: E402
@@ -77,6 +77,8 @@ def test_four_large_copies_neither_stretch_the_tray_nor_the_rail(window):
     assert tray.get_height() == TRAY_HEIGHT
     assert window.tool_rail.get_width() == OPEN_WIDTH
     assert all(p.get_paintable() is not None for p in tray.pictures)
+    sizes = [(p.get_width(), p.get_height()) for p in tray.pictures]  # each quarter really shows its thumbnail
+    assert all(w >= 60 and h >= 30 for w, h in sizes) and len(set(sizes)) == 1, sizes
     for e in window.clips.entries:                              # the cells' texture is a thumb, never the full size
         assert e.thumb.get_width() <= 192 and e.thumb.get_height() <= 108
 

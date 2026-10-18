@@ -1,6 +1,8 @@
 # Clipboard tray: the last four copies as a 2 × 2 grid (technical concept)
 
-Status: **concept** (2026-10-18), not implemented. Branch for the work: `feat/clip-tray-4up`.
+Status: **implemented** 2026-10-18 on `feat/clip-tray-4up` (drafted by the GLM worker, reviewed and completed by
+Claude). Beyond the concept: the cells are `CellPicture`s that report no natural size; with plain `Gtk.Picture`s
+four 192 × 108 thumbnails stretched the tray from 116 to 240 px (caught by the §5 test).
 This is the roadmap item "clipboard tray with several slots" (HANDOFF §8, backlog), which the code already
 parametrises (`ClipHistory.limit`, `clip_tray.SLOTS`).
 

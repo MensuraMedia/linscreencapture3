@@ -27,6 +27,14 @@ def _size_label(e: ClipEntry) -> str:
     return f"{e.width}×{e.height} · {_clock(e)}"
 
 
+class CellPicture(Gtk.Picture):
+    """A picture that asks for no size of its own: a ``Gtk.Picture`` reports its texture's natural size even with
+    ``can_shrink``, so four 192 × 108 thumbnails grew the 116 px tray to 240 px. The grid sizes the cells instead."""
+
+    def do_measure(self, orientation, for_size):
+        return 0, 0, -1, -1
+
+
 class ClipPreview(Gtk.Popover):
     """Larger sample of one copy with Copy / Paste / Delete under it."""
 
@@ -112,7 +120,7 @@ class ClipTray(Gtk.Grid):
             b.set_always_show_arrow(False)
             b.set_focus_on_click(False)
             b.set_direction(Gtk.ArrowType.RIGHT)
-            pic = Gtk.Picture(content_fit=Gtk.ContentFit.CONTAIN, can_shrink=True)
+            pic = CellPicture(content_fit=Gtk.ContentFit.CONTAIN, can_shrink=True)
             b.set_child(pic)
             pop = ClipPreview(history, on_paste)
             pop.connect("show", lambda p, n=n: self._showing(p, n))
@@ -175,3 +183,5 @@ class ClipTrayButton(Gtk.MenuButton):
         self.tray.set_margin_top(6); self.tray.set_margin_bottom(6); self.tray.set_margin_start(6); self.tray.set_margin_end(6)
         pop.set_child(self.tray)
         self.set_popover(pop)
+        history.connect("changed", lambda h: self.set_tooltip_text(
+            "Clipboard · the last 4 copies · click to preview" if len(h) else "Clipboard · no copies yet"))
