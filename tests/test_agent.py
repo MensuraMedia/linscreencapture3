@@ -24,6 +24,7 @@ def test_autostart_entry_uses_the_script_on_path(tmp_path):
     text = p.read_text()
     assert p == tmp_path / "autostart" / "com.mensuramedia.LinScreenCapture.desktop"
     assert "Exec=/home/u/.local/bin/linscreencapture --background" in text and "Path=" not in text
+    assert "Icon=com.mensuramedia.LinScreenCapture\n" in text     # the installed app icon (docs/ICONOGRAPHY.md)
     assert autostart.is_enabled(str(tmp_path))
     autostart.set_enabled(False, str(tmp_path))
     assert not p.exists() and not autostart.is_enabled(str(tmp_path))

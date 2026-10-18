@@ -35,7 +35,7 @@ def desktop_entry(exec_line: str, path: str | None) -> str:
         "Name=LinScreenCapture agent",
         "Comment=Background agent: PrintScreen copies a region to the clipboard",
         f"Exec={exec_line}",
-        "Icon=linscreencapture3",
+        f"Icon={APP_ID}",               # the application icon (install.sh, .deb, make launcher)
         "Terminal=false",
         "NoDisplay=true",
         "X-GNOME-Autostart-enabled=true",
