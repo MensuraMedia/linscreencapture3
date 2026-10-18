@@ -198,6 +198,8 @@ Start-up and capture diagnostics: `python3 -m linscreencapture --debug` (or `LSC
 
 `make icons` re-syncs the 51 bundled Phosphor glyphs from a local checkout (`ICON_SRC=~/projects/assets/icons/regular`); the SVGs are committed, so a plain clone builds without it. `make test` runs the suite (under Xvfb when `xvfb-run` is installed, otherwise on the live display) and `make snapshot` renders the shell to `screenshots/dev/` for side-by-side comparison with the mockups.
 
+Application icon: one mark, the orange tile (`data/icons/hicolor/scalable/apps/com.mensuramedia.LinScreenCapture.svg` and its PNG renders in `resources/icons/`, theme name `com.mensuramedia.LinScreenCapture`), for the menu, panel, tray, Alt+Tab and Startup Applications; files, placement and rules in [docs/ICONOGRAPHY.md](docs/ICONOGRAPHY.md).
+
 Shell adjustments made after Phase 1 are documented in `docs/SHELL-ADJUSTMENTS-2026-10-08.md` and `docs/TOOL-PLACEMENT.md` (Capture tops the left rail, tool properties live in the header, zoom and Copy/Flatten in the right rail); `screenshots/dev/` shows the running shell.
 
 Window chrome: the Graphite header is the window's title bar (client-side decoration). The minimise / maximise / close buttons follow the desktop's `gtk-decoration-layout`, dragging the header moves the window and double-click maximises. Both rails collapse automatically below 1100 px window width and reopen above it unless you toggled them by hand (Ctrl+[ / Ctrl+] or the carets); the minimum window is 960×600.
