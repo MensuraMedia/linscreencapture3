@@ -59,6 +59,13 @@ from `feat/phase5` at `01f5606` (the other machine's icon / installer / .deb wor
   and rules. Linked from README and FEATURES.
 - Fix: the autostart entry still wrote `Icon=linscreencapture3`, the retired theme name that `make launcher` now
   deletes, so Startup Applications showed a blank icon. It writes `Icon=<APP_ID>`; `test_agent` asserts it.
+- Fix: **`make test` deleted the real `~/.config/autostart/<APP_ID>.desktop`**, so Run at startup silently went off
+  on the development machine after every test run (and the app then honours the missing entry as "off").
+  `install.sh --uninstall --destdir …` (run by `test_install_script_uninstalls`) removed `$HOME`'s autostart entry
+  even when staging; it now skips `$HOME` under `--destdir`. Also `PreferencesDialog` defaulted `autostart_root` to
+  the real config dir; it now defaults to `settings.root`. Guarded by
+  `test_staged_uninstall_leaves_the_users_autostart_entry_alone` (fake `HOME`) and
+  `test_preferences_autostart_switch_stays_in_the_settings_root`. Verified with a sentinel entry over the full suite.
 - `tools/launch.sh` and `ui/style.css` header comments say LinScreenCapture 3; §8.0 points at the real tray icon file.
 
 The same machine had found the tray (`tray.py` prgname) and `WM_CLASS` bugs independently; the other machine's

@@ -49,6 +49,20 @@ def test_install_script_uninstalls(tmp_path):
     assert not (root / f"share/applications/{APP_ID}.desktop").exists()
 
 
+def test_staged_uninstall_leaves_the_users_autostart_entry_alone(tmp_path):
+    """--destdir is staging: an uninstall there must not delete $HOME/.config/autostart (it wiped the real one)."""
+    home = tmp_path / "home"
+    entry = home / f".config/autostart/{APP_ID}.desktop"
+    entry.parent.mkdir(parents=True)
+    entry.write_text("[Desktop Entry]\nName=keep me\n")
+    env = dict(os.environ, DISPLAY="", WAYLAND_DISPLAY="", HOME=str(home))
+    for extra in ((), ("--uninstall",)):
+        r = subprocess.run([str(ROOT / "install.sh"), "--prefix", "/opt/lsc", "--destdir", str(tmp_path / "stage"),
+                            "--no-start", *extra], capture_output=True, text=True, env=env, timeout=120)
+        assert r.returncode == 0, r.stderr
+    assert entry.read_text() == "[Desktop Entry]\nName=keep me\n"
+
+
 def test_app_icon_is_bundled_and_named_after_the_app_id():
     xml = (ROOT / "data/linscreencapture.gresource.xml").read_text()
     assert f'alias="icons/scalable/apps/{APP_ID}.svg"' in xml

@@ -276,6 +276,23 @@ def test_key_presses_become_accelerators(gtk):
     assert hotkey_label("<Control>Print") == "Ctrl+Print" and hotkey_label("none") == "Off"
 
 
+def test_preferences_autostart_switch_stays_in_the_settings_root(window):
+    """The Run at startup switch writes under the settings' root, never the real ~/.config/autostart."""
+    from conftest import pump
+    from linscreencapture.services import autostart
+    from linscreencapture.ui.preferences import PreferencesDialog
+    dlg = PreferencesDialog(window.settings)
+    assert dlg.autostart_root == window.settings.root
+    dlg.present(window)
+    pump(50)
+    dlg._set("autostart", True)
+    assert autostart.entry_path(window.settings.root).is_file()
+    dlg._set("autostart", False)
+    assert not autostart.entry_path(window.settings.root).exists()
+    dlg.close()
+    pump(50)
+
+
 def test_preferences_record_a_custom_hotkey_and_turn_it_off(window):
     from conftest import pump
     from linscreencapture.ui.preferences import PreferencesDialog
