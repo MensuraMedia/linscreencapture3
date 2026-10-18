@@ -120,7 +120,6 @@ class OverlayWindow(Gtk.Window):
         self.area = Gtk.DrawingArea(hexpand=True, vexpand=True, can_focus=True, focusable=True)
         self.area.set_draw_func(self._draw)
         overlay = Gtk.Overlay(child=self.area)
-        self._hints_box: Gtk.Box | None = None
         self._hint_label: Gtk.Label | None = None
         overlay.add_overlay(self._mode_bar())
         overlay.add_overlay(self._hint_bar())
@@ -173,35 +172,13 @@ class OverlayWindow(Gtk.Window):
                 b.set_group(first)
             b.connect("toggled", lambda btn, m=mode: btn.get_active() and self.session.set_mode(m))
             bar.append(b)
-        sep = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
-        sep.add_css_class("hairline")
-        sep.set_margin_start(6); sep.set_margin_end(6)
-        bar.append(sep)
-        self._hints_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        bar.append(self._hints_box)
-        self._fill_hints()
-        return bar
-
-    def _fill_hints(self) -> None:
-        box = self._hints_box
-        child = box.get_first_child()
-        while child is not None:
-            nxt = child.get_next_sibling()
-            box.remove(child)
-            child = nxt
-        hints = (("Esc", "cancel"), ("Space", "move"), ("Shift", "square")) if self.session.simple else \
-            (("Enter", "capture"), ("Esc", "cancel"), ("Space", "move"), ("Shift", "square"))
-        for key, what in hints:
-            k = Gtk.Label(label=key); k.add_css_class("kind"); box.append(k)
-            w = Gtk.Label(label=what); w.add_css_class("sublabel"); w.set_margin_end(6); box.append(w)
+        return bar                  # only the mode icons (their tooltips name them); no key-hint text up here
 
     @staticmethod
     def _hint_text(simple: bool) -> str:
         return "Release to capture" if simple else "Arrows nudge 1 px · Shift+Arrows 10 px · Enter or double-click captures"
 
     def refresh_hints(self) -> None:
-        if self._hints_box is not None:
-            self._fill_hints()
         if self._hint_label is not None:
             self._hint_label.set_label(self._hint_text(self.session.simple))
         self.area.queue_draw()
