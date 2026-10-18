@@ -1,6 +1,8 @@
 # Editor: pasted-image shadow, a shadow switch on every annotation, full-colour drawing preview
 
-Status: **proposed** (2026-10-18), not implemented. Branch for the work: `feat/shadows-and-preview`.
+Status: **implemented** 2026-10-18 on `feat/editor-shadows-canvas` (A, B and C). Measured for C.3: a shadowed
+1400×800 arrow costs 21 ms a frame and a 1000-point pen stroke 16 ms, so while *drawing* the preview leaves out only
+the shadow (it appears on release); colour and opacity are the real ones. Moves reuse the cached shadow (A.3 item 4).
 Related: [EDITOR-CANVAS-EXPANSION.md](EDITOR-CANVAS-EXPANSION.md) (the page grows to include the image's shadow).
 
 Three changes, in order of size: **C** is a two-line fix, **B** is small, and **A** is a renderer extension.

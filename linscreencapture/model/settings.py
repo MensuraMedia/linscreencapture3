@@ -22,6 +22,7 @@ LEGACY_DIR = "linshot"
 FILE = "settings.conf"
 
 TOOLS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "fill")
+STYLED = TOOLS + ("image",)          # also persisted; "image" (a pasted picture) never follows the universal style
 _DEFAULT_WIDTHS = {"eraser": 24.0}   # the eraser is a broad band by default
 PREFIXES = ("LinScreenCapture_", "Screenshot_")
 NUMBERING = ("sequence", "timestamp")
@@ -78,7 +79,9 @@ class ToolStyle:
 
 
 def _default_tools() -> dict[str, ToolStyle]:
-    return {t: ToolStyle(width=_DEFAULT_WIDTHS.get(t, 4.0), opacity=0.4 if t == "marker" else 1.0) for t in TOOLS}
+    tools = {t: ToolStyle(width=_DEFAULT_WIDTHS.get(t, 4.0), opacity=0.4 if t == "marker" else 1.0) for t in TOOLS}
+    tools["image"] = ToolStyle(shadow=True, shadow_intensity=0.45)   # a pasted image gets a drop shadow by default
+    return tools
 
 
 @dataclass
@@ -129,7 +132,7 @@ class Settings:
 
     def tool_style(self, tool: str) -> Style:
         """A drawing ``Style`` for ``tool`` honouring the universal switch and text/blur options."""
-        src = self.tools["arrow"] if self.universal else self.tools.get(tool, ToolStyle())
+        src = self.tools["arrow"] if self.universal and tool in TOOLS else self.tools.get(tool, ToolStyle())
         own = self.tools.get(tool, ToolStyle())
         return Style(colour=src.colour, width=src.width, shadow=src.shadow, shadow_intensity=src.shadow_intensity,
                      fill=(tool == "fill") or getattr(src, "fill", False), blur_block=self.blur_block, blur_radius=self.blur_radius,
@@ -204,7 +207,7 @@ class Settings:
         self.keep_running = g.bool("System", "keep_running", self.keep_running)
         self.tray_icon = g.bool("System", "tray_icon", self.tray_icon)
         self.hotkey_opens_editor = g.bool("System", "hotkey_opens_editor", self.hotkey_opens_editor)
-        for t in TOOLS:
+        for t in STYLED:
             ts = self.tools[t]
             ts.colour = parse_colour(g.str("Tools", f"colour_{t}", ts.colour)) or ts.colour
             ts.width = max(0.5, min(80.0, g.float("Tools", f"width_{t}", ts.width)))
@@ -281,7 +284,7 @@ class Settings:
         kf.set_boolean("System", "keep_running", bool(self.keep_running))
         kf.set_boolean("System", "tray_icon", bool(self.tray_icon))
         kf.set_boolean("System", "hotkey_opens_editor", bool(self.hotkey_opens_editor))
-        for t in TOOLS:
+        for t in STYLED:
             ts = self.tools[t]
             kf.set_string("Tools", f"colour_{t}", ts.colour)
             kf.set_double("Tools", f"width_{t}", float(ts.width))

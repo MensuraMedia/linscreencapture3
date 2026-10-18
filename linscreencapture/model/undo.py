@@ -176,6 +176,21 @@ class TransformBase:
         doc.dirty = True
 
 
+@dataclass
+class Compound:
+    """Several commands as one undo step: applied in order, reverted in reverse."""
+    commands: list
+    label: str = "Edit"
+
+    def apply(self, doc: Document) -> None:
+        for c in self.commands:
+            c.apply(doc)
+
+    def revert(self, doc: Document) -> None:
+        for c in reversed(self.commands):
+            c.revert(doc)
+
+
 class UndoStack:
     def __init__(self, doc: Document, limit: int = LIMIT, on_change: Callable[[], None] | None = None):
         self.doc = doc
@@ -189,6 +204,17 @@ class UndoStack:
         self._undo.append(cmd)
         if len(self._undo) > self.limit:
             del self._undo[0]
+        self._redo.clear()
+        self._notify()
+        return cmd
+
+    def amend(self, cmd: Command) -> Command:
+        """Apply ``cmd`` as part of the last step, so one Ctrl+Z reverts both (e.g. a move that grew the page)."""
+        if not self._undo:
+            return self.do(cmd)
+        cmd.apply(self.doc)
+        last = self._undo.pop()
+        self._undo.append(Compound([last, cmd], label=last.label))
         self._redo.clear()
         self._notify()
         return cmd

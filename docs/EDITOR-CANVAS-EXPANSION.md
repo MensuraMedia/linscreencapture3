@@ -1,6 +1,12 @@
 # Editor: the page grows to fit a pasted image (technical design)
 
-Status: **proposed** (2026-10-18), not implemented. Branch for the work: `feat/canvas-expansion`.
+Status: **implemented** 2026-10-18 on `feat/editor-shadows-canvas`, with the recommended answers to §7 (1:1 paste,
+page padding, image layers only) pending the operator's confirmation. Differences from the design below:
+growth is decided in one place, `EditorController._grow_page_for`, called by `_commit` for any `AddLayer` /
+`EditAnnotation` on an image layer, and folded into that step with `UndoStack.amend` (`Compound`). The live dashed
+outline and the provisional canvas extent while dragging (§4.3) are **not** built yet: growing the canvas mid-drag
+re-centres the page under the pointer. The page grows on release. *Fit* fits the image with its shadow, so a
+fitted image never grows the page.
 Related: [EDITOR-SHADOWS-AND-PREVIEW.md](EDITOR-SHADOWS-AND-PREVIEW.md) (the pasted image's shadow, which this
 feature must never clip).
 

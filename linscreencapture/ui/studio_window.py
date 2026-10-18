@@ -503,15 +503,15 @@ class StudioWindow(Gtk.ApplicationWindow):
             self.state.subtitle = self.document.summary()
             self.toast("Pasted as a new image")
             return
-        from ..model.annotations import Annotation, Style
+        from ..model.annotations import Annotation
         doc = self.document
-        scale = min(1.0, doc.width / w, doc.height / h)
-        pw, ph = max(1, w * scale), max(1, h * scale)
-        x, y = (doc.width - pw) / 2, (doc.height - ph) / 2
-        a = Annotation("image", x, y, x + pw, y + ph, style=Style(colour=self.state.colour), surface=surf)
+        # 1:1 and centred; if it reaches past the page, the page grows to hold it (EditorController._grow_page_for).
+        # Fit in the header shrinks it into the page instead.
+        x, y = round((doc.width - w) / 2), round((doc.height - h) / 2)
+        a = Annotation("image", x, y, x + w, y + h, style=self.settings.tool_style("image"), surface=surf)
         self.state.tool = "select"
         self.editor._commit(AddLayer(a))
-        self.toast("Pasted as a layer · corners resize in proportion (Shift: free) · W, H and % in the header")
+        self.toast("Pasted as a layer · drag it past the edge to enlarge the page · Fit shrinks it into the page")
 
     # -- image operations ----------------------------------------------------
     def image_op(self, op: str, *args) -> None:

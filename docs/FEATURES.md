@@ -77,13 +77,14 @@ selected the change is also applied to that annotation as an undoable "Style" ed
 | Pen, Marker | Width · Shadow · Opacity (the marker paints at 4× width; its opacity defaults to 0.40) |
 | Eraser | Width (2–80, default 24) · Opacity (= erase strength) · hint |
 | Text, Callout | Font (Ubuntu, Cantarell, DejaVu Sans, Liberation Sans, Noto Sans) · Size (6–96) · Bold · Italic · Shadow · Opacity |
-| Step number | Badge size (8–48) · Opacity |
+| Step number | Badge size (8–48) · Shadow · Opacity |
 | Fill | Opacity |
 | Blur, Pixelate | Mode (Pixelate / Blur — switches the tool) · Block size (2–32) |
 | Crop | hint · Apply crop · Cancel |
 | Box area, Round area, Point chain | a hint for the mode (drag / click points, then Ctrl+C · Enter · Delete · Esc) |
 | Hand | hint (also Space, middle button) |
 | Select, Move (no selection) | hint (click, drag, Delete, Ctrl+D, Ctrl+A) |
+| Image (a selected paste) | W · lock · H · Scale % · 100 % · Fit · Shadow (default on) · Intensity (default 0.45) · hint; the image style never follows the Universal switch |
 
 Opacity (0.05–1.00) applies to the whole annotation as one cairo group, so a translucent filled box shows no
 darker rim where stroke and fill overlap; it is stored per tool and stays per tool even when the Universal
@@ -120,8 +121,8 @@ router (§14) handles editing chords and tool letters even while a spin button h
 ## 7. Annotation tools (`app/editor_controller.py`, `app/tools.py`, `model/annotations.py`)
 
 Every drawing produces one layer and one undo step; the new layer is selected. A live preview shows while
-dragging (at 60 % opacity, or the tool's own opacity if lower); the strip's width, shadow, opacity, fill and
-font settings apply at creation.
+dragging in the real colour and opacity (only the shadow waits for release: its blur would cost 15–20 ms a frame on
+large shapes); the strip's width, shadow, opacity, fill and font settings apply at creation.
 
 | Tool | Gesture | Result |
 | --- | --- | --- |
@@ -140,8 +141,16 @@ font settings apply at creation.
 | Box area **R**, Round area **O**, Point chain **J** | see §8 | mark a region for copy, crop or clear |
 | Select **V** / Move | click selects the topmost layer under the pointer; drag moves it; handles resize (8 for boxes, circles, fills, redactions and pasted images; 2 for arrows, lines and callouts; **Ctrl** keeps shapes square). **Pasted images** resize like in an image editor (`tools.image_resize`): corner handles keep the proportions, **Shift** stretches freely, **Ctrl** resizes about the centre, edge handles stretch one side, never below 4 px; a solid frame marks the selected image and a `W × H px · N %` readout follows the drag; the header strip shows **W**, a proportions lock, **H**, **Scale %** (of the pasted image's own size), **100 %** and **Fit** (fit inside the image, centred). **Arrow keys** nudge the selected layer 1 px (Shift: 10 px); **Delete** removes; **Ctrl+D** duplicates 12 px offset | undoable edits; cursor changes per handle. The selection shows **handles only** (text, pen, marker and step layers, which have no handles, get four small corner ticks); Settings → Window → "Dashed frame around the selected layer" restores a dashed frame |
 
-Shadows (Arrow, Line, Box, Circle, Text, Pen, Marker) are a Gaussian-blurred black silhouette of the shape,
-cached per annotation, whose offset and blur grow with the line width (the 1.4 three-pass shadow banded).
+Shadows (Arrow, Line, Box, Circle, Text, Pen, Marker, Step, Callout and pasted images; `SHADOW_KINDS`) are a
+Gaussian-blurred black silhouette of the shape whose offset and blur grow with the line width (the 1.4 three-pass
+shadow banded). A pasted image casts the shadow of its own alpha (a cut-out PNG casts its shape) with fixed sigma 6 /
+offset 4, on by default (`[Tools] shadow_image`); it is rendered into the pixels, so Flatten, Save and Copy keep it.
+Every marking tool's strip has a Shadow switch; fill, eraser, blur, pixelate and areas have none by design.
+Page growth: an image layer pasted, moved, nudged, resized or duplicated past the page edge grows the page on the
+overflowing sides to its painted extent (shadow included) plus `EXPAND_PADDING` = 20 px, transparent, in the same undo
+step (`EditorController._grow_page_for`, `UndoStack.amend`); the view scrolls so the picture stays put; the page never
+shrinks by itself (crop trims it); capped at 16384 px a side. Fit fits the image *with* its shadow inside the page.
+Design: `docs/EDITOR-CANVAS-EXPANSION.md`, `docs/EDITOR-SHADOWS-AND-PREVIEW.md`.
 
 Undo: **Ctrl+Z**, redo **Ctrl+Shift+Z** or **Ctrl+Y**, 20 steps deep; the Undo toast names the step; the
 subtitle's layer count and `unsaved` follow every change.
@@ -161,7 +170,7 @@ subtitle's layer count and `unsaved` follow every change.
 | Action | Keys | Behaviour |
 | --- | --- | --- |
 | Copy | **Ctrl+C**, EDIT → Copy | with an **area marked**: just that region (outside the shape transparent); otherwise the **flattened image** with every layer. A selected layer is also remembered so Ctrl+V pastes a copy of it (until the clipboard changes elsewhere). Every copy also lands in the clipboard tray (§3) |
-| Paste | **Ctrl+V** | in order: a layer copied in the app → a copy 12 px offset (repeated pastes cascade); an image on the clipboard → with a document open an `image` layer centred and selected (scaled down to fit), with none a new Untitled document; text on the clipboard (from a document, a web page…) → a `text` layer in the Text tool's style centred on the image, Select tool active (CRLF normalised, 2000 characters max). Clipboard images are recognised by GType (local `Gdk.Texture` subclasses) or `image/*` MIME types |
+| Paste | **Ctrl+V** | in order: a layer copied in the app → a copy 12 px offset (repeated pastes cascade); an image on the clipboard → with a document open an `image` layer at 1:1, centred and selected, with a drop shadow (the page grows if it reaches past the edge; Fit shrinks it into the page), with none a new Untitled document; text on the clipboard (from a document, a web page…) → a `text` layer in the Text tool's style centred on the image, Select tool active (CRLF normalised, 2000 characters max). Clipboard images are recognised by GType (local `Gdk.Texture` subclasses) or `image/*` MIME types |
 | Tray | left rail | the last copy with preview, Copy, Paste, Delete (§3) |
 
 ### The Area tool
@@ -372,7 +381,7 @@ One entry per feature of the two review rounds after Phase 5: where it lives, ho
 
 | Feature | Layout | Implementation |
 | --- | --- | --- |
-| Soft shadows | annotation shadows and the stage drop shadow | `_shadow_surface()` in `model/annotations.py`: a black silhouette blurred with Pillow, cached on the annotation by geometry and style, offset and sigma from the width; `Stage._draw_drop_shadow`: four linear + four radial gradients (stacked rectangles banded on dark captures) |
+| Soft shadows | annotation shadows and the stage drop shadow | `_shadow_surface()` in `model/annotations.py`: a black silhouette blurred with Pillow, cached module-wide (LRU, 24) by shape relative to the layer's origin, so moving a layer (or its drag preview copy) reuses the blur; offset and sigma from the width (images: fixed 4 / 6); `Stage._draw_drop_shadow`: four linear + four radial gradients (stacked rectangles banded on dark captures) |
 | Per-tool opacity | Opacity slider in every drawing tool's strip set | `ToolStyle.opacity` (`opacity_<tool>`), `ToolProps._opacity()` one scale per set kept in step by `_load`; `draw()` composites shadow + shape in a cairo group and `paint_with_alpha` |
 | Capture delay | Delayed is the timer toggle in CAPTURE; off at every launch, mode Region | `capture_controller.capture()` reads `win.capture-delayed`; the perceived delay was python-xlib's `GetImage` parsing — `backends/x11.py::grab_root_libx11` calls libX11 through ctypes (declare `XImage.data` as `c_void_p`, free via the struct's `destroy_image`) |
 | Copy / paste | Ctrl+C / Ctrl+V | `StudioWindow._copy` (area → region, select-all → flattened, layer remembered in `_layer_clip` until the clipboard "changed" from elsewhere), `_paste` → `paste_layer` / `paste_texture` / `paste_text`; `_holds_image` walks `get_gtypes()` with `GType.is_a` because `contain_gtype(Gdk.Texture)` is false for local `GdkMemoryTexture` |
