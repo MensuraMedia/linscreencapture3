@@ -67,6 +67,7 @@ class StudioWindow(Gtk.ApplicationWindow):
         self.editor = EditorController(self)
         self.panel_rail.bind_editor(self.editor)
         self.editor.on_selection.append(lambda _id: self._arrange_changed())
+        self.editor.on_selection.append(lambda _id: self._shape_fill_sync())
         self.header.props.bind(self.settings, self.editor)
         self.shortcuts = ShortcutRouter(self)
         self._layer_clip = None                       # a copied layer, valid until the clipboard changes elsewhere
@@ -135,6 +136,8 @@ class StudioWindow(Gtk.ApplicationWindow):
         self._simple("layer-rotate-left", lambda: self.editor.rotate_selected(-90) or self.toast("Select a pasted image first"))
         self._simple("layer-rotate-right", lambda: self.editor.rotate_selected(90) or self.toast("Select a pasted image first"))
         self._simple("page-settings", self._page_settings)
+        self._stateful("shape-fill", "filled" if self.settings.tools["box"].fill else "outline", ("outline", "filled"),
+                       self._shape_fill)
         for where in ("front", "forward", "backward", "back"):
             self._simple(f"layer-{where}", lambda w=where: self.editor.arrange_selected(w))
         self._popovers: dict = {}
@@ -236,6 +239,7 @@ class StudioWindow(Gtk.ApplicationWindow):
             self.state.subtitle = self.document.summary()
             self.panel_rail.set_document(self.document, self.editor.selected_id)
             self.header.props.reload()               # undo / redo: the strip shows the selected layer's values again
+            self._shape_fill_sync()
 
     def _undo_changed(self) -> None:
         u = self.undo
@@ -245,6 +249,32 @@ class StudioWindow(Gtk.ApplicationWindow):
         action = self.lookup_action("page-settings")
         if action is not None:
             action.set_enabled(self.document is not None and not self.document.empty)
+
+    # -- shape fill (right rail, under the colour swatches) -------------------------------
+    SHAPES = ("box", "circle")
+
+    def _shape_fill(self, value: str) -> None:
+        """Outline or Filled: the selected box / circle changes (one undo step), and new boxes and circles follow."""
+        filled = value == "filled"
+        for tool in self.SHAPES:
+            self.settings.tools[tool].fill = filled
+        try:
+            self.settings.save()
+        except Exception as exc:  # noqa: BLE001
+            print(f"settings not saved: {exc}")
+        layer = self.editor.selected_layer()
+        if layer is not None and layer.annotation.kind in self.SHAPES and layer.annotation.style.fill != filled:
+            self.editor.apply_style({"fill": filled})
+
+    def _shape_fill_sync(self) -> None:
+        """Show the selected shape's fill, else the default for new shapes."""
+        action = self.lookup_action("shape-fill")
+        if action is None:
+            return
+        layer = self.editor.selected_layer() if self.document is not None else None
+        filled = (layer.annotation.style.fill if layer is not None and layer.annotation.kind in self.SHAPES
+                  else self.settings.tools["box"].fill)
+        action.set_state(GLib.Variant("s", "filled" if filled else "outline"))
 
     def _page_settings(self) -> None:
         from .page_dialog import PageDialog

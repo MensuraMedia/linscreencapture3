@@ -15,18 +15,46 @@ from ..app.view_state import ViewState
 from ..services import icon_loader
 
 TOOL_TITLES = {"select": "Select", "arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text",
-               "pen": "Pen", "marker": "Marker", "eraser": "Eraser", "blur": "Blur", "pixelate": "Pixelate", "fill": "Fill",
+               "pen": "Pen", "marker": "Marker", "eraser": "Eraser", "blur": "Blur", "pixelate": "Pixelate", "bucket": "Bucket",
                "step": "Step number", "callout": "Callout", "crop": "Crop", "move": "Move", "hand": "Hand",
                "area_box": "Box area", "area_round": "Round area", "area_points": "Point chain", "image": "Image"}
 # which control set each tool shows
 GROUP = {"arrow": "shape", "line": "shape", "box": "shape", "circle": "shape", "pen": "stroke", "marker": "stroke",
-         "eraser": "eraser", "text": "text", "callout": "text", "step": "step", "fill": "fill", "blur": "redact",
+         "eraser": "eraser", "text": "text", "callout": "text", "step": "step", "bucket": "bucket", "blur": "redact",
          "pixelate": "redact", "crop": "crop", "select": "select", "move": "select", "hand": "hand",
          "area_box": "area", "area_round": "area", "area_points": "area", "image": "image"}
 AREA_HINTS = {"area_box": "Drag a box · Shift keeps it square · then Ctrl+C copies the area · Enter crops to it · Delete clears it · Esc drops it",
               "area_round": "Drag an oval · Shift keeps it round · then Ctrl+C copies the area · Enter crops to it · Delete clears it · Esc drops it",
               "area_points": "Click points to chain them · click the first point (or double-click) to close · Backspace removes the last · Esc cancels"}
 FONTS = ("Ubuntu", "Cantarell", "DejaVu Sans", "Liberation Sans", "Noto Sans")
+
+
+class ColourChip(Gtk.Button):
+    """A mini swatch of the current colour (``ViewState.colour``); a click opens the custom colour dialog."""
+
+    def __init__(self, state: ViewState):
+        super().__init__(action_name="win.custom-colour", valign=Gtk.Align.CENTER)
+        self.add_css_class("colour-chip")
+        self.state = state
+        self.dot = Gtk.DrawingArea(content_width=18, content_height=18)
+        self.dot.set_draw_func(self._draw)
+        self.set_child(self.dot)
+        state.connect("notify::colour", lambda *_: self._sync())
+        self._sync()
+
+    def _sync(self) -> None:
+        self.set_tooltip_text(f"Fill colour {self.state.colour.upper()} · click to choose another")
+        self.update_property([Gtk.AccessibleProperty.LABEL], [f"Fill colour {self.state.colour.upper()}"])
+        self.dot.queue_draw()
+
+    def _draw(self, _area, cr, w: int, h: int) -> None:
+        from ..model.annotations import parse_hex
+        cr.arc(w / 2, h / 2, min(w, h) / 2 - 1, 0, 6.2832)
+        cr.set_source_rgb(*parse_hex(self.state.colour))
+        cr.fill_preserve()
+        cr.set_source_rgba(1, 1, 1, 0.55)
+        cr.set_line_width(1)
+        cr.stroke()
 
 
 def _hint(text: str) -> Gtk.Label:
@@ -51,7 +79,7 @@ class ToolProps(Gtk.Box):
         self.sets.add_named(self._stroke(), "stroke")
         self.sets.add_named(self._text(), "text")
         self.sets.add_named(self._step(), "step")
-        self.sets.add_named(self._fill(), "fill")
+        self.sets.add_named(self._bucket(), "bucket")
         self.sets.add_named(self._redact(), "redact")
         self.sets.add_named(self._crop(), "crop")
         self.sets.add_named(self._row(_hint("Click to select · drag to move · Delete removes · Ctrl+D duplicates · Ctrl+A selects all")), "select")
@@ -117,7 +145,8 @@ class ToolProps(Gtk.Box):
         self.width_spin.connect("value-changed", lambda w: self._put("width", w.get_value()))
         self.shadow.connect("notify::active", lambda w, _p: self._put("shadow", w.get_active()))
         self.intensity.connect("value-changed", lambda w: self._put("shadow_intensity", w.get_value()))
-        self.fill.connect("notify::active", lambda w, _p: self._put("fill", w.get_active()))
+        self.tolerance.connect("value-changed", lambda w: self._put_setting("bucket_tolerance", int(w.get_value())))
+        self.contiguous.connect("notify::active", lambda w, _p: self._put_setting("bucket_contiguous", w.get_active()))
         self.stroke_width.connect("value-changed", lambda w: self._put("width", w.get_value()))
         self.eraser_width.connect("value-changed", lambda w: self._put("width", w.get_value()))
         self.stroke_shadow.connect("notify::active", lambda w, _p: self._put("shadow", w.get_active()))
@@ -154,6 +183,13 @@ class ToolProps(Gtk.Box):
         self._save()
         if self.editor is not None:
             self.editor.apply_style({field: value})
+
+    def _put_setting(self, key: str, value) -> None:
+        """A tool option that is not part of a layer's style (the bucket's tolerance and contiguous)."""
+        if self._loading or self.settings is None:
+            return
+        setattr(self.settings, key, value)
+        self._save()
 
     def _put_global(self, key: str, value, style_field: str) -> None:
         if self._loading or self.settings is None:
@@ -195,7 +231,8 @@ class ToolProps(Gtk.Box):
             self.width_spin.set_value(width)
             self.shadow.set_active(shadow)
             self.intensity.set_value(inten)
-            self.fill.set_active(fill)
+            self.tolerance.set_value(s.bucket_tolerance)
+            self.contiguous.set_active(s.bucket_contiguous)
             self.stroke_width.set_value(width)
             self.eraser_width.set_value(width)
             self.stroke_shadow.set_active(shadow)
@@ -237,10 +274,9 @@ class ToolProps(Gtk.Box):
         self.width_spin = compact_spin(1, 20, 4, tooltip="Line width")
         self.shadow = switch(True, "Shadow")
         self.intensity, inten = scale_with_value(0, 1, 0.6, digits=2, width=70, tooltip="Shadow intensity")
-        self.fill = switch(False, "Fill the shape")
-        self.fill_row = labelled("Fill", self.fill)
+        # a box's or circle's fill is set in the right rail, under the colour swatches (``panel_rail.ShapeFill``)
         return self._row(labelled("Width", self.width_spin), labelled("Shadow", self.shadow),
-                         labelled("Intensity", inten), self._opacity(), self.fill_row)
+                         labelled("Intensity", inten), self._opacity())
 
     def _stroke(self) -> Gtk.Box:
         self.stroke_width = compact_spin(1, 20, 4, tooltip="Stroke width")
@@ -272,8 +308,20 @@ class ToolProps(Gtk.Box):
         return self._row(labelled("Size", self.step_size), labelled("Shadow", self.step_shadow), self._opacity(),
                          _hint("Each click places the next number"))
 
-    def _fill(self) -> Gtk.Box:
-        return self._row(self._opacity(), _hint("Drag a rectangle · fills with the current colour"))
+    def _bucket(self) -> Gtk.Box:
+        """Paint bucket: the fill colour as a mini swatch (click: choose a colour), the eyedropper, tolerance,
+        contiguous and opacity."""
+        self.bucket_swatch = ColourChip(self.state)
+        eyedropper = rail_button("eyedropper", "Eyedropper · pick the fill colour from the picture", "win.eyedropper",
+                                 classes=("small",), size=16)
+        pick = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4, valign=Gtk.Align.CENTER)
+        pick.append(self.bucket_swatch)
+        pick.append(eyedropper)
+        self.tolerance, tol = scale_with_value(0, 255, 32, width=90, tooltip="Tolerance: how different a pixel may be "
+                                                                              "from the clicked one and still fill")
+        self.contiguous = switch(True, "Contiguous: only the connected area (off: every matching pixel)")
+        return self._row(labelled("Colour", pick), labelled("Tolerance", tol), labelled("Contiguous", self.contiguous),
+                         self._opacity(), _hint("Click the picture to fill"))
 
     def _crop(self) -> Gtk.Box:
         apply = Gtk.Button(label="Apply crop", valign=Gtk.Align.CENTER)
@@ -395,8 +443,6 @@ class ToolProps(Gtk.Box):
         self.sets.set_visible_child_name(GROUP.get(tool, "select"))
         if tool in AREA_HINTS:
             self.area_hint.set_label(AREA_HINTS[tool])
-        if GROUP.get(tool) == "shape":
-            self.fill_row.set_visible(tool in ("box", "circle"))
         self._load(tool)
         if GROUP.get(tool) == "redact" and hasattr(self, "mode") and not selected:
             self._loading = True

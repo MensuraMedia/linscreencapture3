@@ -76,5 +76,6 @@
     <file>icons/scalable/actions/lsc-layer-backward-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-layer-forward-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-layer-front-symbolic.svg</file>
+    <file>icons/scalable/actions/lsc-square-filled-symbolic.svg</file>
   </gresource>
 </gresources>

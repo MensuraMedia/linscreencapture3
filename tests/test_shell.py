@@ -1224,3 +1224,48 @@ def test_combine_needs_two_and_the_context_menu_selects_the_clicked_cell(window,
     lib.menu.popdown(); lib.grid.grab_focus(); pump(50)
     from gi.repository import Gdk
     assert window.shortcuts.handle(Gdk.KEY_F2, 0) is True; pump(100)     # F2 opens the rename dialog
+
+
+def test_paint_bucket_fills_the_clicked_area_as_an_undoable_layer(window, tmp_path):
+    from PIL import Image
+    from linscreencapture.model.document import Document
+    im = Image.new("RGBA", (200, 100), (255, 255, 255, 255))
+    for y in range(100):
+        im.putpixel((100, y), (0, 0, 0, 255))                       # a wall down the middle
+    im.save(tmp_path / "wall.png")
+    window.load_document(Document.open(str(tmp_path / "wall.png"))); window.state.zoom = 1.0; pump(200)
+    window.state.tool = "bucket"; window.state.colour = "#ff0000"; pump(20)
+    props = window.header.props
+    assert props.sets.get_visible_child_name() == "bucket" and props.bucket_swatch.get_action_name() == "win.custom-colour"
+    assert "#FF0000" in props.bucket_swatch.get_tooltip_text()
+    ox, oy = window.stage.image_origin()
+    window.editor._click(None, 1, ox + 30, oy + 50); pump(50)
+    doc = window.document
+    a = doc.layers[-1].annotation
+    assert a.kind == "bucket" and doc.layers[-1].badge == "BUCKET" and a.rect == (0, 0, 100, 100)
+    comp = window.stage.composite; comp.flush()
+    px = lambda x, y: tuple(comp.get_data()[y * comp.get_stride() + x * 4: y * comp.get_stride() + x * 4 + 3])
+    assert px(30, 50) == (0, 0, 255) and px(150, 50) == (255, 255, 255)   # BGR: red on the left only
+    assert window.undo.undo_label == "Bucket fill"
+    window.activate_action("win.undo", None); pump(20)
+    assert not doc.layers
+    props.contiguous.set_active(False); props.tolerance.set_value(5); pump(10)
+    assert window.settings.bucket_contiguous is False and window.settings.bucket_tolerance == 5
+
+
+def test_shape_fill_buttons_fill_the_selected_shape_and_set_the_default(window, tmp_path):
+    _load_blank(window, tmp_path, (300, 200))
+    _drag(window, "box", 20, 20, 120, 80)
+    box = window.document.layers[-1].annotation
+    out, filled = window.panel_rail.shape_fill_buttons
+    assert out.get_action_target_value().get_string() == "outline" and filled.get_action_target_value().get_string() == "filled"
+    assert not box.style.fill and out.get_active()
+    window.state.tool = "select"; window.editor.select(window.document.layers[-1].id); pump(20)
+    window.activate_action("win.shape-fill", GLib.Variant("s", "filled")); pump(20)
+    assert box.style.fill and filled.get_active() and window.settings.tools["circle"].fill
+    window.activate_action("win.undo", None); pump(20)
+    assert not box.style.fill and out.get_active()                 # the button shows the shape again after undo
+    window.editor.select(None); pump(20)
+    _drag(window, "circle", 150, 50, 250, 150)
+    assert window.document.layers[-1].annotation.style.fill        # new shapes follow the default (still Filled)
+    assert "fill_row" not in vars(window.header.props)             # the header strip has no Fill switch any more

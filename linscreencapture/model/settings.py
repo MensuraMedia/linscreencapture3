@@ -22,7 +22,7 @@ NEW_DIR = "linscreencapture"
 LEGACY_DIR = "linshot"
 FILE = "settings.conf"
 
-TOOLS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "fill")
+TOOLS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "bucket")
 STYLED = TOOLS + ("image",)          # also persisted; "image" (a pasted picture) never follows the universal style
 _DEFAULT_WIDTHS = {"eraser": 24.0}   # the eraser is a broad band by default
 PREFIXES = ("LinScreenCapture_", "Screenshot_")
@@ -122,6 +122,8 @@ class Settings:
     text_bold: bool = True
     text_italic: bool = False
     step_size: float = 14.0        # step-number badge size (font pt; radius = max(10, 0.75 × size))
+    bucket_tolerance: int = 32     # paint bucket: how far (0–255 per channel) a pixel may differ from the clicked one
+    bucket_contiguous: bool = True # paint bucket: only the connected area (off: every matching pixel)
     # [Stage]
     stage_colour: str = ""         # the workspace around the page; "" = the theme's
     page_fill: str = "#ffffff"     # the colour the Page fill switch paints (remembered; a document starts unfilled)
@@ -227,6 +229,8 @@ class Settings:
         self.text_bold = g.bool("Tools", "text_bold", self.text_bold)
         self.text_italic = g.bool("Tools", "text_italic", self.text_italic)
         self.step_size = max(8.0, min(48.0, g.float("Tools", "step_size", self.step_size)))
+        self.bucket_tolerance = max(0, min(255, g.int("Tools", "bucket_tolerance", self.bucket_tolerance)))
+        self.bucket_contiguous = g.bool("Tools", "bucket_contiguous", self.bucket_contiguous)
         self.stage_colour = parse_colour(g.str("Stage", "colour", "")) or ""
         self.page_fill = parse_colour(g.str("Stage", "page_fill", self.page_fill)) or self.page_fill
         self.migrated_from = g.str("Meta", "migrated_from", None) or None
@@ -306,6 +310,8 @@ class Settings:
         kf.set_boolean("Tools", "text_bold", bool(self.text_bold))
         kf.set_boolean("Tools", "text_italic", bool(self.text_italic))
         kf.set_double("Tools", "step_size", float(self.step_size))
+        kf.set_integer("Tools", "bucket_tolerance", int(self.bucket_tolerance))
+        kf.set_boolean("Tools", "bucket_contiguous", bool(self.bucket_contiguous))
         kf.set_string("Stage", "colour", self.stage_colour)
         kf.set_string("Stage", "page_fill", self.page_fill)
         if self.migrated_from:

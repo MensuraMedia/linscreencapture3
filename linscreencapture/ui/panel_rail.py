@@ -13,6 +13,8 @@ from .library_panel import LibraryPanel, LibraryColumn
 
 OPEN_WIDTH, COLLAPSED_WIDTH = 220, 56
 EDIT_ITEMS = (("copy", "Copy the image with its annotations", "win.copy", "Ctrl+C"), ("stack-simple", "Flatten", "win.flatten", None))
+SHAPE_FILL_ITEMS = (("square", "Outline: boxes and circles are not filled", "win.shape-fill", "outline"),
+                    ("square-filled", "Filled: boxes and circles are filled with their colour", "win.shape-fill", "filled"))
 LIBRARY_ITEM = ("images", "Library", "win.library", "Ctrl+L")                    # top right, a toggle
 PAGE_ITEM = ("frame-corners", "Page: size, fill and stage colour", "win.page-settings", None)   # beside Fit in VIEW
 # low to high, left to right; the filled square in each glyph is the selected layer (data/icons/custom)
@@ -204,8 +206,17 @@ class PanelRail(Gtk.Stack):
 
     def _build_editor_groups(self, box: Gtk.Box) -> None:
         self.palette = ColourPalette(self.state)
-        self.palette.set_margin_bottom(10)
         box.append(self.palette)
+        fill = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin_top=8, margin_bottom=10)
+        lbl = Gtk.Label(label="Shape fill", xalign=0.0, hexpand=True, valign=Gtk.Align.CENTER)
+        lbl.add_css_class("sublabel")
+        lbl.set_tooltip_text("Boxes and circles: the selected one, and the next ones you draw")
+        fill.append(lbl)
+        self.shape_fill_buttons = [rail_button(icon, tip, action, target, toggle=True, size=16, classes=("small",))
+                                   for icon, tip, action, target in SHAPE_FILL_ITEMS]
+        for b in self.shape_fill_buttons:
+            fill.append(b)
+        box.append(fill)
         box.append(hairline())
         lbl = group_label("View")
         lbl.set_margin_top(10)

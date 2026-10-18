@@ -6,10 +6,10 @@ from dataclasses import replace
 from ..model.annotations import (Annotation, Style, snap45, constrain_square, callout_box, step_radius,
                                  image_corners, image_centre, to_local, to_page, normalise_angle)
 
-DRAG_TOOLS = ("arrow", "line", "box", "circle", "fill", "blur", "pixelate", "callout", "crop")
+DRAG_TOOLS = ("arrow", "line", "box", "circle", "blur", "pixelate", "callout", "crop")   # ("fill" retired 2026-10-18)
 STROKE_TOOLS = ("pen", "marker", "eraser")
 AREA_TOOLS = {"area_box": "box", "area_round": "round", "area_points": "points"}   # tool -> Annotation.shape
-CLICK_TOOLS = ("text", "step")
+CLICK_TOOLS = ("text", "step", "bucket")
 MIN_DRAG = 3.0
 ROTATE_REACH_PX = 26      # on-screen distance of an image layer's rotate handle above its top edge
 ROTATE_SNAP = 15.0        # Shift while rotating: whole multiples of this many degrees

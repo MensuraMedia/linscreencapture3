@@ -641,6 +641,11 @@ Branch `feat/stage-rotate-fill`.
    INFO and TAGS (pills + entry); the page head keeps the title, a search field, Open and Close. Thumbnails show
    `#tags` in the accent colour; a right-click menu repeats the image actions. Icons added: `arrow-square-out`,
    `squares-four`, `cursor-text`, `selection-slash`.
+9. **Fill** (2026-10-18): the drag-a-rectangle Fill tool is replaced in the left rail by a **Paint bucket** (`G`,
+   `paint-bucket`): a click floods the matching area. Its strip: a mini colour swatch (opens the colour dialog), the
+   eyedropper, Tolerance, Contiguous, Opacity. Whether boxes and circles are filled moved from the shape strip's Fill
+   switch to a **Shape fill** row under the right rail's swatches: Outline (`square`) · Filled (custom
+   `square-filled`).
 
 ### Amendment 2026-10-16 — capture behaviour
 

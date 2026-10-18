@@ -72,12 +72,12 @@ selected the change is also applied to that annotation as an undoable "Style" ed
 | Tool(s) | Controls |
 | --- | --- |
 | Arrow, Line | Width (1–20) · Shadow · Intensity (0–1) · Opacity |
-| Box, Circle | the same plus Fill |
+| Box, Circle | the same (whether they are filled is the right rail's **Shape fill**, §5) |
 | Pen, Marker | Width · Shadow · Opacity (the marker paints at 4× width; its opacity defaults to 0.40) |
 | Eraser | Width (2–80, default 24) · Opacity (= erase strength) · hint |
 | Text, Callout | Font (Ubuntu, Cantarell, DejaVu Sans, Liberation Sans, Noto Sans) · Size (6–96) · Bold · Italic · Shadow · Opacity |
 | Step number | Badge size (8–48) · Shadow · Opacity |
-| Fill | Opacity |
+| Paint bucket | **Colour** — a mini swatch of the current colour (click: the custom colour dialog) and the **eyedropper** (the next click on the picture picks the fill colour) · **Tolerance** (0–255, default 32) · **Contiguous** · Opacity · hint |
 | Blur, Pixelate | Mode (Pixelate / Blur — switches the tool) · Block size (2–32) |
 | Crop | hint · Apply crop · Cancel |
 | Box area, Round area, Point chain | a hint for the mode (drag / click points, then Ctrl+C · Enter · Delete · Esc) |
@@ -97,7 +97,7 @@ router (§14) handles editing chords and tool letters even while a spin button h
 
 | Group | Controls | Behaviour |
 | --- | --- | --- |
-| COLOUR | 12 round 18 px swatches (accent ring on the current one), custom colour `+` (`Gtk.ColorDialog`), eyedropper | sets the colour for new annotations, recolours the selected layer (undoable), persists to every tool's settings; the eyedropper makes the next click on the image pick that composite pixel (toast shows the hex) |
+| COLOUR | 12 round 18 px swatches (accent ring on the current one), custom colour `+` (`Gtk.ColorDialog`), eyedropper | sets the colour for new annotations, recolours the selected layer (undoable), persists to every tool's settings; the eyedropper makes the next click on the image pick that composite pixel (toast shows the hex); under the swatches, **Shape fill**: Outline · Filled (`win.shape-fill`, a stateful action; toggles on the selected box or circle as one undo step, and sets whether new boxes and circles are filled; shows the selected shape's state, else the default) |
 | VIEW | zoom out · value · zoom in · fit, then **Page** (`frame-corners`) beside the pill | `win.zoom-out` / `win.zoom-in` (**Ctrl+−** / **Ctrl++**) zoom by **4 %** of the current zoom per step, on whole percents (100 → 104 → 108 → 112 …; 100 → 96 → 92 → 88 …), at least 1 % per step, always stopping at 100 % when crossing it, within 10–1000 % (`view_state.next_zoom`); `win.zoom-fit` (**Ctrl+0**, never above 1:1); `win.zoom-actual` (**Ctrl+1**); Page (`win.page-settings`) opens the Page dialog described under EDIT |
 | EDIT | Copy (**Ctrl+C**) · Flatten | `win.copy` (§8), `win.flatten` (§9); the VIEW row's Page button (`win.page-settings`) opens the **Page dialog** (`ui/page_dialog.py`, an `Adw.Dialog`; enabled with a document): **Size** — Width, Height, *Keep proportions*, a 3 × 3 **Anchor** (where the picture stays; centre by default); **Fill** — *Fill transparent areas* + colour (choosing a colour turns it on), painted behind the page's transparent parts and kept by Save, Copy and Flatten (`Document.background`); **Stage** — the workspace colour around the page with a reset to the theme's (`[Stage] colour`; a setting, never part of the image). Nothing changes before **Apply**; size and fill are one undo step (`EditorController.apply_page`, `Compound` of `TransformBase` + `SetPageFill`, labelled "Page settings"); the last fill colour is remembered (`[Stage] page_fill`, default white) |
 | ARRANGE | Send to back (Ctrl+Shift+Page Down) · Send backward (Ctrl+Page Down) · Bring forward (Ctrl+Page Up) · Bring to front (Ctrl+Shift+Page Up), low to high from left to right | the app's own glyphs (`data/icons/custom/layer-*.svg`): overlapping squares, the **filled** square is the selected layer, two squares for one step, three for all the way. `win.layer-back` / `-backward` / `-forward` / `-front` move the selected layer in the stack (`EditorController.arrange_selected`, `MoveLayer`, one undo step named after the move); each is enabled only when the layer can move that way |
@@ -127,8 +127,8 @@ large shapes); the strip's width, shadow, opacity, fill and font settings apply 
 | Tool | Gesture | Result |
 | --- | --- | --- |
 | Arrow **A**, Line **L** | drag; **Shift** snaps to 45° | filled arrow with a head that scales with the width / round-capped line |
-| Box **B**, Circle **C** | drag; **Ctrl** constrains to a square / circle; Fill switch | outlined or filled rectangle / ellipse |
-| Fill | drag | rectangle filled with the current colour |
+| Box **B**, Circle **C** | drag; **Ctrl** constrains to a square / circle | outlined or filled (right rail → Shape fill) rectangle / ellipse |
+| Paint bucket **G** | click | floods the area of the visible picture that matches the clicked pixel (each premultiplied channel within *Tolerance*; *Contiguous*: the 4-connected area, a numpy scanline fill; off: every matching pixel on the page) in the current colour and opacity, as a `BUCKET` layer cropped to the filled area (`app/bucket.py`, `EditorController.bucket_fill`): undoable, movable, the pixels beneath unchanged. Replaces the drag-a-rectangle Fill tool (2026-10-18). Settings `[Tools] bucket_tolerance`, `bucket_contiguous` |
 | Pen **P** | drag | free stroke of the pointer path (sub-pixel jitter dropped), round caps and joins |
 | Marker **M** | drag | the same at 4× width and 40 % opacity (per-tool opacity) |
 | Eraser **E** | drag | a stroke that clears what lies beneath to transparent (`OPERATOR_DEST_OUT`; the Opacity slider is the strength); shown as a translucent band while dragging and in thumbnails; PNG keeps the transparency, JPEG lands it on white |

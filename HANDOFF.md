@@ -124,7 +124,11 @@ uses the live display. The app on this machine is installed with `./install.sh` 
   (`StudioWindow.combine`, `app/tiling.py`: grid, 10 px gap and margin, best column count by waste + 16:9 shape);
   Rename (F2, `rename_file`); Show in folder (`Gtk.FileLauncher`). Pitfall: on Library open the search field took
   focus and swallowed tool keys, Esc and F2 — the grid is focused instead. 193 tests.
-- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.10.
+- Fill rework: Paint bucket tool (`bucket`, key G; `app/bucket.py` numpy scanline flood on the composite; a
+  `bucket` annotation is a picture kind like `image`, `annotations.PICTURE_KINDS`); the Fill rectangle tool left the
+  UI (`fill` stays a model kind); Shape fill = `win.shape-fill` (stateful, synced on selection and undo) in the right
+  rail under the swatches, replacing the strip's Fill switch. 199 tests.
+- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.11.
 
 **Merge order** (PRs opened 2026-10-18): #1 `fix/tray-alttab-icons` → `feat/phase5` first (without it `make test`
 deletes the real autostart entry), then #2 `feat/editor-shadows-canvas` → `feat/phase5` (contains the docs branch),

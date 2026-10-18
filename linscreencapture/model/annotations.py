@@ -20,13 +20,15 @@ gi.require_version("Pango", "1.0")
 gi.require_version("PangoCairo", "1.0")
 from gi.repository import Pango, PangoCairo  # noqa: E402
 
-KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "fill", "blur", "pixelate", "image", "cutout")
+KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "fill", "blur", "pixelate", "image", "cutout",
+         "bucket")
+PICTURE_KINDS = ("image", "bucket")                # a surface drawn into the rect (a paste; a bucket fill's pixels)
 AREA_SHAPES = ("box", "round", "points")          # the Area tool's three ways of marking a region
 SHAPE_KINDS = ("arrow", "line", "box", "circle")          # share the "Shapes" settings
 REDACT_KINDS = ("blur", "pixelate")
 STROKE_KINDS = ("line", "pen", "marker", "eraser")
 NAMES = {"arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text", "pen": "Pen",
-         "marker": "Marker", "eraser": "Eraser", "step": "Step", "callout": "Callout", "fill": "Fill", "blur": "Blur", "pixelate": "Pixelate", "image": "Image", "cutout": "Cutout"}
+         "marker": "Marker", "eraser": "Eraser", "step": "Step", "callout": "Callout", "fill": "Fill", "blur": "Blur", "pixelate": "Pixelate", "image": "Image", "cutout": "Cutout", "bucket": "Bucket"}
 # the layer label names the tool that made the layer ("BLUR", "PIXELATE"), never a category like "REDACT"
 BADGE = {k: v.upper() for k, v in NAMES.items()}
 SHADOW_KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "step", "callout", "image")
@@ -114,7 +116,7 @@ class Annotation:
             tx, ty = self.x2, self.y2
             x, y = min(bx, tx), min(by, ty)
             w, h, pad = max(bx + bw, tx) - x, max(by + bh, ty) - y, 2
-        elif self.kind == "image":
+        elif self.kind in PICTURE_KINDS:
             x, y, w, h = _aabb(image_corners(self)) if self.angle else self.rect
             pad = 0
         else:
@@ -125,7 +127,7 @@ class Annotation:
         return x - pad, y - pad, w + 2 * pad, h + 2 * pad
 
     def contains(self, px: float, py: float) -> bool:
-        if self.kind == "image" and self.angle:          # the turned picture itself, not its upright bounding box
+        if self.kind in PICTURE_KINDS and self.angle:          # the turned picture itself, not its upright bounding box
             lx, ly = to_local(self, px, py)
             x, y, w, h = self.rect
             return x <= lx <= x + w and y <= ly <= y + h
@@ -156,7 +158,7 @@ class Annotation:
 
         An image layer keeps its picture upright in its own frame: a page rotation turns it (``angle``) about its
         mapped centre instead of stretching its rect. A flip (mirror) cannot be expressed that way and maps corners."""
-        if self.kind == "image":
+        if self.kind in PICTURE_KINDS:
             ch = _image_transformed(self, mapper)
             if ch is not None:
                 return ch
@@ -685,7 +687,8 @@ def _paint_image(a: Annotation, cr: cairo.Context) -> None:
 
 _PAINTERS = {"arrow": _paint_arrow, "line": _paint_line, "box": _paint_box, "circle": _paint_circle,
              "text": _paint_text, "pen": _paint_pen, "marker": _paint_marker, "eraser": _paint_eraser_ghost, "step": _paint_step,
-             "callout": _paint_callout, "fill": _paint_fill, "image": _paint_image, "cutout": _paint_cutout_ghost}
+             "callout": _paint_callout, "fill": _paint_fill, "image": _paint_image, "cutout": _paint_cutout_ghost,
+             "bucket": _paint_image}
 
 
 # ---------------------------------------------------------------- redaction (pixel ops on the target)

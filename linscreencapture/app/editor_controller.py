@@ -335,6 +335,9 @@ class EditorController:
         if tool == "area_points":
             self._chain_click(x, y, n_press)
             return
+        if tool == "bucket":
+            self.bucket_fill(x, y)
+            return
         if tool == "text":
             self.stage.cancel_text_entry()
             self._pending_callout = None
@@ -537,6 +540,25 @@ class EditorController:
 
     def _text_cancelled(self) -> None:
         self._pending_callout = None
+
+    def bucket_fill(self, x: float, y: float) -> bool:
+        """Paint bucket at image point (x, y): flood what is visible there (``app/bucket.py``) in the current colour,
+        as a ``bucket`` layer (undoable; the pixels beneath stay as they were)."""
+        from . import bucket
+        from ..model.annotations import parse_hex
+        comp = self.stage.composite
+        if comp is None or not self._ready():
+            return False
+        style = self.style_for("bucket")
+        s = self.settings
+        result = bucket.fill(comp, int(x), int(y), parse_hex(style.colour), s.bucket_tolerance, s.bucket_contiguous,
+                             style.opacity)
+        if result is None:
+            return False
+        surf, x0, y0 = result
+        a = Annotation("bucket", x0, y0, x0 + surf.get_width(), y0 + surf.get_height(), style=style, surface=surf)
+        self._commit(AddLayer(a, label="Bucket fill"), select_new=False)
+        return True
 
     def sample(self, x: float, y: float) -> str | None:
         comp = self.stage.composite
