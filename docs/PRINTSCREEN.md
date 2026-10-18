@@ -40,7 +40,7 @@ confirm with **Enter** or a double-click. PrintScreen itself always runs the fas
 
 ## The panel icon
 
-While LinScreenCapture runs there is an **orange icon** (#ffa222: a camera inside selection corners) in the panel's
+While LinScreenCapture runs there is an **orange icon** (the application icon: an #ffa222 tile with a white selection frame and a pointer; the same icon shows in Alt+Tab and the menu) in the panel's
 system tray.
 
 - **Double-click** it to open the editor.

@@ -113,7 +113,7 @@ def test_right_rail_holds_view_and_edit(window):
     assert pr.zoom.get_height() == 30 and pr.zoom.value.get_label() == "100%"
     window.activate_action("win.zoom-in", None)
     pump(50)
-    assert pr.zoom.value.get_label() == "150%"
+    assert pr.zoom.value.get_label() == "104%"            # 4 % steps (view_state.next_zoom)
     window.activate_action("win.zoom-fit", None)
     assert [b.get_action_name() for b in pr.edit_buttons] == ["win.copy", "win.flatten"]
     left_actions = [b.get_tooltip_text() for b in _buttons(window.tool_rail.get_child_by_name("open")) if b.get_action_name() in ("win.copy", "win.flatten")]

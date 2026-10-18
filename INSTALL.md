@@ -33,19 +33,61 @@ python3 -m linscreencapture
 ```
 
 `make launcher` installs a **LinScreenCapture3** entry in your application menu that runs this checkout
-(`make unlauncher` removes it). `python3 -m linscreencapture --capture` runs the hotkey capture (`app.hotkey-capture`):
+(`~/.local/share/applications/com.mensuramedia.LinScreenCapture.desktop`, with the icon; `make unlauncher` removes it). `python3 -m linscreencapture --capture` runs the hotkey capture (`app.hotkey-capture`):
 the fast Region capture, copied to the clipboard, saved and loaded into the studio without popping it up; with no
 agent running, that process becomes the agent. `--background` starts the agent with no window; `--debug` prints
 start-up and capture diagnostics. Capture behaviour in full: [docs/CAPTURE.md](docs/CAPTURE.md).
 
-## Install as a package
+## Install
+
+Three ways, all installing the same files (the `.deb` is built from `install.sh`):
+
+### 1. The Debian package (Linux Mint, Ubuntu, Debian)
 
 ```bash
-python3 -m venv --system-site-packages .venv && . .venv/bin/activate
-pip install -e .[dev]     # editable; `linscreencapture` is now on PATH
+sudo apt install ./packaging/linscreencapture_3.0.0~dev1_all.deb
 ```
 
-A `.deb` package and a system-wide `.desktop` entry arrive with the 3.0 release (Phase 7).
+`apt` pulls in the dependencies. The package installs `/usr/bin/linscreencapture`, the menu entry
+`com.mensuramedia.LinScreenCapture.desktop`, the icon in every hicolor size and the documentation in
+`/usr/share/doc/linscreencapture/`. Remove it with `sudo apt remove linscreencapture`. Rebuild it from a checkout
+with `make deb` (or `packaging/build-deb.sh`); the version comes from `pyproject.toml` (`3.0.0.dev1` → `3.0.0~dev1`).
+
+### 2. The installer script
+
+```bash
+./install.sh --deps          # for this user, into ~/.local; --deps installs the system packages with apt first
+./install.sh --system        # for all users, into /usr/local (sudo)
+./install.sh --uninstall     # remove it again (add --system for the system-wide copy)
+```
+
+| Option | Effect |
+| --- | --- |
+| `--user` (default) | install into `~/.local`: no root needed |
+| `--system` | install into `/usr/local` with `sudo` |
+| `--deps` | `apt-get install` the runtime and build packages first |
+| `--no-start` | do not start the background agent afterwards (it starts by default) |
+| `--force` | replace a `linscreencapture` launcher the script did not write (a development wrapper) |
+| `--prefix DIR`, `--destdir DIR` | packaging: install under `DESTDIR/PREFIX` (the `.deb` uses `--prefix /usr`) |
+| `--uninstall` | remove the files; the user mode also removes the login autostart entry |
+
+Layout under the prefix: `lib/linscreencapture/` (the Python package with its compiled `.gresource`, and the
+application icon the panel icon reads), `bin/linscreencapture` (a launcher running `python3 -m linscreencapture`),
+`share/applications/com.mensuramedia.LinScreenCapture.desktop` and `share/icons/hicolor/*/apps/`.
+
+### 3. Run from the checkout (development)
+
+See *Run from a checkout* above; `make launcher` adds the menu entry.
+
+### After installing
+
+The first start turns on *Run at startup* and registers **PrintScreen** with Cinnamon, so from then on PrintScreen
+captures a region to the clipboard and the orange panel icon is there (double-click opens the editor). How to use
+it, change the key or fix a dead key: [docs/PRINTSCREEN.md](docs/PRINTSCREEN.md).
+
+The menu entry is named after the application id and carries `StartupWMClass=com.mensuramedia.LinScreenCapture`,
+the window's `WM_CLASS` (the app sets its program name to the id before GTK starts), so Alt+Tab, the window list
+and the panel show the application icon.
 
 ## Capture hotkey
 

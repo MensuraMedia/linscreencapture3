@@ -5,8 +5,9 @@ helper. The agent (``app/application.py``) starts it and it talks back only over
 agent's exported application actions (``hotkey-capture``, ``show-editor``, ``quit``) and the helper exits as soon as
 the agent's bus name vanishes. XApp.StatusIcon is used on Cinnamon/MATE/Xfce; AyatanaAppIndicator3 elsewhere.
 
-The icon is orange (``TRAY_COLOUR`` #ffa222, ``resources/icons/linscreencapture-tray.svg``, a full-colour SVG so the
-panel does not recolour it). A **double-click** opens the editor; a right-click opens the menu. AppIndicator has no
+The icon is the application icon (``data/icons/hicolor/scalable/apps/<APP_ID>.svg``: an orange ``TRAY_COLOUR``
+#ffa222 tile with a selection frame and a pointer; full colour, so the panel does not recolour it). Installed
+copies use the same icon by name from the hicolor theme. A **double-click** opens the editor; a right-click opens the menu. AppIndicator has no
 click events, so there the menu's *Open editor* is the way in.
 """
 from __future__ import annotations
@@ -16,11 +17,10 @@ import sys
 
 from . import APP_ID
 OBJECT_PATH = "/" + APP_ID.replace(".", "/")
-ICONS = pathlib.Path(__file__).resolve().parent.parent / "resources" / "icons"
-ICON_FILE = ICONS / "linscreencapture-tray.svg"
+ICON_FILE = pathlib.Path(__file__).resolve().parent.parent / "data" / "icons" / "hicolor" / "scalable" / "apps" / f"{APP_ID}.svg"
 TRAY_COLOUR = "#ffa222"
 PRGNAME = "linscreencapture-tray"   # unique: XApp derives the D-Bus name from it
-FALLBACK_ICON = "linscreencapture3"
+FALLBACK_ICON = APP_ID                 # installed into the hicolor theme by install.sh and the .deb
 TOOLTIP = "LinScreenCapture · double-click to open the editor · PrintScreen captures a region"
 # (label, application action) — None is a separator
 MENU = (("Capture region to clipboard", "hotkey-capture"), ("Open editor", "show-editor"), None, ("Quit", "quit"))

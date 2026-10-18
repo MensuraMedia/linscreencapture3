@@ -1,10 +1,36 @@
 """Observable view state: zoom, rail collapse, library page, active tool, colour, title."""
 from __future__ import annotations
+import math
+
 from gi.repository import GObject
 
 TOOLS = ("select", "arrow", "line", "box", "circle", "text", "pen", "marker", "eraser",
          "blur", "pixelate", "fill", "step", "callout", "crop", "move", "hand", "area_box", "area_round", "area_points")
-ZOOM_STEPS = (0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0, 10.0)
+ZOOM_STEP = 1.04          # each Ctrl+wheel notch / Ctrl+plus / Ctrl+minus zooms by 4 % of the current zoom
+ZOOM_MAX_STEP = 0.05      # never more than 5 % per step (whole-percent rounding could exceed it at low zoom)
+ZOOM_MIN, ZOOM_MAX = 0.1, 10.0
+
+
+def next_zoom(zoom: float, direction: int, step: float = ZOOM_STEP) -> float:
+    """The next zoom level, ``step`` (4 %) up or down from ``zoom``, on whole percents.
+
+    Each step moves at least one percent, and a step that crosses 100 % stops there so 1:1 is always reachable."""
+    pct = zoom * 100
+    if direction > 0:
+        nxt = round(pct * step)
+        if nxt - pct > ZOOM_MAX_STEP * pct:                # rounding must not push a step past 5 %
+            nxt = math.floor(pct * (1 + ZOOM_MAX_STEP))
+        nxt = max(nxt, int(pct + 1e-6) + 1)
+        if pct < 100 - 1e-6 < nxt:
+            nxt = 100
+    else:
+        nxt = round(pct / step)
+        if pct - nxt > ZOOM_MAX_STEP * pct:
+            nxt = math.ceil(pct * (1 - ZOOM_MAX_STEP))
+        nxt = min(nxt, math.ceil(pct - 1e-6) - 1)
+        if nxt < 100 - 1e-6 < pct - 1e-6:
+            nxt = 100
+    return max(ZOOM_MIN, min(ZOOM_MAX, nxt / 100))
 
 
 class ViewState(GObject.Object):
@@ -24,12 +50,7 @@ class ViewState(GObject.Object):
     library = GObject.Property(type=bool, default=False)  # the Library page covers the stage
 
     def zoom_step(self, direction: int) -> None:
-        steps = ZOOM_STEPS
-        if direction > 0:
-            nxt = next((s for s in steps if s > self.zoom + 1e-9), steps[-1])
-        else:
-            nxt = next((s for s in reversed(steps) if s < self.zoom - 1e-9), steps[0])
-        self.zoom = nxt
+        self.zoom = next_zoom(self.zoom, direction)
 
     def toggle_rail(self, side: str, manual: bool = True) -> None:
         prop = f"{side}_collapsed"

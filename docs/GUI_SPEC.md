@@ -500,7 +500,7 @@ Clipboard and file are written before the editor appears; ESC leaves no trace.
 - Discard asks only when unsaved, then shows the empty state (48 px camera glyph, "Press PrintScreen or click Capture").
 - Captures: double-click opens a file as a new document, prompting to save the current one if unsaved.
 
-**Rails and view.** Collapse/expand toggle `ViewState.left_collapsed` / `right_collapsed`, persisted; stage stays centred through the transition. Zoom: Ctrl+scroll 10 % steps; pill steps 25, 50, 75, 100, 150, 200, 300, 400, 800, 1000; Ctrl+0 fit, Ctrl+1 1:1; HUD and pill always agree. Navigator drag scrolls; click centres.
+**Rails and view.** Collapse/expand toggle `ViewState.left_collapsed` / `right_collapsed`, persisted; stage stays centred through the transition. Zoom: Ctrl+scroll and the pill step by 4 % of the current zoom on whole percents, stopping at 100 % (amended 2026-10-17 at the operator's request: the old pill steps 25, 50, 75, 100, 150 … jumped 25–50 % at a time); Ctrl+0 fit, Ctrl+1 1:1; HUD and pill always agree. Navigator drag scrolls; click centres.
 
 **Feedback.** `Adw.Toast` 3 s for Copied, Saved as …, Capture failed; chip reflects Ready / Capturing / Captured / Error. A failed backend falls through to the next once before reporting Error. Modal dialogs only for Flatten, Delete file and unsaved changes.
 

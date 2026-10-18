@@ -85,6 +85,7 @@ class Application(Adw.Application):
         Adw.Application.do_startup(self)
         LOG.debug("startup: primary instance, app id %s", APP_ID)
         icon_loader.install()
+        icon_loader.install_app_icon()
         LOG.debug("resources: %s (%d icons)", icon_loader.resource_path(), len(icon_loader.icon_names()))
         icon_loader.install_css()
         LOG.debug("stylesheet: style.css loaded at USER priority; dark scheme forced")

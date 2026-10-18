@@ -10,7 +10,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gdk, Gio, Gtk, GLib  # noqa: E402
 
-from .. import RESOURCE_PREFIX  # noqa: E402
+from .. import APP_ID, RESOURCE_PREFIX  # noqa: E402
 
 _installed = False
 
@@ -32,6 +32,17 @@ def install() -> None:
     if display is not None:
         Gtk.IconTheme.get_for_display(display).add_resource_path(f"{RESOURCE_PREFIX}/icons")
     _installed = True
+
+
+def app_icon_file() -> pathlib.Path:
+    """The application icon's SVG source (also bundled in the resource as ``scalable/apps/<APP_ID>.svg``)."""
+    return pathlib.Path(__file__).resolve().parent.parent.parent / "data" / "icons" / "hicolor" / "scalable" / "apps" / f"{APP_ID}.svg"
+
+
+def install_app_icon() -> None:
+    """Every window carries the application icon (``_NET_WM_ICON`` on X11): Alt+Tab, the window list and the
+    task bar show it even when the icon is not installed in the system theme."""
+    Gtk.Window.set_default_icon_name(APP_ID)
 
 
 def install_css() -> Gtk.CssProvider:

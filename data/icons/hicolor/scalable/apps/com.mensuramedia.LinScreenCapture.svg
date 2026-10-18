@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- LinScreenCapture app icon (2026-10-17): an orange #ffa222 tile, a white region-selection frame with a
+       dashed marquee inside, and a pointer releasing the capture at the bottom-right corner. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffb84d"/>
+      <stop offset="1" stop-color="#ff8f14"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="232" height="232" rx="52" fill="#c96a00"/>
+  <rect x="12" y="8" width="232" height="232" rx="52" fill="url(#tile)"/>
+  <rect x="12" y="8" width="232" height="116" rx="52" fill="url(#gloss)"/>
+  <rect x="12" y="8" width="232" height="232" rx="52" fill="none" stroke="#ffa222" stroke-width="2"/>
+  <g fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M52 98V66a14 14 0 0 1 14-14h32"/>
+    <path d="M158 52h32a14 14 0 0 1 14 14v32"/>
+    <path d="M52 150v32a14 14 0 0 0 14 14h32"/>
+  </g>
+  <rect x="84" y="84" width="88" height="80" rx="6" fill="#ffffff" fill-opacity="0.22"
+        stroke="#ffffff" stroke-width="7" stroke-dasharray="14 10"/>
+  <path d="M150 142l70 26-29 11 22 31-15 11-22-31-17 25z" fill="#ffffff" stroke="#7a3d00" stroke-width="6"
+        stroke-linejoin="round"/>
+</svg>

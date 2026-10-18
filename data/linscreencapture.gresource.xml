@@ -2,6 +2,7 @@
 <gresources>
   <gresource prefix="/com/mensuramedia/linscreencapture">
     <file compressed="true">style.css</file>
+    <file alias="icons/scalable/apps/com.mensuramedia.LinScreenCapture.svg">icons/hicolor/scalable/apps/com.mensuramedia.LinScreenCapture.svg</file>
     <file>icons/scalable/actions/lsc-camera-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-minus-symbolic.svg</file>
     <file>icons/scalable/actions/lsc-plus-symbolic.svg</file>

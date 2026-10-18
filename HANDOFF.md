@@ -257,6 +257,11 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
    / 100 % / Fit; arrow keys nudge); user guide `docs/PRINTSCREEN.md`. Gotcha: XApp derives the icon's bus name from
    the program name, and `tray.py` collided with Mint's own `tray.py` (mintreport), so the icon never showed. The
    helper now calls `GLib.set_prgname("linscreencapture-tray")`.
+   Later still: a new app icon (orange tile, selection frame, pointer) used for the window, Alt+Tab, the menu and the
+   panel; the window's WM_CLASS is now the app id (was `__main__.py`); `install.sh` and the `.deb`
+   (`packaging/build-deb.sh`, `make deb`; the built package is tracked in `packaging/`); zoom steps 4 % per notch,
+   at most 5 %, stopping at 100 % (`view_state.next_zoom`). The dev menu entry is now
+   `~/.local/share/applications/com.mensuramedia.LinScreenCapture.desktop` (`make launcher`).
 1. `services/hotkey_registrar.py`: **done for Cinnamon** (2026-10-16; reuses our `customN`, never overwrites another
    application's slot, frees the six built-in screenshot keys, reloads through `org.Cinnamon.Eval`; re-applied at
    every agent start while `register_hotkey` is on; `docs/CAPTURE.md` §4). Still to port from `keybinding_manager.c`:

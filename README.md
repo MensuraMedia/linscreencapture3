@@ -137,7 +137,7 @@ The nine design artboards (`screenshots/01`–`09`) remain in the repository as 
 | Ctrl+D · Delete | Duplicate layer · Delete layer or capture file |
 | V A L B C T P M | Select, Arrow, Line, Box, Circle, Text, Pen, Marker |
 | U X N K | Blur, Pixelate, Step number, Crop |
-| Ctrl+scroll · Ctrl+0 · Ctrl+1 | Zoom · Fit · 1:1 |
+| Ctrl+scroll · Ctrl++ / Ctrl+− · Ctrl+0 · Ctrl+1 | Zoom in 4 % steps · Fit · 1:1 |
 | Ctrl+[ / Ctrl+] | Toggle left / right rail |
 | Ctrl+L | Library page |
 | Ctrl+, · F1 | Settings · Shortcuts window |
@@ -160,6 +160,18 @@ tests/
 
 Each layer imports only the layer below it. The model has no GTK, so annotations, undo and settings run under plain `pytest`; widget tests run under `xvfb-run`. The full specification, including every control's icon file and action name, the CSS tokens and the acceptance criteria per milestone, is in [docs/GUI_SPEC.md](docs/GUI_SPEC.md).
 
+## Install
+
+```bash
+sudo apt install ./packaging/linscreencapture_3.0.0~dev1_all.deb   # Debian package (pulls in the dependencies)
+# or
+./install.sh --deps                                                  # installer script, for this user (~/.local)
+```
+
+Then press **PrintScreen**: the agent starts at login, PrintScreen copies a region to the clipboard and the orange
+panel icon opens the editor on a double-click. All options (system-wide install, uninstall, building the `.deb` with
+`make deb`): [INSTALL.md](INSTALL.md). Using PrintScreen: [docs/PRINTSCREEN.md](docs/PRINTSCREEN.md).
+
 ## Development setup
 
 ```bash
@@ -180,7 +192,7 @@ make launcher                             # menu entry for this checkout
 linscreencapture --background             # Settings → System → Run at startup does this at login (default on)
 ```
 
-Hotkey: on Cinnamon, pick the key in Settings → System → *Capture hotkey* and switch on *Register with the desktop*; the agent writes the custom shortcut and makes Cinnamon reload it. On other desktops bind `linscreencapture --capture` by hand ([INSTALL.md](INSTALL.md)). A dead hotkey is diagnosed in [docs/CAPTURE.md](docs/CAPTURE.md) §4. Set `LSC_NO_TRAY=1` to run the agent without the icon.
+Hotkey: on Cinnamon, PrintScreen is registered automatically (Settings → System → *Capture hotkey* picks a preset or records any key); the agent writes the custom shortcut and makes Cinnamon reload it. On other desktops bind `linscreencapture --capture` by hand ([INSTALL.md](INSTALL.md)). A dead hotkey is diagnosed in [docs/CAPTURE.md](docs/CAPTURE.md) §4. Set `LSC_NO_TRAY=1` to run the agent without the icon.
 
 Start-up and capture diagnostics: `python3 -m linscreencapture --debug` (or `LSC_DEBUG=1`) prints timestamped lines for toolkit versions, resources, settings, backend order, window build time and every capture step, and routes GTK/GLib messages into the same stream.
 

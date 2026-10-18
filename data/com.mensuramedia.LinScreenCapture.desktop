@@ -3,17 +3,16 @@ Version=1.5
 Type=Application
 Name=LinScreenCapture
 GenericName=Screenshot Tool
-Comment=Capture, annotate and share screenshots
-Exec=linscreencapture
+Comment=Capture, annotate and share screenshots · PrintScreen copies a region to the clipboard
+Exec=@BIN@
 Icon=com.mensuramedia.LinScreenCapture
 Terminal=false
 Categories=Utility;Graphics;GTK;
-Keywords=screenshot;capture;screen;snip;annotation;
-MimeType=image/png;image/jpeg;
+Keywords=screenshot;capture;screen;snip;annotation;printscreen;
 StartupNotify=true
-DBusActivatable=true
+StartupWMClass=com.mensuramedia.LinScreenCapture
 Actions=capture;
 
 [Desktop Action capture]
 Name=Capture a region
-Exec=linscreencapture --capture
+Exec=@BIN@ --capture

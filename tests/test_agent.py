@@ -316,7 +316,7 @@ def test_autostart_sync_first_run_then_follows_the_entry(tmp_path):
 
 def test_tray_icon_is_orange_and_double_click_opens_the_editor():
     from linscreencapture import tray
-    assert tray.ICON_FILE.name == "linscreencapture-tray.svg" and tray.TRAY_COLOUR in tray.ICON_FILE.read_text()
+    assert tray.ICON_FILE.name == f"{tray.APP_ID}.svg" and tray.TRAY_COLOUR in tray.ICON_FILE.read_text()
     assert tray.TRAY_COLOUR == "#ffa222" and tray.icon_source() == str(tray.ICON_FILE)
     assert tray.PRGNAME == "linscreencapture-tray"              # not "tray.py": Mint's helpers own that bus name
     dc = tray.DoubleClick(400)

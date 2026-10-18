@@ -43,6 +43,7 @@ generate_icon.c
 
 # Debian packages
 *.deb
+!packaging/*.deb
 
 # Runtime data
 

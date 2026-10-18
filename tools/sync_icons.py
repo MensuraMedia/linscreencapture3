@@ -12,6 +12,7 @@ LIST = ROOT / "data" / "icons" / "icons.txt"
 OUT = ROOT / "data" / "icons" / "scalable" / "actions"
 XML = ROOT / "data" / "linscreencapture.gresource.xml"
 PREFIX = "/com/mensuramedia/linscreencapture"
+APP_ICON = "com.mensuramedia.LinScreenCapture"
 
 
 def main() -> int:
@@ -40,7 +41,9 @@ def main() -> int:
             shutil.copyfile(cand, ROOT / "data" / "icons" / "LICENSE.phosphor")
             break
     lines = ['<?xml version="1.0" encoding="UTF-8"?>', "<gresources>", f'  <gresource prefix="{PREFIX}">',
-             '    <file compressed="true">style.css</file>']
+             '    <file compressed="true">style.css</file>',
+             # the application icon (window, Alt+Tab, panel), so it is found without an installed icon theme
+             f'    <file alias="icons/scalable/apps/{APP_ICON}.svg">icons/hicolor/scalable/apps/{APP_ICON}.svg</file>']
     lines += [f"    <file>{f}</file>" for f in files]
     lines += ["  </gresource>", "</gresources>", ""]
     XML.write_text("\n".join(lines))
