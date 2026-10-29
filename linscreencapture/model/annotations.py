@@ -10,6 +10,7 @@ what is already painted beneath them, exactly as 1.4 did).
 """
 from __future__ import annotations
 import math
+from collections import OrderedDict
 from dataclasses import dataclass, field, asdict, replace
 from typing import Iterable
 
@@ -28,7 +29,7 @@ NAMES = {"arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "te
          "marker": "Marker", "eraser": "Eraser", "step": "Step", "callout": "Callout", "fill": "Fill", "blur": "Blur", "pixelate": "Pixelate", "image": "Image", "cutout": "Cutout"}
 # the layer label names the tool that made the layer ("BLUR", "PIXELATE"), never a category like "REDACT"
 BADGE = {k: v.upper() for k, v in NAMES.items()}
-SHADOW_KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker")
+SHADOW_KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "step", "callout", "image")
 
 
 # ---------------------------------------------------------------- colours
@@ -106,17 +107,20 @@ class Annotation:
             pad = lw * 3.0 + 1
         elif self.kind == "step":
             r = step_radius(self.style)
-            return self.x1 - r - 2, self.y1 - r - 2, 2 * r + 4, 2 * r + 4
+            x, y, w, h, pad = self.x1 - r, self.y1 - r, 2 * r, 2 * r, 2
         elif self.kind == "callout":
-            x, y, w, h = callout_box(self)
+            bx, by, bw, bh = callout_box(self)
             tx, ty = self.x2, self.y2
-            x0, y0 = min(x, tx), min(y, ty)
-            return x0 - 2, y0 - 2, max(x + w, tx) - x0 + 4, max(y + h, ty) - y0 + 4
+            x, y = min(bx, tx), min(by, ty)
+            w, h, pad = max(bx + bw, tx) - x, max(by + bh, ty) - y, 2
+        elif self.kind == "image":
+            x, y, w, h = self.rect
+            pad = 0
         else:
             x, y, w, h = self.rect
             pad = lw / 2 + 1
-        if self.style.shadow:
-            pad += shadow_extent(self.style)
+        if self.style.shadow and self.kind in SHADOW_KINDS:
+            pad += shadow_extent(self.style, self.kind)
         return x - pad, y - pad, w + 2 * pad, h + 2 * pad
 
     def contains(self, px: float, py: float) -> bool:
@@ -294,43 +298,78 @@ def _stroke_points(a: Annotation, cr: cairo.Context) -> None:
     cr.stroke()
 
 
-def shadow_sigma(style: Style) -> float:
-    return 1.5 + style.width * 0.35
+IMAGE_SHADOW_SIGMA, IMAGE_SHADOW_OFFSET = 6.0, 4.0   # a pasted image: close to the stage's own page shadow
 
 
-def shadow_offset(style: Style) -> float:
-    return 1.0 + style.width * 0.3
+def shadow_sigma(style: Style, kind: str = "") -> float:
+    return IMAGE_SHADOW_SIGMA if kind == "image" else 1.5 + style.width * 0.35
 
 
-def shadow_extent(style: Style) -> float:
+def shadow_offset(style: Style, kind: str = "") -> float:
+    return IMAGE_SHADOW_OFFSET if kind == "image" else 1.0 + style.width * 0.3
+
+
+def shadow_extent(style: Style, kind: str = "") -> float:
     """How far the shadow can reach beyond the shape (offset plus blur tail)."""
-    return shadow_offset(style) + shadow_sigma(style) * 3 + 1
+    return shadow_offset(style, kind) + shadow_sigma(style, kind) * 3 + 1
 
 
 _MAX_SHADOW_PIXELS = 4096 * 4096
+_SHADOW_CACHE: "OrderedDict[tuple, tuple]" = OrderedDict()
+_SHADOW_CACHE_SIZE = 24
+
+
+def _shadow_origin(a: Annotation) -> tuple[float, float]:
+    return a.points[0] if a.points else (a.x1, a.y1)
 
 
 def _shadow_key(a: Annotation) -> tuple:
+    """The silhouette's shape relative to the annotation's origin: a moved layer (or a moved copy, as the drag
+    preview is) reuses its blurred shadow instead of blurring again on every motion event."""
     st = a.style
-    return (a.kind, a.x1, a.y1, a.x2, a.y2, st.width, st.fill, a.text, st.font_family, st.font_size, st.bold,
-            st.italic, len(a.points), a.points[0] if a.points else None, a.points[-1] if a.points else None)
+    ox, oy = _shadow_origin(a)
+
+    def rel(x: float, y: float) -> tuple[float, float]:
+        return round(x - ox, 2), round(y - oy, 2)
+
+    return (a.kind, rel(a.x1, a.y1), rel(a.x2, a.y2), round(ox % 1, 2), round(oy % 1, 2), st.width, st.fill,
+            a.text, st.font_family, st.font_size, st.bold, st.italic, a.number, tuple(rel(*q) for q in a.points),
+            id(a.surface) if a.surface is not None else None)
+
+
+def _paint_silhouette(a: Annotation, cr: cairo.Context) -> None:
+    """``a`` in opaque black: through its painter, or from its own alpha for an image."""
+    if a.kind == "image":
+        x, y, w, h = a.rect
+        sw, sh = a.surface.get_width(), a.surface.get_height()
+        if w >= 1 and h >= 1 and sw >= 1 and sh >= 1:
+            cr.save()
+            cr.translate(x, y)
+            cr.scale(w / sw, h / sh)
+            cr.mask_surface(a.surface, 0, 0)
+            cr.restore()
+        return
+    ghost = replace(a, style=replace(a.style, colour="#000000", opacity=1.0, shadow=False), surface=None)
+    _PAINTERS[a.kind](ghost, cr)
 
 
 def _shadow_surface(a: Annotation):
-    """A Gaussian-blurred black silhouette of ``a`` (cached on the annotation) and its top-left in image px."""
+    """A Gaussian-blurred black silhouette of ``a`` (cached by shape) and its top-left in image px."""
     key = _shadow_key(a)
-    cached = getattr(a, "_shadow_cache", None)
-    if cached is not None and cached[0] == key:
-        return cached[1], cached[2], cached[3]
+    ox, oy = _shadow_origin(a)
+    hit = _SHADOW_CACHE.get(key)
+    if hit is not None:
+        _SHADOW_CACHE.move_to_end(key)
+        out, rx, ry, _keep = hit
+        return out, ox + rx, oy + ry
     st = a.style
-    sigma = shadow_sigma(st)
+    sigma = shadow_sigma(st, a.kind)
     pad = int(sigma * 3 + 2)
     if a.kind == "text":
         tw, th = measure_text(a.text, st)
         bx, by, bw, bh = a.x1 - 2, a.y1 - 2, tw + 4, th + 4
     else:
-        plain = replace(st, shadow=False)
-        bx, by, bw, bh = Annotation.bounding_box(replace(a, style=plain))
+        bx, by, bw, bh = Annotation.bounding_box(replace(a, style=replace(st, shadow=False)))
     x0, y0 = int(math.floor(bx)) - pad, int(math.floor(by)) - pad
     w, h = int(math.ceil(bw)) + 2 * pad + 1, int(math.ceil(bh)) + 2 * pad + 1
     if w < 1 or h < 1 or w * h > _MAX_SHADOW_PIXELS:
@@ -340,8 +379,7 @@ def _shadow_surface(a: Annotation):
     cr.translate(-x0, -y0)
     cr.set_source_rgb(0, 0, 0)
     cr.set_line_width(st.width)
-    ghost = replace(a, style=replace(st, colour="#000000", opacity=1.0, shadow=False), surface=None)
-    _PAINTERS[a.kind](ghost, cr)
+    _paint_silhouette(a, cr)
     sil.flush()
     import numpy as np
     from PIL import Image, ImageFilter
@@ -352,20 +390,27 @@ def _shadow_surface(a: Annotation):
     buf = np.ndarray((h, out.get_stride() // 4, 4), dtype=np.uint8, buffer=out.get_data())
     buf[:, :w, 3] = np.asarray(blurred, dtype=np.uint8)
     out.mark_dirty()
-    a._shadow_cache = (key, out, x0, y0)   # type: ignore[attr-defined]
+    _SHADOW_CACHE[key] = (out, x0 - ox, y0 - oy, a.surface)   # the surface is held so its id() stays unique
+    while len(_SHADOW_CACHE) > _SHADOW_CACHE_SIZE:
+        _SHADOW_CACHE.popitem(last=False)
     return out, x0, y0
+
+
+def has_shadow(a: Annotation) -> bool:
+    return a.style.shadow and a.style.shadow_intensity > 0 and a.kind in SHADOW_KINDS
 
 
 def _draw_shadow(a: Annotation, cr: cairo.Context) -> None:
     """A soft Gaussian shadow under the shape (1.4 stacked three offset copies, which banded)."""
-    if not a.style.shadow or a.style.shadow_intensity <= 0 or a.kind not in SHADOW_KINDS:
+    if not has_shadow(a):
         return
-    if a.kind in ("pen", "marker") and not a.points or a.kind == "text" and not a.text:
+    if a.kind in ("pen", "marker") and not a.points or a.kind == "text" and not a.text \
+            or a.kind == "image" and a.surface is None:
         return
     surf, x0, y0 = _shadow_surface(a)
     if surf is None:
         return
-    off = shadow_offset(a.style)
+    off = shadow_offset(a.style, a.kind)
     cr.save()
     cr.set_source_surface(surf, x0 + off, y0 + off)
     cr.paint_with_alpha(min(1.0, a.style.shadow_intensity * 0.85))

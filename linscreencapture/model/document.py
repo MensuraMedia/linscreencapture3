@@ -1,6 +1,7 @@
 """The document: a base image plus ordered annotation layers. No GTK."""
 from __future__ import annotations
 import itertools
+import math
 import os
 from dataclasses import dataclass, field
 
@@ -66,6 +67,38 @@ def copy_surface(surf: cairo.ImageSurface) -> cairo.ImageSurface:
     cr = cairo.Context(out)
     cr.set_source_surface(surf, 0, 0)
     cr.set_operator(cairo.OPERATOR_SOURCE)
+    cr.paint()
+    out.flush()
+    return out
+
+
+# ---------------------------------------------------------------- page growth (docs/EDITOR-CANVAS-EXPANSION.md)
+EXPAND_PADDING = 20      # image px of page beyond a layer that grew it (measured from its shadow's edge)
+MAX_PAGE = 16384         # the page never grows past this many px a side
+
+
+def expansion_for(width: int, height: int, box: tuple[float, float, float, float],
+                  pad: int = EXPAND_PADDING) -> tuple[int, int, int, int]:
+    """(left, top, right, bottom) growth of a ``width`` × ``height`` page so ``box`` (x, y, w, h) fits with ``pad``
+    on the sides it overflows; all zeros when it fits. Capped so the page stays within ``MAX_PAGE``."""
+    x, y, w, h = box
+    left = math.ceil(pad - x) if x < 0 else 0
+    top = math.ceil(pad - y) if y < 0 else 0
+    right = math.ceil(x + w + pad - width) if x + w > width else 0
+    bottom = math.ceil(y + h + pad - height) if y + h > height else 0
+    spare_w, spare_h = max(0, MAX_PAGE - width), max(0, MAX_PAGE - height)
+    if left + right > spare_w:
+        left, right = (round(spare_w * left / (left + right)), spare_w - round(spare_w * left / (left + right)))
+    if top + bottom > spare_h:
+        top, bottom = (round(spare_h * top / (top + bottom)), spare_h - round(spare_h * top / (top + bottom)))
+    return max(0, left), max(0, top), max(0, right), max(0, bottom)
+
+
+def expanded_base(base: cairo.ImageSurface, left: int, top: int, right: int, bottom: int) -> cairo.ImageSurface:
+    """A transparent page grown by the given margins with ``base`` painted at (left, top)."""
+    out = cairo.ImageSurface(cairo.FORMAT_ARGB32, base.get_width() + left + right, base.get_height() + top + bottom)
+    cr = cairo.Context(out)
+    cr.set_source_surface(base, left, top)
     cr.paint()
     out.flush()
     return out

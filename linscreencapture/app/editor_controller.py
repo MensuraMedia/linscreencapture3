@@ -8,7 +8,8 @@ from gi.repository import Gdk, GLib, Gtk, Graphene
 
 from . import tools
 from ..model.annotations import Annotation, Style, draw, _paint_eraser_ghost, area_path, constrain_square
-from ..model.undo import AddLayer, RemoveLayer, RemoveLayers, EditAnnotation, SetVisible, MoveLayer
+from ..model.document import expansion_for, expanded_base
+from ..model.undo import AddLayer, RemoveLayer, RemoveLayers, EditAnnotation, SetVisible, MoveLayer, TransformBase
 
 LOG = logging.getLogger("linscreencapture.editor")
 ACCENT = (0x4c / 255, 0x9d / 255, 1.0)
@@ -118,11 +119,37 @@ class EditorController:
     def _commit(self, cmd, select_new: bool = True) -> None:
         self.all_selected = False
         self.undo.do(cmd)
+        self._grow_page_for(getattr(cmd, "layer", None))
         if select_new and isinstance(cmd, AddLayer) and cmd.layer is not None:
             self.selected_id = cmd.layer.id
         self.win.refresh_document()
         for cb in list(self.on_selection):
             cb(self.selected_id)
+
+    def _grow_page_for(self, layer) -> bool:
+        """An image layer that now reaches past the page grows the page to hold it (plus ``EXPAND_PADDING``),
+        in the same undo step as the edit that moved it there (docs/EDITOR-CANVAS-EXPANSION.md)."""
+        doc = self.doc
+        if layer is None or layer.annotation.kind != "image" or doc is None or doc.base is None:
+            return False
+        left, top, right, bottom = expansion_for(doc.width, doc.height, layer.annotation.bounding_box())
+        if not (left or top or right or bottom):
+            return False
+        new = expanded_base(doc.base, left, top, right, bottom)
+        self.undo.amend(TransformBase(new, lambda x, y: (x + left, y + top), label="Enlarge page"))
+        if self.area is not None:
+            self.area.move_by(left, top)
+        if self.crop_rect is not None:
+            x, y, w, h = self.crop_rect
+            self.crop_rect = (x + left, y + top, w, h)
+        z = self.state.zoom
+        if left or top:                                   # keep the picture still on screen
+            GLib.idle_add(lambda: (self.stage.scroll_by(left * z, top * z), False)[1])
+        LOG.debug("page grown by l%d t%d r%d b%d to %dx%d", left, top, right, bottom, doc.width, doc.height)
+        if not getattr(self, "_grew_once", False):
+            self._grew_once = True
+            self.win.toast("Page enlarged to fit the image · Ctrl+Z undoes", timeout=3)
+        return True
 
     def _modifiers(self, gesture) -> tuple[bool, bool]:
         st = gesture.get_current_event_state()
@@ -593,7 +620,9 @@ class EditorController:
         _x, _y, w, h = layer.annotation.rect
         if w <= 0 or h <= 0:
             return False
-        s = min(self.doc.width / w, self.doc.height / h)
+        bx, _by, bw, _bh = layer.annotation.bounding_box()
+        e = max(0.0, (bw - w) / 2)                           # its shadow fits inside the page too (no growth)
+        s = min(max(1.0, self.doc.width - 2 * e) / w, max(1.0, self.doc.height - 2 * e) / h)
         nw, nh = w * s, h * s
         x, y = (self.doc.width - nw) / 2, (self.doc.height - nh) / 2
         self._commit(EditAnnotation(layer, {"x1": x, "y1": y, "x2": x + nw, "y2": y + nh}, label="Fit"), select_new=False)
@@ -679,10 +708,12 @@ class EditorController:
             elif p.kind == "eraser":
                 _paint_eraser_ghost(p, cr)          # clearing the canvas would also clear the checkerboard
             else:
-                ghost = p.copy()
-                if self._mode in ("draw", "stroke"):
-                    ghost.style.opacity = min(ghost.style.opacity, 0.6)
-                draw(ghost, cr, None)
+                if self._mode in ("draw", "stroke") and p.style.shadow:
+                    # full colour while drawing; only the shadow waits for release: its blur changes with every
+                    # motion and costs 15-20 ms a frame on large shapes (moves reuse the cached shadow instead)
+                    p = p.copy()
+                    p.style.shadow = False
+                draw(p, cr, None)                   # the real style: what is drawn is what is committed
             cr.restore()
             if p.kind == "image" and self._mode is not None and self._mode.startswith("handle:"):
                 self._draw_size_readout(cr, p, ox, oy, z)
