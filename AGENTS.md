@@ -12,7 +12,7 @@ universal standards here.
 
 - Python 3.12, GTK 4.14.5, libadwaita 1.5, PyGObject 3.48, pycairo, Pillow 10.2, numpy, python-xlib (system packages; no pip manifest)
 - Run: `make resources && python3 -m linscreencapture` (`--debug` or `LSC_DEBUG=1` for verbose logging)
-- Test: `make test` → pytest (131 tests; runs under `xvfb-run` when installed, which it is on the dev machine since 2026-10; otherwise the live display. Under Xvfb `test_window_geometry` and `test_close_saves_settings` fail by 10 px — no window manager)
+- Test: `make test` → pytest (204 tests on 2026-10-29; runs under `xvfb-run` when installed, which it is on the dev machines since 2026-10; otherwise the live display. Under Xvfb four window-geometry tests fail — no window manager; KNOWN_ISSUES.md names them)
 - Renders: `make snapshot` → `screenshots/dev/shell_*.png`; icons: `make icons`, `make launcher`
 - Dev machine: Linux Mint Cinnamon on X11
 

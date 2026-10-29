@@ -7,12 +7,15 @@ import cairo
 from gi.repository import Gdk, GLib, Gtk, Graphene
 
 from . import tools
-from ..model.annotations import Annotation, Style, draw, _paint_eraser_ghost, area_path, constrain_square
-from ..model.undo import AddLayer, RemoveLayer, RemoveLayers, EditAnnotation, SetVisible, MoveLayer
+from ..model.annotations import (Annotation, Style, draw, _paint_eraser_ghost, area_path, constrain_square,
+                                 image_corners, normalise_angle)
+from ..model.document import expansion_for, expanded_base, resized_page
+from ..model.undo import (AddLayer, RemoveLayer, RemoveLayers, EditAnnotation, SetVisible, MoveLayer, TransformBase,
+                          SetPageFill, Compound)
 
 LOG = logging.getLogger("linscreencapture.editor")
 ACCENT = (0x4c / 255, 0x9d / 255, 1.0)
-HANDLE_PX = 8          # on-screen handle size
+HANDLE_PX = 9          # on-screen handle diameter (round handles)
 HIT_PX = 7             # on-screen hit tolerance around a handle
 
 
@@ -118,22 +121,50 @@ class EditorController:
     def _commit(self, cmd, select_new: bool = True) -> None:
         self.all_selected = False
         self.undo.do(cmd)
+        self._grow_page_for(getattr(cmd, "layer", None))
         if select_new and isinstance(cmd, AddLayer) and cmd.layer is not None:
             self.selected_id = cmd.layer.id
         self.win.refresh_document()
         for cb in list(self.on_selection):
             cb(self.selected_id)
 
+    def _grow_page_for(self, layer) -> bool:
+        """An image layer that now reaches past the page grows the page to hold it (plus ``EXPAND_PADDING``),
+        in the same undo step as the edit that moved it there (docs/EDITOR-CANVAS-EXPANSION.md)."""
+        doc = self.doc
+        if layer is None or layer.annotation.kind != "image" or doc is None or doc.base is None:
+            return False
+        left, top, right, bottom = expansion_for(doc.width, doc.height, layer.annotation.bounding_box())
+        if not (left or top or right or bottom):
+            return False
+        new = expanded_base(doc.base, left, top, right, bottom)
+        self.undo.amend(TransformBase(new, lambda x, y: (x + left, y + top), label="Enlarge page"))
+        if self.area is not None:
+            self.area.move_by(left, top)
+        if self.crop_rect is not None:
+            x, y, w, h = self.crop_rect
+            self.crop_rect = (x + left, y + top, w, h)
+        z = self.state.zoom
+        if left or top:                                   # keep the picture still on screen
+            GLib.idle_add(lambda: (self.stage.scroll_by(left * z, top * z), False)[1])
+        LOG.debug("page grown by l%d t%d r%d b%d to %dx%d", left, top, right, bottom, doc.width, doc.height)
+        if not getattr(self, "_grew_once", False):
+            self._grew_once = True
+            self.win.toast("Page enlarged to fit the image · Ctrl+Z undoes", timeout=3)
+        return True
+
     def _modifiers(self, gesture) -> tuple[bool, bool]:
         st = gesture.get_current_event_state()
         return bool(st & Gdk.ModifierType.SHIFT_MASK), bool(st & Gdk.ModifierType.CONTROL_MASK)
 
     # -- pointer -----------------------------------------------------------
-    def _layer_at(self, x: float, y: float):
-        for layer in reversed(self.doc.layers):
-            if layer.visible and layer.annotation.contains(x, y):
-                return layer
-        return None
+    def _layer_at(self, x: float, y: float, below=None):
+        """The topmost visible layer at (x, y); with ``below`` (a layer), the next one under it there, wrapping
+        to the top (Ctrl+click picks a layer hidden beneath another)."""
+        hits = [l for l in reversed(self.doc.layers) if l.visible and l.annotation.contains(x, y)]
+        if below is not None and below in hits and len(hits) > 1:
+            return hits[(hits.index(below) + 1) % len(hits)]
+        return hits[0] if hits else None
 
     def _drag_begin(self, gesture, cx: float, cy: float) -> None:
         if not self._ready():
@@ -156,10 +187,12 @@ class EditorController:
         if tool in ("select", "move"):
             layer = self.selected_layer()
             tol = HIT_PX / self.state.zoom
-            if layer is not None and tools.handle_at(layer.annotation, x, y, tol):
-                self._mode = "handle:" + tools.handle_at(layer.annotation, x, y, tol)
+            hit = tools.handle_at(layer.annotation, x, y, tol, self.state.zoom) if layer is not None else None
+            if hit:
+                self._mode = "handle:" + hit
             else:
-                layer = self._layer_at(x, y)
+                _shift, ctrl = self._modifiers(gesture)
+                layer = self._layer_at(x, y, below=self.selected_layer() if ctrl else None)
                 self.select(layer.id if layer else None)
                 self._mode = "move" if layer else None
             if layer is not None and self._mode:
@@ -252,9 +285,12 @@ class EditorController:
                 layer.visible = True
                 if preview is not None and (dx or dy):
                     changes = {k: getattr(preview, k) for k in ("x1", "y1", "x2", "y2")}
+                    if preview.angle != layer.annotation.angle:
+                        changes["angle"] = preview.angle
                     if preview.points:
                         changes["points"] = preview.points
-                    self._commit(EditAnnotation(layer, changes, label="Move" if mode == "move" else "Resize"), select_new=False)
+                    label = "Move" if mode == "move" else "Rotate" if mode == "handle:rotate" else "Resize"
+                    self._commit(EditAnnotation(layer, changes, label=label), select_new=False)
                 else:
                     self.stage.refresh()
             self._orig = None
@@ -299,6 +335,9 @@ class EditorController:
         if tool == "area_points":
             self._chain_click(x, y, n_press)
             return
+        if tool == "bucket":
+            self.bucket_fill(x, y)
+            return
         if tool == "text":
             self.stage.cancel_text_entry()
             self._pending_callout = None
@@ -319,6 +358,10 @@ class EditorController:
         if self._chain:
             self._hover = self.to_image(cx, cy)
             self.stage.canvas.queue_draw()
+        if self.eyedropper:                     # the eyedropper keeps its own pointer until it has picked
+            from ..services.icon_loader import eyedropper_cursor
+            self.stage.canvas.set_cursor(eyedropper_cursor())
+            return
         name = "crosshair"
         if self._mode == "pan":
             name = "grabbing"
@@ -330,8 +373,12 @@ class EditorController:
             x, y = self.to_image(cx, cy)
             layer = self.selected_layer()
             tol = HIT_PX / self.state.zoom
-            h = tools.handle_at(layer.annotation, x, y, tol) if layer else None
-            if h in ("nw", "se"):
+            h = tools.handle_at(layer.annotation, x, y, tol, self.state.zoom) if layer else None
+            if h == "rotate":
+                name = "grab"
+            elif h and layer.annotation.kind == "image" and layer.annotation.angle:
+                name = "move"                   # a turned frame: the axis cursors would point the wrong way
+            elif h in ("nw", "se"):
                 name = "nwse-resize"
             elif h in ("ne", "sw"):
                 name = "nesw-resize"
@@ -498,6 +545,25 @@ class EditorController:
     def _text_cancelled(self) -> None:
         self._pending_callout = None
 
+    def bucket_fill(self, x: float, y: float) -> bool:
+        """Paint bucket at image point (x, y): flood what is visible there (``app/bucket.py``) in the current colour,
+        as a ``bucket`` layer (undoable; the pixels beneath stay as they were)."""
+        from . import bucket
+        from ..model.annotations import parse_hex
+        comp = self.stage.composite
+        if comp is None or not self._ready():
+            return False
+        style = self.style_for("bucket")
+        s = self.settings
+        result = bucket.fill(comp, int(x), int(y), parse_hex(style.colour), s.bucket_tolerance, s.bucket_contiguous,
+                             style.opacity)
+        if result is None:
+            return False
+        surf, x0, y0 = result
+        a = Annotation("bucket", x0, y0, x0 + surf.get_width(), y0 + surf.get_height(), style=style, surface=surf)
+        self._commit(AddLayer(a, label="Bucket fill"), select_new=False)
+        return True
+
     def sample(self, x: float, y: float) -> str | None:
         comp = self.stage.composite
         if comp is None:
@@ -512,8 +578,9 @@ class EditorController:
 
     def start_eyedropper(self) -> None:
         if self._ready():
+            from ..services.icon_loader import eyedropper_cursor
             self.eyedropper = True
-            self.stage.canvas.set_cursor(Gdk.Cursor.new_from_name("crosshair"))
+            self.stage.canvas.set_cursor(eyedropper_cursor())
             self.win.toast("Click the image to pick a colour", timeout=2)
 
     def apply_crop(self) -> bool:
@@ -561,6 +628,30 @@ class EditorController:
         if layer is not None and layer.visible != visible:
             self._commit(SetVisible(layer, visible), select_new=False)
 
+    # -- arrange (right rail EDIT: to front, forward, backward, to back) -------------
+    ARRANGE = ("front", "forward", "backward", "back")
+
+    def _arrange_index(self, where: str) -> int | None:
+        layer = self.selected_layer()
+        if layer is None or not self._ready():
+            return None
+        i, top = self.doc.layers.index(layer), len(self.doc.layers) - 1
+        target = {"front": top, "forward": i + 1, "backward": i - 1, "back": 0}[where]
+        target = max(0, min(top, target))
+        return None if target == i else target
+
+    def can_arrange(self, where: str) -> bool:
+        return self._arrange_index(where) is not None
+
+    def arrange_selected(self, where: str) -> bool:
+        """Move the selected layer in the stack (layers[0] is the bottom); one undo step."""
+        index = self._arrange_index(where)
+        if index is None:
+            return False
+        labels = {"front": "Bring to front", "forward": "Bring forward", "backward": "Send backward", "back": "Send to back"}
+        self._commit(MoveLayer(self.selected_layer(), index, label=labels[where]), select_new=False)
+        return True
+
     def move_layer(self, layer_id: int, index: int) -> None:
         layer = self.doc.find_layer(layer_id) if self.doc else None
         if layer is not None:
@@ -576,8 +667,55 @@ class EditorController:
         w, h = max(1.0, round(w)), max(1.0, round(h))
         if (round(cw), round(ch)) == (w, h):
             return False
+        if layer.annotation.angle:                        # a turned layer keeps its centre (its corner has moved)
+            x, y = x + (cw - w) / 2, y + (ch - h) / 2
         self._commit(EditAnnotation(layer, {"x1": x, "y1": y, "x2": x + w, "y2": y + h}, label="Resize"), select_new=False)
         return True
+
+    def set_layer_angle(self, degrees: float) -> bool:
+        """Turn the selected image layer to ``degrees`` clockwise about its centre."""
+        layer = self.selected_layer()
+        if layer is None or self.undo is None or layer.annotation.kind != "image":
+            return False
+        deg = normalise_angle(degrees)
+        if abs(deg - layer.annotation.angle) < 0.005:
+            return False
+        self._commit(EditAnnotation(layer, {"angle": deg}, label="Rotate"), select_new=False)
+        return True
+
+    def rotate_selected(self, delta: float) -> bool:
+        layer = self.selected_layer()
+        return layer is not None and self.set_layer_angle(layer.annotation.angle + delta)
+
+    # -- the page (right panel: Page) ----------------------------------------------
+    def apply_page(self, width: int, height: int, fill: str | None,
+                   anchor: tuple[float, float] = (0.5, 0.5)) -> bool:
+        """The Page dialog's Apply: the page size (the picture stays at ``anchor``; layers keep their place on it)
+        and the fill behind its transparent parts (None: transparent), as one undo step."""
+        doc = self.doc
+        if not self._ready():
+            return False
+        steps = []
+        if (int(width), int(height)) != (doc.width, doc.height):
+            new, dx, dy = resized_page(doc.base, width, height, anchor)
+            steps.append(TransformBase(new, lambda x, y: (x + dx, y + dy), label="Page size"))
+        if fill != doc.background:
+            steps.append(SetPageFill(fill))
+        if not steps:
+            return False
+        self.cancel_crop()
+        self.cancel_area()
+        self.all_selected = False
+        self.undo.do(steps[0] if len(steps) == 1 else Compound(steps, label="Page settings"))
+        self.win.refresh_document()
+        return True
+
+    def set_page_size(self, width: int, height: int, anchor: tuple[float, float] = (0.5, 0.5)) -> bool:
+        return self.apply_page(width, height, self.doc.background if self.doc else None, anchor)
+
+    def set_page_fill(self, colour: str | None) -> bool:
+        doc = self.doc
+        return doc is not None and self.apply_page(doc.width, doc.height, colour)
 
     def natural_size(self) -> tuple[int, int] | None:
         """The selected image layer's own pixel size (100 %)."""
@@ -590,10 +728,14 @@ class EditorController:
         layer = self.selected_layer()
         if layer is None or self.undo is None or not self._ready():
             return False
-        _x, _y, w, h = layer.annotation.rect
+        a = layer.annotation
+        _x, _y, w, h = a.rect
         if w <= 0 or h <= 0:
             return False
-        s = min(self.doc.width / w, self.doc.height / h)
+        _sx, _sy, aw, ah = tools.selection_rect(a)           # the picture's own extent (turned, if it is)
+        _bx, _by, bw, _bh = a.bounding_box()
+        e = max(0.0, (bw - aw) / 2)                          # its shadow fits inside the page too (no growth)
+        s = min(max(1.0, self.doc.width - 2 * e) / aw, max(1.0, self.doc.height - 2 * e) / ah)
         nw, nh = w * s, h * s
         x, y = (self.doc.width - nw) / 2, (self.doc.height - nh) / 2
         self._commit(EditAnnotation(layer, {"x1": x, "y1": y, "x2": x + nw, "y2": y + nh}, label="Fit"), select_new=False)
@@ -635,17 +777,29 @@ class EditorController:
             self.apply_style({"colour": self.state.colour})
 
     # -- overlay drawing ----------------------------------------------------
-    def _draw_size_readout(self, cr: cairo.Context, a: Annotation, ox: float, oy: float, z: float) -> None:
-        """While an image layer is resized: its frame and a "W × H px · N %" label under it."""
+    @staticmethod
+    def _frame_path(cr: cairo.Context, a: Annotation, ox: float, oy: float, z: float) -> None:
+        """An image layer's (turned) frame in canvas px."""
+        pts = [(ox + px * z, oy + py * z) for px, py in image_corners(a)]
+        cr.move_to(*pts[0])
+        for p in pts[1:]:
+            cr.line_to(*p)
+        cr.close_path()
+
+    def _draw_size_readout(self, cr: cairo.Context, a: Annotation, ox: float, oy: float, z: float, angle: bool = False) -> None:
+        """While an image layer is resized or turned: its frame and a "W × H px · N %" (or "N°") label under it."""
         x, y, w, h = a.rect
         cr.save()
         cr.set_source_rgba(*ACCENT, 0.95)
         cr.set_line_width(1)
-        cr.rectangle(ox + x * z + 0.5, oy + y * z + 0.5, w * z, h * z)
+        self._frame_path(cr, a, ox, oy, z)
         cr.stroke()
         text = f"{round(w)} × {round(h)} px"
         if a.surface is not None and a.surface.get_width() > 0:
             text += f" · {round(100 * w / a.surface.get_width())} %"
+        if angle:
+            text = f"{a.angle:g}°"
+        x, y, w, h = tools.selection_rect(a)
         cr.select_font_face("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         cr.set_font_size(11)
         ext = cr.text_extents(text)
@@ -679,13 +833,16 @@ class EditorController:
             elif p.kind == "eraser":
                 _paint_eraser_ghost(p, cr)          # clearing the canvas would also clear the checkerboard
             else:
-                ghost = p.copy()
-                if self._mode in ("draw", "stroke"):
-                    ghost.style.opacity = min(ghost.style.opacity, 0.6)
-                draw(ghost, cr, None)
+                if (self._mode in ("draw", "stroke", "handle:rotate")) and p.style.shadow:
+                    # full colour while drawing; only the shadow waits for release: its blur changes with every
+                    # motion and costs 15-20 ms a frame on large shapes (moves reuse the cached shadow instead;
+                    # a turn changes the silhouette every frame, so it waits too)
+                    p = p.copy()
+                    p.style.shadow = False
+                draw(p, cr, None)                   # the real style: what is drawn is what is committed
             cr.restore()
             if p.kind == "image" and self._mode is not None and self._mode.startswith("handle:"):
-                self._draw_size_readout(cr, p, ox, oy, z)
+                self._draw_size_readout(cr, p, ox, oy, z, angle=self._mode == "handle:rotate")
         if (self.area is not None or self._chain) and self._ready():
             self._draw_area_overlay(cr, ox, oy, z)
         if self.all_selected and self._mode is None and self._ready():
@@ -724,7 +881,7 @@ class EditorController:
             return
         a = layer.annotation
         x, y, w, h = tools.selection_rect(a)
-        handles = tools.handles_for(a)
+        handles = tools.handles_for(a, z)
         cr.save()
         cr.set_source_rgba(*ACCENT, 0.9)
         cr.set_line_width(1)
@@ -739,12 +896,20 @@ class EditorController:
             for cx, cy, sx, sy in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
                 cr.move_to(cx, cy + sy * t); cr.line_to(cx, cy); cr.line_to(cx + sx * t, cy)
             cr.stroke()
-        if a.kind == "image" and not self.settings.selection_frame:   # the usual solid bounding box
-            cr.rectangle(ox + x * z + 0.5, oy + y * z + 0.5, w * z, h * z)
-            cr.stroke()
-        for hx, hy in handles.values():
+        if a.kind == "image":                              # the picture's own (turned) frame, and the rotate stem
+            if not self.settings.selection_frame:
+                self._frame_path(cr, a, ox, oy, z)
+                cr.stroke()
+            if "rotate" in handles:
+                tx, ty = handles["n"]
+                rx, ry = handles["rotate"]
+                cr.move_to(ox + tx * z, oy + ty * z)
+                cr.line_to(ox + rx * z, oy + ry * z)
+                cr.stroke()
+        for name, (hx, hy) in handles.items():
             sx, sy = ox + hx * z, oy + hy * z
-            cr.rectangle(sx - HANDLE_PX / 2, sy - HANDLE_PX / 2, HANDLE_PX, HANDLE_PX)
+            cr.new_sub_path()
+            cr.arc(sx, sy, HANDLE_PX / 2 + (0.5 if name == "rotate" else 0), 0, 6.2832)   # round handles
             cr.set_source_rgb(1, 1, 1)
             cr.fill_preserve()
             cr.set_source_rgb(*ACCENT)

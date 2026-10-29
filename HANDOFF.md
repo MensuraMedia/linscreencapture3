@@ -49,6 +49,118 @@ Update 2026-10-14: `docs/FEATURES.md` rewritten as the complete 16-section featu
 selected layer is off by default (handles only; corner ticks for handle-less layers; `Settings.selection_frame` and a
 Settings → Window switch restore it). 106 tests. Awaiting the operator's on-screen sign-off and the PR into `main`.
 
+## 0b. 2026-10-29 — branch `fix/linshot-icon-and-migration` (third session, the Mint laptop)
+
+Cut from `feat/stage-rotate-fill` at `123db28`, so it carries PRs #1–#4 (still open, unmerged; `main` is at
+`01f5606`). On this machine LinShot 1.4 and `gnome-screenshot` were removed and the `.deb` installed; three problems
+showed up, fixed here:
+
+- **Migration left PrintScreen dead.** `Settings._load_legacy` copied LinShot's `start_with_os=false` and
+  `default_screenshot_app=false` into `autostart` / `register_hotkey`. 1.4 bound its key whatever those said, so a
+  typical 1.4 user got no desktop binding and no agent at login. Neither flag is migrated now; `shortcut_key=0`
+  ("none") still turns the hotkey off. Test: `test_legacy_off_flags_do_not_disable_the_hotkey`.
+- **The installed launcher ran the checkout** when started from inside it (`python3 -m` puts the current directory
+  first): `gresource missing`. The launcher (`install.sh`, hence the `.deb`) and the tray spawn use `python3 -P`.
+- **App icon:** at the operator's request, the LinShot ring and dot in flat `#ffa222` (exact 1.4 geometry) replaces
+  the orange tile everywhere: master SVG, the eight PNGs, so menu, Alt+Tab, tray and autostart. `docs/ICONOGRAPHY.md`.
+
+`make test` here: 200 passed, 4 failed under Xvfb (`test_window_geometry`, `test_close_saves_settings`,
+`test_both_rails_bottom_lines_are_level_open_and_collapsed`, `test_a_selected_image_strip_never_widens_the_window`);
+the same four fail on `feat/stage-rotate-fill` unmodified (no window manager under Xvfb).
+Full session record, verification and open items: `docs/CHANGES-2026-10-29.md`.
+
+## 0a. 2026-10-18 — branch `fix/tray-alttab-icons` (second machine)
+
+Two machines work on this repository; pull before a session, push after it. Branch `fix/tray-alttab-icons` is cut
+from `feat/phase5` at `01f5606` (the other machine's icon / installer / .deb work). It adds:
+
+- `docs/ICONOGRAPHY.md`: the one application icon (master SVG + eight PNG renders, theme name `APP_ID`), its
+  placement (menu, panel window list / Alt+Tab, tray, Startup Applications) with the recognition requirement for each,
+  and rules. Linked from README and FEATURES.
+- Fix: the autostart entry still wrote `Icon=linscreencapture3`, the retired theme name that `make launcher` now
+  deletes, so Startup Applications showed a blank icon. It writes `Icon=<APP_ID>`; `test_agent` asserts it.
+- Fix: **`make test` deleted the real `~/.config/autostart/<APP_ID>.desktop`**, so Run at startup silently went off
+  on the development machine after every test run (and the app then honours the missing entry as "off").
+  `install.sh --uninstall --destdir …` (run by `test_install_script_uninstalls`) removed `$HOME`'s autostart entry
+  even when staging; it now skips `$HOME` under `--destdir`. Also `PreferencesDialog` defaulted `autostart_root` to
+  the real config dir; it now defaults to `settings.root`. Guarded by
+  `test_staged_uninstall_leaves_the_users_autostart_entry_alone` (fake `HOME`) and
+  `test_preferences_autostart_switch_stays_in_the_settings_root`. Verified with a sentinel entry over the full suite.
+- `tools/launch.sh` and `ui/style.css` header comments say LinScreenCapture 3; §8.0 points at the real tray icon file.
+
+The same machine had found the tray (`tray.py` prgname) and `WM_CLASS` bugs independently; the other machine's
+commits fixed both first, so that work was dropped in the rebase (kept locally as tag
+`backup/fix-tray-alttab-icons-pre-rebase`). On this machine every earlier build (1.4 `linshot3`, LinScreenCapture2,
+`gnome-screenshot`) was removed after a tar backup in `~/backups/`; `xvfb` is not installed here, so `make test`
+uses the live display. The app on this machine is installed with `./install.sh` (`~/.local`); re-run it after a pull.
+
+**Editor work, same day — branch `feat/editor-shadows-canvas`** (from `docs/editor-paste-shadow-concepts`, with
+`fix/tray-alttab-icons` merged in). Full account: `docs/CHANGES-2026-10-18.md`.
+
+- The arrow no longer fades while being drawn: the 60 % preview cap in `_draw_overlay` is gone; while drawing only
+  the shadow waits for release (a shadow blur per motion measured 16–21 ms on large shapes).
+- A Shadow switch on every marking tool: `SHADOW_KINDS` + `step`, `callout` (its switch was dead), `image`;
+  new switches in the Step and Image strip sets.
+- Pasted images cast a shadow of their own alpha (sigma 6 / offset 4), on by default (`[Tools] shadow_image`,
+  `Settings.STYLED`, never universal), baked by flatten / save / copy. The blurred silhouette is cached module-wide by
+  shape relative to the layer's origin, so moves reuse it.
+- Page growth: an image layer pasted or moved past the page grows it to its painted extent + `EXPAND_PADDING` (20 px)
+  in the same undo step (`EditorController._grow_page_for` from `_commit`, `UndoStack.amend` / `Compound`,
+  `document.expansion_for` / `expanded_base`, `MAX_PAGE` 16384). Pastes are 1:1; Fit fits the image with its shadow.
+- 144 tests. Design: `docs/EDITOR-SHADOWS-AND-PREVIEW.md`, `docs/EDITOR-CANVAS-EXPANSION.md` (differences from the
+  design at the top of each). The 4-up clipboard tray (`docs/CLIPBOARD-TRAY-4UP.md`) is on `feat/clip-tray-4up`
+  (rebased onto `feat/editor-shadows-canvas`; GLM draft, reviewed and completed; 150 tests).
+
+**Branch `feat/stage-rotate-fill`** (stacked on `feat/clip-tray-4up`; PR #4, base `feat/clip-tray-4up`):
+- Pasted images rotate: `Annotation.angle` (degrees clockwise about the rect centre; image layers only), drawn by
+  `annotations._image_frame`, hit-tested on the turned picture, bounding box = turned extent; `TransformBase` now
+  saves and restores `angle`; a page rotation turns image layers (`_image_transformed`) instead of stretching them.
+  Canvas: a round rotate handle above the top edge (`tools.handles_for(a, zoom)`, `image_rotate`, Shift 15°);
+  turned resize along the picture's own sides (`image_resize_turned`). Strip: a `↻ N°` popover button.
+- Round selection handles (`HANDLE_PX` 9).
+- Page size, fill and stage colour: the **Page dialog** (`ui/page_dialog.py`, from EDIT's `win.page-settings`;
+  first built as an in-rail PAGE group, replaced at the operator's request): size with an anchor
+  (`document.resized_page(…, anchor)`), fill (`Document.background`, `SetPageFill`, painted first by
+  `Document.render`), stage colour (`Stage.set_stage_colour`, a display CSS provider); Apply = one undo step
+  (`EditorController.apply_page`). Settings `[Stage] colour`, `page_fill`.
+- Clipboard tray: double-click pastes (`ClipTray._pressed`, capture-phase `GestureClick`; single click pops the
+  preview after the double-click time).
+- Fixes found on the way: after Ctrl+Z / Ctrl+Y the header strip still showed the old values (`refresh_document`
+  now calls `ToolProps.reload`); a selected image forced the window to 1450 px wide (the strip now scrolls in the
+  header, title / subtitle ellipsize).
+- 173 tests (`cde6405`). Then, at the operator's request, the **Layers list was removed**: the EDIT group has four
+  arrange buttons (to front, forward, backward, to back; `win.layer-*`, Ctrl+(Shift+)Page Up / Down, enabled only
+  when the selected layer can move that way), Ctrl+click picks the layer beneath the selected one, `LayerRow` and
+  the layer thumbnails are deleted; 175 tests (`e816c44`). Then the Page group moved into the Page dialog and the
+  arrange buttons got their own ARRANGE group with the app's own glyphs (`data/icons/custom/`, bundled by
+  `tools/sync_icons.py`); 177 tests.
+- Then: no stage shadow around the page (`Stage._draw_drop_shadow` deleted); Page button beside Fit in VIEW; the
+  right rail's bottom is hairline + SETTINGS label + gear button, level with the left rail's ACTIONS line (a test
+  checks open and collapsed); 179 tests.
+- Library rework: toggle at the right rail's top right (`PanelRail.library_btn`), the rail's middle is a Stack
+  (`editor` / `library`, sized by the visible page — a homogeneous stack let the hidden panel widen the rail) with
+  `ui/library_panel.py`; Library page head = search (Gtk.FilterListModel + CustomFilter on name or tag), Open,
+  Close; right-click PopoverMenu; tags `services/tags.py` (tags.json in the XDG data dir); Combine
+  (`StudioWindow.combine`, `app/tiling.py`: grid, 10 px gap and margin, best column count by waste + 16:9 shape);
+  Rename (F2, `rename_file`); Show in folder (`Gtk.FileLauncher`). Pitfall: on Library open the search field took
+  focus and swallowed tool keys, Esc and F2 — the grid is focused instead. 193 tests.
+- Fill rework: Paint bucket tool (`bucket`, key G; `app/bucket.py` numpy scanline flood on the composite; a
+  `bucket` annotation is a picture kind like `image`, `annotations.PICTURE_KINDS`); the Fill rectangle tool left the
+  UI (`fill` stays a model kind); Shape fill = `win.shape-fill` (stateful, synced on selection and undo) in the right
+  rail under the swatches, replacing the strip's Fill switch. 199 tests.
+- Then: custom `bucket-fill` icon; eyedropper pointer (`icon_loader.eyedropper_cursor`, a texture cursor; `_motion`
+  keeps it while `editor.eyedropper`); documents open at 100 % from the top-left (`Stage.scroll_to_start`); default
+  save folder `~/Pictures/ScreenShots` with a one-time move off the old Pictures default (`[Meta] folder_default_v2`).
+  203 tests.
+- Change report: `docs/CHANGES-2026-10-18.md` §4.6–4.12.
+
+**Merge order** (PRs opened 2026-10-18): #1 `fix/tray-alttab-icons` → `feat/phase5` first (without it `make test`
+deletes the real autostart entry), then #2 `feat/editor-shadows-canvas` → `feat/phase5` (contains the docs branch),
+then #3 `feat/clip-tray-4up` (based on `feat/editor-shadows-canvas`; retarget it to `feat/phase5` if #2's branch is
+kept after merging). `gh` in this checkout resolves to the archived `MensuraMedia/linscreencapture`; pass
+`-R MensuraMedia/linscreencapture3`. Installed on this machine from `feat/clip-tray-4up`. Open questions for the operator:
+`docs/CHANGES-2026-10-18.md` §6.
+
 ## 1. Mission
 
 Rebuild the 1.4 C/GTK3 screenshot tool as **LinScreenCapture 3: Python 3 + GTK 4 + libadwaita**,
@@ -215,6 +327,9 @@ data/ icons, gresource.xml, .desktop files
   compares (path, mtime) and leaves an unchanged store alone.
 - A `Gtk.Picture` with `can_shrink=True` still reports the texture's natural size, so a popover around it grew to the
   full capture; the tray keeps a pre-scaled ≤ 320×200 `preview` texture per entry instead.
+- A grid of `Gtk.Picture`s with `can_shrink=True` still asks for the textures' natural size: four 192 × 108 tray
+  thumbnails stretched the 116 px clipboard tray to 240 px. `clip_tray.CellPicture` overrides `do_measure` to ask
+  for nothing; the homogeneous grid sizes the cells.
 - Initial keyboard focus lands on the first focusable widget (a rail button), so Space/Enter activated it ("Space
   toggles the right pane"). The window focuses the canvas on map and the router swallows Space.
 
@@ -229,6 +344,13 @@ data/ icons, gresource.xml, .desktop files
 
 Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operator's call):
 
+- **Design docs 2026-10-18 (shadows, preview and page growth implemented on `feat/editor-shadows-canvas`; see §0a):**
+  `docs/EDITOR-CANVAS-EXPANSION.md` (the page grows to fit a pasted or moved image, 20 px padding, one undo step),
+  `docs/CLIPBOARD-TRAY-4UP.md` (the tray as a 2 × 2 grid of the last four copies; supersedes the item below),
+  `docs/EDITOR-SHADOWS-AND-PREVIEW.md` (pasted-image shadow kept through flatten; a Shadow switch on every
+  marking tool, fixing the dead Callout switch; the drawing preview at full colour: the 60 % cap in
+  `EditorController._draw_overlay` is the fading arrow). Suggested order: preview fix, shadow switches,
+  image shadow, canvas expansion, 4-up tray.
 - Clipboard tray with several slots (three or more, newest first). `ClipHistory.limit` and `clip_tray.SLOTS` already
   parametrise it; the tray was reduced to one slot on 2026-10-13 to keep the rail quiet.
 - Area tool follow-ups: move / restyle the marked region as a group, feather the edge, invert the area, Ctrl+X cut.
@@ -251,7 +373,7 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
    PrintScreen. Tests run with `GSETTINGS_BACKEND=memory`, `LSC_NO_HOTKEY=1` and `LSC_NO_TRAY=1` (conftest), so they
    never touch the real desktop. Gotcha: never `set_model` on an `Adw.ComboRow` from its own `notify::selected`
    handler; it froze the dialog.
-   Same day, later: the panel icon is orange #ffa222 (`resources/icons/linscreencapture-tray.svg`), shown whenever
+   Same day, later: the panel icon is orange #ffa222 (now the app icon itself, `data/icons/hicolor/scalable/apps/com.mensuramedia.LinScreenCapture.svg`; see `docs/ICONOGRAPHY.md`), shown whenever
    the app runs, double-click opens the editor (`tray.DoubleClick`); pasted images resize like in an image editor
    (`tools.image_resize`: corners keep proportions, Shift free, Ctrl about the centre; header W / lock / H / Scale %
    / 100 % / Fit; arrow keys nudge); user guide `docs/PRINTSCREEN.md`. Gotcha: XApp derives the icon's bus name from
@@ -298,8 +420,8 @@ Backlog carried from the Phase 5 review rounds (schedule with Phase 6/7, operato
 - The header strip (`ui/tool_props.py`) follows `ViewState.tool` or, under Select/Move, the selected layer; it
   writes `Settings` and applies "Style" edits to the selection. The palette recolours the selection too and
   persists the colour to every tool entry.
-- `PanelRail.set_document(doc, selected_id)` rebuilds the layer list after every command (rows carry `layer_id`,
-  a rendered thumbnail and an eye bound to `SetVisible`). Drag-reorder is not implemented yet (`MoveLayer` exists).
+- (2026-10-18) The layer list is gone; `PanelRail.set_document` is now a no-op kept for callers. Restacking:
+  `EditorController.arrange_selected` (`MoveLayer`), actions `win.layer-front/forward/backward/back`.
 
 ## 9. Capture notes (Phase 3)
 

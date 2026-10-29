@@ -54,6 +54,16 @@ def test_legacy_file_migrates_every_field(tmp_path):
     assert "migrated_from" in s.path.read_text()
 
 
+def test_legacy_off_flags_do_not_disable_the_hotkey(tmp_path):
+    # 1.4 wrote start_with_os=false and default_screenshot_app=false while still binding PrintScreen itself;
+    # carried over, they left the 3.x agent unstarted and the key unregistered.
+    (tmp_path / "linshot").mkdir()
+    (tmp_path / "linshot" / "settings.conf").write_text(
+        "[Settings]\nstart_with_os=false\nshortcut_key=1\ndefault_screenshot_app=false\n")
+    s = Settings.load(root=str(tmp_path))
+    assert s.migrated_from and s.autostart and s.register_hotkey and s.hotkey == "Print"
+
+
 def test_legacy_prefix_timestamp_mapping(tmp_path):
     for fmt, prefix, numbering in ((0, "LinScreenCapture_", "sequence"), (2, "LinScreenCapture_", "timestamp"), (3, "Screenshot_", "timestamp")):
         root = tmp_path / str(fmt)

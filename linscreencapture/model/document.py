@@ -1,6 +1,7 @@
 """The document: a base image plus ordered annotation layers. No GTK."""
 from __future__ import annotations
 import itertools
+import math
 import os
 from dataclasses import dataclass, field
 
@@ -71,6 +72,55 @@ def copy_surface(surf: cairo.ImageSurface) -> cairo.ImageSurface:
     return out
 
 
+# ---------------------------------------------------------------- page growth (docs/EDITOR-CANVAS-EXPANSION.md)
+EXPAND_PADDING = 20      # image px of page beyond a layer that grew it (measured from its shadow's edge)
+MAX_PAGE = 16384         # the page never grows past this many px a side
+
+
+def expansion_for(width: int, height: int, box: tuple[float, float, float, float],
+                  pad: int = EXPAND_PADDING) -> tuple[int, int, int, int]:
+    """(left, top, right, bottom) growth of a ``width`` × ``height`` page so ``box`` (x, y, w, h) fits with ``pad``
+    on the sides it overflows; all zeros when it fits. Capped so the page stays within ``MAX_PAGE``."""
+    x, y, w, h = box
+    left = math.ceil(pad - x) if x < 0 else 0
+    top = math.ceil(pad - y) if y < 0 else 0
+    right = math.ceil(x + w + pad - width) if x + w > width else 0
+    bottom = math.ceil(y + h + pad - height) if y + h > height else 0
+    spare_w, spare_h = max(0, MAX_PAGE - width), max(0, MAX_PAGE - height)
+    if left + right > spare_w:
+        left, right = (round(spare_w * left / (left + right)), spare_w - round(spare_w * left / (left + right)))
+    if top + bottom > spare_h:
+        top, bottom = (round(spare_h * top / (top + bottom)), spare_h - round(spare_h * top / (top + bottom)))
+    return max(0, left), max(0, top), max(0, right), max(0, bottom)
+
+
+def expanded_base(base: cairo.ImageSurface, left: int, top: int, right: int, bottom: int) -> cairo.ImageSurface:
+    """A transparent page grown by the given margins with ``base`` painted at (left, top)."""
+    out = cairo.ImageSurface(cairo.FORMAT_ARGB32, base.get_width() + left + right, base.get_height() + top + bottom)
+    cr = cairo.Context(out)
+    cr.set_source_surface(base, left, top)
+    cr.paint()
+    out.flush()
+    return out
+
+
+def resized_page(base: cairo.ImageSurface, width: int, height: int,
+                 anchor: tuple[float, float] = (0.5, 0.5)) -> tuple[cairo.ImageSurface, int, int]:
+    """The page set to ``width`` × ``height``: grown sides are transparent, shrunk sides cut. ``anchor`` is where
+    the picture stays, as fractions (0, 0) top-left … (0.5, 0.5) centre … (1, 1) bottom-right.
+
+    Returns the new base and the (dx, dy) by which every layer moves."""
+    width, height = max(1, min(MAX_PAGE, int(width))), max(1, min(MAX_PAGE, int(height)))
+    dx = math.floor((width - base.get_width()) * anchor[0])
+    dy = math.floor((height - base.get_height()) * anchor[1])
+    out = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+    cr = cairo.Context(out)
+    cr.set_source_surface(base, dx, dy)
+    cr.paint()
+    out.flush()
+    return out, dx, dy
+
+
 # ---------------------------------------------------------------- document
 class Document:
     """Base image + layers. Mutate through ``UndoStack`` commands from the controllers."""
@@ -81,6 +131,7 @@ class Document:
         self.layers: list[Layer] = []
         self.dirty = False
         self.format = "PNG"
+        self.background: str | None = None   # page fill painted behind everything ("#rrggbb"); None = transparent
 
     # -- basics -----------------------------------------------------------
     @property
@@ -143,7 +194,14 @@ class Document:
 
     # -- rendering ----------------------------------------------------------
     def render(self, cr: cairo.Context, target: cairo.ImageSurface | None, include_hidden: bool = False) -> None:
-        """Paint base and layers onto ``cr`` (whose target image surface is ``target``)."""
+        """Paint fill, base and layers onto ``cr`` (whose target image surface is ``target``)."""
+        if self.background and self.base is not None:
+            from .annotations import parse_hex
+            cr.save()
+            cr.set_source_rgb(*parse_hex(self.background))
+            cr.rectangle(0, 0, self.width, self.height)
+            cr.fill()
+            cr.restore()
         if self.base is not None:
             cr.save()
             cr.set_source_surface(self.base, 0, 0)

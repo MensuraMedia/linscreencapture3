@@ -137,7 +137,7 @@ class StatusChip(Gtk.Box):
 
 class ZoomPill(Gtk.Box):
     def __init__(self):
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, valign=Gtk.Align.CENTER)
         self.add_css_class("pill")
         self.minus = rail_button("minus", "Zoom out", "win.zoom-out", key="Ctrl+−")
         self.value = Gtk.Label(label="100%", xalign=0.5)
@@ -199,37 +199,6 @@ class SwatchGrid(Gtk.Grid):
     @property
     def colours(self) -> list[str]:
         return list(self._buttons)
-
-
-# ---- layers ------------------------------------------------------------------
-class LayerRow(Gtk.ListBoxRow):
-    def __init__(self, name: str, kind: str, thumb_colour: str = "#8fb7e8", thumbnail=None):
-        super().__init__()
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        if thumbnail is not None:
-            self.thumb = Gtk.Picture(paintable=thumbnail, content_fit=Gtk.ContentFit.COVER, can_shrink=False)
-            self.thumb.set_size_request(40, 28)
-            self.thumb.set_overflow(Gtk.Overflow.HIDDEN)
-        else:
-            self.thumb = Gtk.Box()
-            self.thumb.add_css_class(colour_class(thumb_colour))
-        self.thumb.add_css_class("thumb")
-        self.thumb.set_valign(Gtk.Align.CENTER)
-        self.name = Gtk.Label(label=name, xalign=0.0, hexpand=True, ellipsize=3, max_width_chars=10)  # Pango.EllipsizeMode.END
-        self.name.add_css_class("layer-name")
-        self.kind = Gtk.Label(label=kind.upper(), valign=Gtk.Align.CENTER)
-        self.kind.add_css_class("kind")
-        self.eye = rail_button("eye", "Toggle visibility", classes=("small", "eye"), size=16, toggle=True)
-        self.eye.set_active(True)
-        self.eye.set_valign(Gtk.Align.CENTER)
-        self.eye.connect("toggled", self._eye_toggled)
-        for w in (self.thumb, self.name, self.kind, self.eye):
-            box.append(w)
-        self.set_child(box)
-        self.update_property([Gtk.AccessibleProperty.LABEL], [f"{name} layer"])
-
-    def _eye_toggled(self, btn: Gtk.ToggleButton) -> None:
-        btn.set_child(icon_loader.icon("eye" if btn.get_active() else "eye-slash", 16))
 
 
 # ---- compact controls shared by the header strip ----------------------------

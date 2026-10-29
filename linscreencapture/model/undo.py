@@ -160,7 +160,7 @@ class TransformBase:
 
     def apply(self, doc: Document) -> None:
         self._old_base = doc.base
-        self._before = [(l, {k: getattr(l.annotation, k) for k in ("x1", "y1", "x2", "y2", "points")}) for l in doc.layers]
+        self._before = [(l, {k: getattr(l.annotation, k) for k in ("x1", "y1", "x2", "y2", "points", "angle")}) for l in doc.layers]
         doc.base = self.new_base
         if self.mapper is not None:
             for layer in doc.layers:
@@ -176,6 +176,38 @@ class TransformBase:
         doc.dirty = True
 
 
+@dataclass
+class SetPageFill:
+    """The colour painted behind the page (None = transparent)."""
+    colour: str | None
+    label: str = "Page fill"
+    _old: str | None = None
+
+    def apply(self, doc: Document) -> None:
+        self._old = doc.background
+        doc.background = self.colour
+        doc.dirty = True
+
+    def revert(self, doc: Document) -> None:
+        doc.background = self._old
+        doc.dirty = True
+
+
+@dataclass
+class Compound:
+    """Several commands as one undo step: applied in order, reverted in reverse."""
+    commands: list
+    label: str = "Edit"
+
+    def apply(self, doc: Document) -> None:
+        for c in self.commands:
+            c.apply(doc)
+
+    def revert(self, doc: Document) -> None:
+        for c in reversed(self.commands):
+            c.revert(doc)
+
+
 class UndoStack:
     def __init__(self, doc: Document, limit: int = LIMIT, on_change: Callable[[], None] | None = None):
         self.doc = doc
@@ -189,6 +221,17 @@ class UndoStack:
         self._undo.append(cmd)
         if len(self._undo) > self.limit:
             del self._undo[0]
+        self._redo.clear()
+        self._notify()
+        return cmd
+
+    def amend(self, cmd: Command) -> Command:
+        """Apply ``cmd`` as part of the last step, so one Ctrl+Z reverts both (e.g. a move that grew the page)."""
+        if not self._undo:
+            return self.do(cmd)
+        cmd.apply(self.doc)
+        last = self._undo.pop()
+        self._undo.append(Compound([last, cmd], label=last.label))
         self._redo.clear()
         self._notify()
         return cmd

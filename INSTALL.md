@@ -109,8 +109,11 @@ A hotkey that does nothing: see [docs/CAPTURE.md](docs/CAPTURE.md) §4.
 ## Upgrading from LinScreenCapture 1.x
 
 Nothing to do: on first start the 1.x settings file `~/.config/linshot/settings.conf` is read once and copied to
-`~/.config/linscreencapture/settings.conf` (colours, widths, shadows, save folder, naming). The old file is left
-untouched. The 1.x binary and its CMake build are gone from this repository; the 1.4 sources remain in the
+`~/.config/linscreencapture/settings.conf` (colours, widths, shadows, save folder, naming, and the hotkey choice).
+The old file is left untouched. LinShot's *start with the OS* and *default screenshot app* switches are not copied:
+LinScreenCapture starts at login and registers PrintScreen with the desktop either way (before 2026-10-29 they were
+copied, and LinShot's default `false` left PrintScreen dead; see `docs/CHANGES-2026-10-29.md`). Quit LinShot and
+uninstall it first: a running `linshot --capture` holds PrintScreen itself. The 1.x binary and its CMake build are gone from this repository; the 1.4 sources remain in the
 [original repository](https://github.com/MensuraMedia/linscreencapture).
 
 ## Troubleshooting

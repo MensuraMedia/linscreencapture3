@@ -10,6 +10,7 @@ what is already painted beneath them, exactly as 1.4 did).
 """
 from __future__ import annotations
 import math
+from collections import OrderedDict
 from dataclasses import dataclass, field, asdict, replace
 from typing import Iterable
 
@@ -19,16 +20,18 @@ gi.require_version("Pango", "1.0")
 gi.require_version("PangoCairo", "1.0")
 from gi.repository import Pango, PangoCairo  # noqa: E402
 
-KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "fill", "blur", "pixelate", "image", "cutout")
+KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "fill", "blur", "pixelate", "image", "cutout",
+         "bucket")
+PICTURE_KINDS = ("image", "bucket")                # a surface drawn into the rect (a paste; a bucket fill's pixels)
 AREA_SHAPES = ("box", "round", "points")          # the Area tool's three ways of marking a region
 SHAPE_KINDS = ("arrow", "line", "box", "circle")          # share the "Shapes" settings
 REDACT_KINDS = ("blur", "pixelate")
 STROKE_KINDS = ("line", "pen", "marker", "eraser")
 NAMES = {"arrow": "Arrow", "line": "Line", "box": "Box", "circle": "Circle", "text": "Text", "pen": "Pen",
-         "marker": "Marker", "eraser": "Eraser", "step": "Step", "callout": "Callout", "fill": "Fill", "blur": "Blur", "pixelate": "Pixelate", "image": "Image", "cutout": "Cutout"}
+         "marker": "Marker", "eraser": "Eraser", "step": "Step", "callout": "Callout", "fill": "Fill", "blur": "Blur", "pixelate": "Pixelate", "image": "Image", "cutout": "Cutout", "bucket": "Bucket"}
 # the layer label names the tool that made the layer ("BLUR", "PIXELATE"), never a category like "REDACT"
 BADGE = {k: v.upper() for k, v in NAMES.items()}
-SHADOW_KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker")
+SHADOW_KINDS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "step", "callout", "image")
 
 
 # ---------------------------------------------------------------- colours
@@ -78,6 +81,7 @@ class Annotation:
     number: int = 0                                                   # step
     shape: str = ""                                                   # cutout: box | round | points (see area_path)
     surface: object = field(default=None, repr=False, compare=False)  # image: a cairo surface drawn into the rect
+    angle: float = 0.0                                                # image: degrees clockwise about the rect's centre
 
     def __post_init__(self) -> None:
         if self.kind not in KINDS:
@@ -106,20 +110,27 @@ class Annotation:
             pad = lw * 3.0 + 1
         elif self.kind == "step":
             r = step_radius(self.style)
-            return self.x1 - r - 2, self.y1 - r - 2, 2 * r + 4, 2 * r + 4
+            x, y, w, h, pad = self.x1 - r, self.y1 - r, 2 * r, 2 * r, 2
         elif self.kind == "callout":
-            x, y, w, h = callout_box(self)
+            bx, by, bw, bh = callout_box(self)
             tx, ty = self.x2, self.y2
-            x0, y0 = min(x, tx), min(y, ty)
-            return x0 - 2, y0 - 2, max(x + w, tx) - x0 + 4, max(y + h, ty) - y0 + 4
+            x, y = min(bx, tx), min(by, ty)
+            w, h, pad = max(bx + bw, tx) - x, max(by + bh, ty) - y, 2
+        elif self.kind in PICTURE_KINDS:
+            x, y, w, h = _aabb(image_corners(self)) if self.angle else self.rect
+            pad = 0
         else:
             x, y, w, h = self.rect
             pad = lw / 2 + 1
-        if self.style.shadow:
-            pad += shadow_extent(self.style)
+        if self.style.shadow and self.kind in SHADOW_KINDS:
+            pad += shadow_extent(self.style, self.kind)
         return x - pad, y - pad, w + 2 * pad, h + 2 * pad
 
     def contains(self, px: float, py: float) -> bool:
+        if self.kind in PICTURE_KINDS and self.angle:          # the turned picture itself, not its upright bounding box
+            lx, ly = to_local(self, px, py)
+            x, y, w, h = self.rect
+            return x <= lx <= x + w and y <= ly <= y + h
         x, y, w, h = self.bounding_box()
         return x <= px <= x + w and y <= py <= y + h
 
@@ -128,7 +139,8 @@ class Annotation:
         """Plain data (the image surface of an ``image`` kind is not included; pass it to ``from_dict``)."""
         return {"kind": self.kind, "x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2,
                 "style": asdict(self.style), "text": self.text,
-                "points": [list(p) for p in self.points], "number": self.number, "shape": self.shape}
+                "points": [list(p) for p in self.points], "number": self.number, "shape": self.shape,
+                "angle": self.angle}
 
     def copy(self) -> "Annotation":
         return Annotation.from_dict(self.to_dict(), surface=self.surface)
@@ -142,7 +154,14 @@ class Annotation:
         return cls(style=style, surface=surface, **d)
 
     def transformed(self, mapper) -> dict:
-        """Field changes that move this annotation through ``mapper(x, y) -> (x, y)``."""
+        """Field changes that move this annotation through ``mapper(x, y) -> (x, y)``.
+
+        An image layer keeps its picture upright in its own frame: a page rotation turns it (``angle``) about its
+        mapped centre instead of stretching its rect. A flip (mirror) cannot be expressed that way and maps corners."""
+        if self.kind in PICTURE_KINDS:
+            ch = _image_transformed(self, mapper)
+            if ch is not None:
+                return ch
         x1, y1 = mapper(self.x1, self.y1)
         x2, y2 = mapper(self.x2, self.y2)
         ch = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
@@ -152,6 +171,65 @@ class Annotation:
 
 
 # ---------------------------------------------------------------- geometry helpers
+def _rotate(x: float, y: float, cx: float, cy: float, degrees: float) -> tuple[float, float]:
+    """(x, y) turned ``degrees`` clockwise (screen coordinates, y down) about (cx, cy)."""
+    r = math.radians(degrees)
+    c, s = math.cos(r), math.sin(r)
+    dx, dy = x - cx, y - cy
+    return cx + dx * c - dy * s, cy + dx * s + dy * c
+
+
+def image_centre(a: "Annotation") -> tuple[float, float]:
+    x, y, w, h = a.rect
+    return x + w / 2, y + h / 2
+
+
+def to_local(a: "Annotation", px: float, py: float) -> tuple[float, float]:
+    """A page point in the image layer's own upright frame (undoes its ``angle``)."""
+    cx, cy = image_centre(a)
+    return _rotate(px, py, cx, cy, -a.angle)
+
+
+def to_page(a: "Annotation", lx: float, ly: float) -> tuple[float, float]:
+    cx, cy = image_centre(a)
+    return _rotate(lx, ly, cx, cy, a.angle)
+
+
+def image_corners(a: "Annotation") -> list[tuple[float, float]]:
+    """The four corners (nw, ne, se, sw) of an image layer on the page, its rotation applied."""
+    x, y, w, h = a.rect
+    return [to_page(a, px, py) for px, py in ((x, y), (x + w, y), (x + w, y + h), (x, y + h))]
+
+
+def _aabb(points) -> tuple[float, float, float, float]:
+    xs = [p[0] for p in points]; ys = [p[1] for p in points]
+    return min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
+
+
+def normalise_angle(degrees: float) -> float:
+    """-180 < angle <= 180, rounded to 0.01°."""
+    d = math.fmod(degrees, 360.0)
+    if d <= -180:
+        d += 360
+    elif d > 180:
+        d -= 360
+    return round(d, 2) + 0.0
+
+
+def _image_transformed(a: "Annotation", mapper) -> dict | None:
+    """Rotation / scale / translation of the page applied to an upright-framed image; None for a mirror."""
+    cx, cy = image_centre(a)
+    ncx, ncy = mapper(cx, cy)
+    ex = [v - n for v, n in zip(mapper(cx + 1, cy), (ncx, ncy))]
+    ey = [v - n for v, n in zip(mapper(cx, cy + 1), (ncx, ncy))]
+    if ex[0] * ey[1] - ex[1] * ey[0] <= 0:
+        return None
+    _x, _y, w, h = a.rect
+    nw, nh = w * math.hypot(*ex), h * math.hypot(*ey)
+    return {"x1": ncx - nw / 2, "y1": ncy - nh / 2, "x2": ncx + nw / 2, "y2": ncy + nh / 2,
+            "angle": normalise_angle(a.angle + math.degrees(math.atan2(ex[1], ex[0])))}
+
+
 def normalised_rect(x1: float, y1: float, x2: float, y2: float) -> tuple[float, float, float, float]:
     return min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1)
 
@@ -294,43 +372,76 @@ def _stroke_points(a: Annotation, cr: cairo.Context) -> None:
     cr.stroke()
 
 
-def shadow_sigma(style: Style) -> float:
-    return 1.5 + style.width * 0.35
+IMAGE_SHADOW_SIGMA, IMAGE_SHADOW_OFFSET = 6.0, 4.0   # a pasted image: close to the stage's own page shadow
 
 
-def shadow_offset(style: Style) -> float:
-    return 1.0 + style.width * 0.3
+def shadow_sigma(style: Style, kind: str = "") -> float:
+    return IMAGE_SHADOW_SIGMA if kind == "image" else 1.5 + style.width * 0.35
 
 
-def shadow_extent(style: Style) -> float:
+def shadow_offset(style: Style, kind: str = "") -> float:
+    return IMAGE_SHADOW_OFFSET if kind == "image" else 1.0 + style.width * 0.3
+
+
+def shadow_extent(style: Style, kind: str = "") -> float:
     """How far the shadow can reach beyond the shape (offset plus blur tail)."""
-    return shadow_offset(style) + shadow_sigma(style) * 3 + 1
+    return shadow_offset(style, kind) + shadow_sigma(style, kind) * 3 + 1
 
 
 _MAX_SHADOW_PIXELS = 4096 * 4096
+_SHADOW_CACHE: "OrderedDict[tuple, tuple]" = OrderedDict()
+_SHADOW_CACHE_SIZE = 24
+
+
+def _shadow_origin(a: Annotation) -> tuple[float, float]:
+    return a.points[0] if a.points else (a.x1, a.y1)
 
 
 def _shadow_key(a: Annotation) -> tuple:
+    """The silhouette's shape relative to the annotation's origin: a moved layer (or a moved copy, as the drag
+    preview is) reuses its blurred shadow instead of blurring again on every motion event."""
     st = a.style
-    return (a.kind, a.x1, a.y1, a.x2, a.y2, st.width, st.fill, a.text, st.font_family, st.font_size, st.bold,
-            st.italic, len(a.points), a.points[0] if a.points else None, a.points[-1] if a.points else None)
+    ox, oy = _shadow_origin(a)
+
+    def rel(x: float, y: float) -> tuple[float, float]:
+        return round(x - ox, 2), round(y - oy, 2)
+
+    return (a.kind, rel(a.x1, a.y1), rel(a.x2, a.y2), round(ox % 1, 2), round(oy % 1, 2), st.width, st.fill,
+            a.text, st.font_family, st.font_size, st.bold, st.italic, a.number, tuple(rel(*q) for q in a.points),
+            id(a.surface) if a.surface is not None else None, a.angle)
+
+
+def _paint_silhouette(a: Annotation, cr: cairo.Context) -> None:
+    """``a`` in opaque black: through its painter, or from its own alpha for an image."""
+    if a.kind == "image":
+        sw, sh = a.surface.get_width(), a.surface.get_height()
+        if a.rect[2] >= 1 and a.rect[3] >= 1 and sw >= 1 and sh >= 1:
+            cr.save()
+            _image_frame(a, cr)
+            cr.mask_surface(a.surface, 0, 0)
+            cr.restore()
+        return
+    ghost = replace(a, style=replace(a.style, colour="#000000", opacity=1.0, shadow=False), surface=None)
+    _PAINTERS[a.kind](ghost, cr)
 
 
 def _shadow_surface(a: Annotation):
-    """A Gaussian-blurred black silhouette of ``a`` (cached on the annotation) and its top-left in image px."""
+    """A Gaussian-blurred black silhouette of ``a`` (cached by shape) and its top-left in image px."""
     key = _shadow_key(a)
-    cached = getattr(a, "_shadow_cache", None)
-    if cached is not None and cached[0] == key:
-        return cached[1], cached[2], cached[3]
+    ox, oy = _shadow_origin(a)
+    hit = _SHADOW_CACHE.get(key)
+    if hit is not None:
+        _SHADOW_CACHE.move_to_end(key)
+        out, rx, ry, _keep = hit
+        return out, ox + rx, oy + ry
     st = a.style
-    sigma = shadow_sigma(st)
+    sigma = shadow_sigma(st, a.kind)
     pad = int(sigma * 3 + 2)
     if a.kind == "text":
         tw, th = measure_text(a.text, st)
         bx, by, bw, bh = a.x1 - 2, a.y1 - 2, tw + 4, th + 4
     else:
-        plain = replace(st, shadow=False)
-        bx, by, bw, bh = Annotation.bounding_box(replace(a, style=plain))
+        bx, by, bw, bh = Annotation.bounding_box(replace(a, style=replace(st, shadow=False)))
     x0, y0 = int(math.floor(bx)) - pad, int(math.floor(by)) - pad
     w, h = int(math.ceil(bw)) + 2 * pad + 1, int(math.ceil(bh)) + 2 * pad + 1
     if w < 1 or h < 1 or w * h > _MAX_SHADOW_PIXELS:
@@ -340,8 +451,7 @@ def _shadow_surface(a: Annotation):
     cr.translate(-x0, -y0)
     cr.set_source_rgb(0, 0, 0)
     cr.set_line_width(st.width)
-    ghost = replace(a, style=replace(st, colour="#000000", opacity=1.0, shadow=False), surface=None)
-    _PAINTERS[a.kind](ghost, cr)
+    _paint_silhouette(a, cr)
     sil.flush()
     import numpy as np
     from PIL import Image, ImageFilter
@@ -352,20 +462,27 @@ def _shadow_surface(a: Annotation):
     buf = np.ndarray((h, out.get_stride() // 4, 4), dtype=np.uint8, buffer=out.get_data())
     buf[:, :w, 3] = np.asarray(blurred, dtype=np.uint8)
     out.mark_dirty()
-    a._shadow_cache = (key, out, x0, y0)   # type: ignore[attr-defined]
+    _SHADOW_CACHE[key] = (out, x0 - ox, y0 - oy, a.surface)   # the surface is held so its id() stays unique
+    while len(_SHADOW_CACHE) > _SHADOW_CACHE_SIZE:
+        _SHADOW_CACHE.popitem(last=False)
     return out, x0, y0
+
+
+def has_shadow(a: Annotation) -> bool:
+    return a.style.shadow and a.style.shadow_intensity > 0 and a.kind in SHADOW_KINDS
 
 
 def _draw_shadow(a: Annotation, cr: cairo.Context) -> None:
     """A soft Gaussian shadow under the shape (1.4 stacked three offset copies, which banded)."""
-    if not a.style.shadow or a.style.shadow_intensity <= 0 or a.kind not in SHADOW_KINDS:
+    if not has_shadow(a):
         return
-    if a.kind in ("pen", "marker") and not a.points or a.kind == "text" and not a.text:
+    if a.kind in ("pen", "marker") and not a.points or a.kind == "text" and not a.text \
+            or a.kind == "image" and a.surface is None:
         return
     surf, x0, y0 = _shadow_surface(a)
     if surf is None:
         return
-    off = shadow_offset(a.style)
+    off = shadow_offset(a.style, a.kind)
     cr.save()
     cr.set_source_surface(surf, x0 + off, y0 + off)
     cr.paint_with_alpha(min(1.0, a.style.shadow_intensity * 0.85))
@@ -540,16 +657,28 @@ def _paint_fill(a: Annotation, cr: cairo.Context) -> None:
     cr.rectangle(*a.rect); cr.fill()
 
 
+def _image_frame(a: Annotation, cr: cairo.Context) -> None:
+    """Map the image surface's own pixels onto its (turned) rect on the page."""
+    x, y, w, h = a.rect
+    if a.angle:
+        cx, cy = x + w / 2, y + h / 2
+        cr.translate(cx, cy)
+        cr.rotate(math.radians(a.angle))
+        cr.translate(-w / 2, -h / 2)
+    else:
+        cr.translate(x, y)
+    cr.scale(w / a.surface.get_width(), h / a.surface.get_height())
+
+
 def _paint_image(a: Annotation, cr: cairo.Context) -> None:
     if a.surface is None:
         return
-    x, y, w, h = a.rect
+    _x, _y, w, h = a.rect
     sw, sh = a.surface.get_width(), a.surface.get_height()
     if w < 1 or h < 1 or sw < 1 or sh < 1:
         return
     cr.save()
-    cr.translate(x, y)
-    cr.scale(w / sw, h / sh)
+    _image_frame(a, cr)
     cr.set_source_surface(a.surface, 0, 0)
     cr.get_source().set_filter(cairo.FILTER_GOOD)
     cr.paint()
@@ -558,7 +687,8 @@ def _paint_image(a: Annotation, cr: cairo.Context) -> None:
 
 _PAINTERS = {"arrow": _paint_arrow, "line": _paint_line, "box": _paint_box, "circle": _paint_circle,
              "text": _paint_text, "pen": _paint_pen, "marker": _paint_marker, "eraser": _paint_eraser_ghost, "step": _paint_step,
-             "callout": _paint_callout, "fill": _paint_fill, "image": _paint_image, "cutout": _paint_cutout_ghost}
+             "callout": _paint_callout, "fill": _paint_fill, "image": _paint_image, "cutout": _paint_cutout_ghost,
+             "bucket": _paint_image}
 
 
 # ---------------------------------------------------------------- redaction (pixel ops on the target)

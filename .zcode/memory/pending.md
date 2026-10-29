@@ -1,7 +1,22 @@
 # Pending
 
-- Phase 5 done on branch feat/phase5 plus two 2026-10-13 review rounds (round 1: shadows, opacity, delay toggle, paste, outside click, layer numbering, Ctrl+Z focus; round 2: libX11 grab, Library group ops, select all, clipboard tray (one slot; more = roadmap HANDOFF §8), eraser/transparency, shortcut tooltips, panning, Space fix, Area tool box/round/point chain; 2026-10-14: FEATURES.md full rewrite, selection frame optional) — awaiting operator on-screen sign-off and PR into main. The operator's running instance predates round 2: restart the app to see it. Phase 6 (system integration) is next: checklist HANDOFF.md §8.
-- s049 i18n strategy (docs/s049_i18n_strategy.md) on branch docs/i18n-strategy — awaiting operator review before any string-wrapping pass (wrap before Phase 5 per plan).
-- Branch docs/app-screenshots: 3 commits unpushed (cbaed3b, eba9388, e9d017c) — awaiting operator review.
-- Snapshot tool caveat: on a fresh clone, `make snapshot` falls back to the real Pictures folder for the Library render until the tool defaults the folder to screenshots/fixtures/.
-- 2026-10-16 Branch feat/background-agent (from feat/phase5): background agent, tray helper, hotkey capture, autostart, System settings page (pushed); then uncommitted: Region Plus mode, clipboard-first on every capture with the X11 clipboard-format fix, retired copy_to_clipboard/selection_style, and the Cinnamon HotkeyRegistrar (services/hotkey_registrar.py; done for Cinnamon). Spec: docs/CAPTURE.md. Remaining: registrar for other desktops (GNOME append + show-screenshot-ui, Xfce, MATE), countdown chip, pin, scrolling capture, rest of the System page and the Shortcuts page (HANDOFF §8), commit, and the operator's on-screen sign-off. (INSTALL.md is already v3; there is no install.sh in this repo.)
+- 2026-10-18: PRs open (#1, #2 into `feat/phase5`; #3 stacked on #2's branch; #4 `feat/stage-rotate-fill` stacked on #3), merge in this order: `fix/tray-alttab-icons` (must land first: without it `make test`
+  deletes the real autostart entry), `feat/editor-shadows-canvas` (preview fix, shadow switches, pasted-image shadow,
+  page growth; contains the docs branch), `feat/clip-tray-4up` (4-up clipboard tray, reviewed; stacked on `feat/editor-shadows-canvas`).
+  Session record and open questions: `docs/CHANGES-2026-10-18.md` (§6 questions, §7 what remains). HANDOFF §0a.
+- Phases 1–5: done; awaiting the operator's on-screen sign-off and the PR into `main`.
+- Phase 6 (HANDOFF §8): done — background agent, tray, hotkey capture (any recorded key), Run at startup, System page
+  (partly), Cinnamon registrar, Region Plus, clipboard-first capture, install.sh + .deb, app icon. To do — registrar for
+  GNOME / Xfce / MATE, countdown chip, pin to screen, scrolling capture, include pointer, rest of the System page and the
+  Shortcuts page, their tests; then the operator's sign-off.
+- Page growth follow-up: the dashed future-page outline while dragging (`docs/EDITOR-CANVAS-EXPANSION.md` §4.3).
+- s049 i18n strategy (`docs/s049_i18n_strategy.md`) on branch `docs/i18n-strategy` — local only on the second machine,
+  not pushed; awaiting operator review before any string-wrapping pass.
+- Snapshot tool caveat: on a fresh clone, `make snapshot` falls back to the real Pictures folder for the Library render
+  until the tool defaults the folder to `screenshots/fixtures/`.
+- `AGENTS.md` / `KNOWN_ISSUES.md` say xvfb is installed on the dev machine: true for one machine only.
+- `feat/background-agent` on origin is stale (`47fe0a0`); delete once nothing refers to it.
+- 2026-10-29: branch `fix/linshot-icon-and-migration` stacks on PR #4 (HANDOFF §0b): migration fix, `python3 -P`
+  launcher, LinShot ring icon in #ffa222. Merge after #1–#4. Under Xvfb four geometry tests fail, not two
+  (`test_both_rails_bottom_lines_are_level_open_and_collapsed`, `test_a_selected_image_strip_never_widens_the_window`
+  as well); AGENTS.md / KNOWN_ISSUES still name two.

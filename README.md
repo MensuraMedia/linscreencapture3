@@ -37,7 +37,7 @@ Rails are 220 px open, 56 px collapsed — collapsed by default on first run, au
 
 ![A capture annotated with an arrow, a selected box, step numbers, text, a callout and a pixelate block](screenshots/dev/shell_annotated.png)
 
-Every capture lands on the stage as a document, and every annotation is an undoable layer: here an arrow, a selected box (dashed outline, eight handles — the header strip reads "BOX · SELECTED"), self-renumbering step numbers, text, a callout and a pixelate redaction block. The Layers list follows the selection — a row click selects, the eye toggles visibility undoably — the palette recolours the selection, and the navigator tracks the viewport.
+Every capture lands on the stage as a document, and every annotation is an undoable layer: here an arrow, a selected box (dashed outline, eight handles — the header strip reads "BOX · SELECTED"), self-renumbering step numbers, text, a callout and a pixelate redaction block. Arrange buttons in the right rail bring the selected layer forward or send it back (Ctrl+click picks a layer beneath another), the palette recolours the selection, and the navigator tracks the viewport.
 
 ### Tool properties in the header
 
@@ -197,6 +197,8 @@ Hotkey: on Cinnamon, PrintScreen is registered automatically (Settings → Syste
 Start-up and capture diagnostics: `python3 -m linscreencapture --debug` (or `LSC_DEBUG=1`) prints timestamped lines for toolkit versions, resources, settings, backend order, window build time and every capture step, and routes GTK/GLib messages into the same stream.
 
 `make icons` re-syncs the 51 bundled Phosphor glyphs from a local checkout (`ICON_SRC=~/projects/assets/icons/regular`); the SVGs are committed, so a plain clone builds without it. `make test` runs the suite (under Xvfb when `xvfb-run` is installed, otherwise on the live display) and `make snapshot` renders the shell to `screenshots/dev/` for side-by-side comparison with the mockups.
+
+Application icon: one mark, the LinShot ring and dot in #ffa222 (`data/icons/hicolor/scalable/apps/com.mensuramedia.LinScreenCapture.svg` and its PNG renders in `resources/icons/`, theme name `com.mensuramedia.LinScreenCapture`), for the menu, panel, tray, Alt+Tab and Startup Applications; files, placement and rules in [docs/ICONOGRAPHY.md](docs/ICONOGRAPHY.md).
 
 Shell adjustments made after Phase 1 are documented in `docs/SHELL-ADJUSTMENTS-2026-10-08.md` and `docs/TOOL-PLACEMENT.md` (Capture tops the left rail, tool properties live in the header, zoom and Copy/Flatten in the right rail); `screenshots/dev/` shows the running shell.
 

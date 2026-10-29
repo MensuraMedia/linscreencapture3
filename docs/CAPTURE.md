@@ -112,6 +112,10 @@ which opens a small recorder window and takes the next key press:
    2026-10-16 exactly this swallowed PrintScreen until the process was ended.
 5. Check that the GNOME path `org.gnome.settings-daemon.plugins.media-keys custom-keybindings` holds no stale entry.
    `csd-media-keys` reads it too.
+6. Check `register_hotkey` and `autostart` in `~/.config/linscreencapture/settings.conf`. Builds before 2026-10-29
+   copied LinShot 1.4's `default_screenshot_app` / `start_with_os` (default `false`) into them on first start, so a
+   machine upgraded from LinShot could end up with no binding and no agent at login. Switch both on in Settings →
+   System (`docs/CHANGES-2026-10-29.md` §3.1).
 
 **Other desktops.** The registrar supports Cinnamon only. On GNOME, Xfce, MATE and KDE, bind
 `linscreencapture --capture` by hand; `INSTALL.md` has the steps. On GNOME also clear
@@ -224,7 +228,7 @@ capturing the veil. v3 crops the frozen image instead.
 | `[System] hotkey_opens_editor` | off | present the studio after every hotkey capture |
 | `[Capture] delay_seconds` | 3 | used by the Delayed toggle (in-app captures only) |
 | `[Capture] backend` | auto | backend order (§6) |
-| `[Capture] screenshot_path`, `prefix`, `numbering`, `format`, `jpeg_quality` | | the save path and naming |
+| `[Capture] screenshot_path`, `prefix`, `numbering`, `format`, `jpeg_quality` | | the save path (default `~/Pictures/ScreenShots`) and naming |
 
 Retired on 2026-10-16: `[Capture] copy_to_clipboard` (every capture is copied now) and `[Capture] selection_style`
 (replaced by the Region and Region Plus modes). Both are removed from the file at the next save.

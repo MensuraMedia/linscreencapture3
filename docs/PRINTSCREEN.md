@@ -40,7 +40,7 @@ confirm with **Enter** or a double-click. PrintScreen itself always runs the fas
 
 ## The panel icon
 
-While LinScreenCapture runs there is an **orange icon** (the application icon: an #ffa222 tile with a white selection frame and a pointer; the same icon shows in Alt+Tab and the menu) in the panel's
+While LinScreenCapture runs there is an **orange icon** (the application icon: the LinShot ring and centre dot in #ffa222; the same icon shows in Alt+Tab and the menu) in the panel's
 system tray.
 
 - **Double-click** it to open the editor.
@@ -87,9 +87,11 @@ Work through these in order:
    swallow PrintScreen. Quit it (`pgrep -af linshot`), or remove it from *Startup Applications*.
 4. **Is Cinnamon running an old command?** `grep -i linscreencapture ~/.xsession-errors` shows what Cinnamon actually
    executes. Toggling *Register with the desktop* makes Cinnamon reload its shortcuts.
-5. **Run the end-to-end probe:** `python3 tools/hotkey_probe.py --key Print` presses the key, drags a box and checks
+5. **Came from LinShot?** Builds before 2026-10-29 could copy LinShot's switches as *off*. In Settings → System make
+   sure *Register with the desktop* and *Run at startup* are both on.
+6. **Run the end-to-end probe:** `python3 tools/hotkey_probe.py --key Print` presses the key, drags a box and checks
    the clipboard (it moves the real mouse, so keep your hands off it). Exit status 0 means everything works.
-6. Still stuck: start the agent with `linscreencapture --background --debug` and look for `capture requested` after
+7. Still stuck: start the agent with `linscreencapture --background --debug` and look for `capture requested` after
    the key press. [CAPTURE.md](CAPTURE.md) §4 has the detailed diagnosis.
 
 ## Limits
