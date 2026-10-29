@@ -13,7 +13,7 @@ clipboard behaviour: `docs/CAPTURE.md` (its §11 lists the capture limits).
 | Scrolling capture, Pin to screen | Buttons present, not implemented | Phase 6 |
 | Layers | Drag-to-reorder in the Layers list is not implemented (the undo command exists) | Phase 7 |
 | Select all | Ctrl+A marks every layer for Copy and Delete; the selection cannot be moved or restyled as a group | open |
-| Clipboard tray | One slot for now (several slots are on the roadmap, HANDOFF §8); only copies made by LinScreenCapture appear (editor Ctrl+C, captures, Library Copy); copies from other applications are not tracked | roadmap / by design |
+| Clipboard tray | Shows the last four copies (2 × 2); only copies made by LinScreenCapture appear (editor Ctrl+C, captures, Library Copy); copies from other applications are not tracked | by design |
 | Area tool | A marked area can be copied, cropped to or cleared; it cannot yet be moved, inverted or feathered | roadmap |
 | Eraser | Erases the composite (base and layers beneath); it cannot be restricted to one layer | by design |
 | Text | Text and callouts render upright after Rotate (their anchor moves, the glyphs do not rotate) | open |

@@ -1,7 +1,7 @@
-"""Clipboard tray: a preview of the latest copy, above the Library button in the left rail.
+"""Clipboard tray: the last four copies, above the Library button in the left rail.
 
-Open rail: a 116 px box the size of the navigator holding ``SLOTS`` slots (one for now; more are on the
-roadmap); hovering a slot shows its caption, a click opens a popover with a larger preview and Copy /
+Open rail: a 116 px box the size of the navigator cut into ``SLOTS`` quarters in a 2 × 2 grid, newest
+top-left; hovering a cell shows its caption, a click opens a popover with a larger preview and Copy /
 Paste / Delete buttons centred below it. Collapsed rail: one 30 px clipboard button whose popover holds
 the same tray. Both read ``ClipHistory``.
 """
@@ -15,13 +15,24 @@ from ..services import icon_loader
 from ..services.clip_history import ClipHistory, ClipEntry
 
 TRAY_HEIGHT = 116          # same as the navigator
-SLOTS = 1          # grows with ClipHistory.LIMIT when the multi-copy tray lands
+SLOTS = 4                  # the 2 × 2 grid; matches ClipHistory.LIMIT
 PREVIEW_W, PREVIEW_H = 320, 200
 
 
+def _clock(e: ClipEntry) -> str:
+    return datetime.datetime.fromtimestamp(e.when).strftime("%H:%M")
+
+
 def _size_label(e: ClipEntry) -> str:
-    when = datetime.datetime.fromtimestamp(e.when).strftime("%H:%M")
-    return f"{e.width}×{e.height} · {when}"
+    return f"{e.width}×{e.height} · {_clock(e)}"
+
+
+class CellPicture(Gtk.Picture):
+    """A picture that asks for no size of its own: a ``Gtk.Picture`` reports its texture's natural size even with
+    ``can_shrink``, so four 192 × 108 thumbnails grew the 116 px tray to 240 px. The grid sizes the cells instead."""
+
+    def do_measure(self, orientation, for_size):
+        return 0, 0, -1, -1
 
 
 class ClipPreview(Gtk.Popover):
@@ -87,14 +98,14 @@ class ClipPreview(Gtk.Popover):
             self.popdown()
 
 
-class ClipTray(Gtk.Box):
-    """``SLOTS`` slots, newest first; empty slots are dashed placeholders.
+class ClipTray(Gtk.Grid):
+    """``SLOTS`` cells in a 2 × 2 grid, newest top-left; empty cells are dashed placeholders.
 
-    Each slot is a ``Gtk.MenuButton`` owning its preview popover: a popover popped up by hand from a
+    Each cell is a ``Gtk.MenuButton`` owning its preview popover: a popover popped up by hand from a
     plain button's ``clicked`` handler was closed again at once by the same button release."""
 
     def __init__(self, history: ClipHistory, on_paste=None):
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=4, homogeneous=True)
+        super().__init__(row_homogeneous=True, column_homogeneous=True, row_spacing=4, column_spacing=4)
         self.add_css_class("clip-tray")
         self.set_size_request(-1, TRAY_HEIGHT)
         self.set_vexpand(False)                       # explicit: the pictures inside must not stretch the tray
@@ -109,12 +120,12 @@ class ClipTray(Gtk.Box):
             b.set_always_show_arrow(False)
             b.set_focus_on_click(False)
             b.set_direction(Gtk.ArrowType.RIGHT)
-            pic = Gtk.Picture(content_fit=Gtk.ContentFit.CONTAIN, can_shrink=True)
+            pic = CellPicture(content_fit=Gtk.ContentFit.CONTAIN, can_shrink=True)
             b.set_child(pic)
             pop = ClipPreview(history, on_paste)
             pop.connect("show", lambda p, n=n: self._showing(p, n))
             b.set_popover(pop)
-            self.append(b)
+            self.attach(b, n % 2, n // 2, 1, 1)       # cells in reading order; tab order follows
             self.slots.append(b)
             self.pictures.append(pic)
             self.previews.append(pop)
@@ -132,16 +143,19 @@ class ClipTray(Gtk.Box):
     def refresh(self) -> None:
         for n, (slot, pic) in enumerate(zip(self.slots, self.pictures)):
             e = self.entry_at(n)
-            pic.set_paintable((e.preview or e.texture) if e else None)
+            pic.set_paintable((e.thumb or e.preview or e.texture) if e else None)
             slot.set_sensitive(e is not None)
             if e is None:
                 slot.remove_css_class("filled")
-                slot.set_tooltip_text("Copies you make appear here" if n == 0 else None)
+                slot.set_tooltip_text("Copies you make appear here" if n == len(self.history.entries) else None)
+                slot.update_property([Gtk.AccessibleProperty.LABEL], [f"Empty clipboard slot {n + 1}"])
                 if self.previews[n].get_visible():
                     self.previews[n].popdown()
             else:
                 slot.add_css_class("filled")
                 slot.set_tooltip_text(f"{e.label} · {_size_label(e)} · click for a larger preview")
+                slot.update_property([Gtk.AccessibleProperty.LABEL],
+                                     [f"Clipboard copy {n + 1} of {SLOTS}, {e.width}×{e.height}, {_clock(e)}"])
             if e is not None and self.history.is_current(e):
                 slot.add_css_class("current")
             else:
@@ -160,7 +174,7 @@ class ClipTrayButton(Gtk.MenuButton):
         super().__init__()
         self.add_css_class("rail-btn")
         self.set_child(icon_loader.icon("clipboard", 18))
-        self.set_tooltip_text("Clipboard · the last copy")
+        self.set_tooltip_text("Clipboard · the last 4 copies")
         self.update_property([Gtk.AccessibleProperty.LABEL], ["Clipboard tray"])
         self.set_focus_on_click(False)
         pop = Gtk.Popover()
@@ -169,4 +183,5 @@ class ClipTrayButton(Gtk.MenuButton):
         self.tray.set_margin_top(6); self.tray.set_margin_bottom(6); self.tray.set_margin_start(6); self.tray.set_margin_end(6)
         pop.set_child(self.tray)
         self.set_popover(pop)
-        history.connect("changed", lambda h: self.set_tooltip_text("Clipboard · the last copy · click to preview" if len(h) else "Clipboard · no copies yet"))
+        history.connect("changed", lambda h: self.set_tooltip_text(
+            "Clipboard · the last 4 copies · click to preview" if len(h) else "Clipboard · no copies yet"))

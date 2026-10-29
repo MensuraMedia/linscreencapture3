@@ -88,11 +88,14 @@ uses the live display. The app on this machine is installed with `./install.sh` 
   in the same undo step (`EditorController._grow_page_for` from `_commit`, `UndoStack.amend` / `Compound`,
   `document.expansion_for` / `expanded_base`, `MAX_PAGE` 16384). Pastes are 1:1; Fit fits the image with its shadow.
 - 144 tests. Design: `docs/EDITOR-SHADOWS-AND-PREVIEW.md`, `docs/EDITOR-CANVAS-EXPANSION.md` (differences from the
-  design at the top of each). The 4-up clipboard tray (`docs/CLIPBOARD-TRAY-4UP.md`) is on `feat/clip-tray-4up`,
-  drafted by the GLM worker and reviewed before acceptance.
+  design at the top of each). The 4-up clipboard tray (`docs/CLIPBOARD-TRAY-4UP.md`) is on `feat/clip-tray-4up`
+  (rebased onto `feat/editor-shadows-canvas`; GLM draft, reviewed and completed; 150 tests).
 
-**Merge order:** `fix/tray-alttab-icons` first (without it `make test` deletes the real autostart entry), then
-`feat/editor-shadows-canvas` (contains the docs branch), then `feat/clip-tray-4up`. Open questions for the operator:
+**Merge order** (PRs opened 2026-10-18): #1 `fix/tray-alttab-icons` → `feat/phase5` first (without it `make test`
+deletes the real autostart entry), then #2 `feat/editor-shadows-canvas` → `feat/phase5` (contains the docs branch),
+then #3 `feat/clip-tray-4up` (based on `feat/editor-shadows-canvas`; retarget it to `feat/phase5` if #2's branch is
+kept after merging). `gh` in this checkout resolves to the archived `MensuraMedia/linscreencapture`; pass
+`-R MensuraMedia/linscreencapture3`. Installed on this machine from `feat/clip-tray-4up`. Open questions for the operator:
 `docs/CHANGES-2026-10-18.md` §6.
 
 ## 1. Mission
@@ -261,6 +264,9 @@ data/ icons, gresource.xml, .desktop files
   compares (path, mtime) and leaves an unchanged store alone.
 - A `Gtk.Picture` with `can_shrink=True` still reports the texture's natural size, so a popover around it grew to the
   full capture; the tray keeps a pre-scaled ≤ 320×200 `preview` texture per entry instead.
+- A grid of `Gtk.Picture`s with `can_shrink=True` still asks for the textures' natural size: four 192 × 108 tray
+  thumbnails stretched the 116 px clipboard tray to 240 px. `clip_tray.CellPicture` overrides `do_measure` to ask
+  for nothing; the homogeneous grid sizes the cells.
 - Initial keyboard focus lands on the first focusable widget (a rail button), so Space/Enter activated it ("Space
   toggles the right pane"). The window focuses the canvas on map and the router swallows Space.
 
