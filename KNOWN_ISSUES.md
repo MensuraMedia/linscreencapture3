@@ -11,9 +11,13 @@ clipboard behaviour: `docs/CAPTURE.md` (its §11 lists the capture limits).
 | Multi-monitor | The capture overlay opens one window per monitor; a selection cannot span two monitors | open |
 | HiDPI | Monitor scale factors are assumed to be integers | open |
 | Scrolling capture, Pin to screen | Buttons present, not implemented | Phase 6 |
-| Layers | Drag-to-reorder in the Layers list is not implemented (the undo command exists) | Phase 7 |
+| Layers | The Layers list was removed (2026-10-18); restacking is the four arrange buttons and Ctrl+Page Up / Down, a covered layer is reached by Ctrl+click. There is no control to hide a layer any more | by request |
 | Select all | Ctrl+A marks every layer for Copy and Delete; the selection cannot be moved or restyled as a group | open |
 | Clipboard tray | Shows the last four copies (2 × 2); only copies made by LinScreenCapture appear (editor Ctrl+C, captures, Library Copy); copies from other applications are not tracked | by design |
+| Library tags | Kept in `~/.local/share/linscreencapture/tags.json` by path: they follow renames and duplicates made in the app, not files moved or copied outside it, and are not written into the image files | by design |
+| Library | While the Library is open the header strip still shows the last tool's properties | open |
+| Shape fill | Not in the collapsed right rail (its column is full); open the rail to change it | open |
+| Rotate | Image → Flip mirrors a pasted image's position, not its pixels; a turned image keeps its angle through a flip | open |
 | Area tool | A marked area can be copied, cropped to or cleared; it cannot yet be moved, inverted or feathered | roadmap |
 | Eraser | Erases the composite (base and layers beneath); it cannot be restricted to one layer | by design |
 | Text | Text and callouts render upright after Rotate (their anchor moves, the glyphs do not rotate) | open |

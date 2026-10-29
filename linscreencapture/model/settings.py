@@ -1,8 +1,9 @@
 """Persisted settings: the full 2.0 schema, migrated from the 1.4 key file on first run.
 
-Stored as a GLib key file at ``~/.config/linscreencapture/settings.conf`` in four groups:
+Stored as a GLib key file at ``~/.config/linscreencapture/settings.conf`` in five groups:
 ``[Window]`` geometry and rail state, ``[Capture]`` saving and capture options, ``[System]``
-hotkey, autostart and the background agent, ``[Tools]`` per-tool colour, width and shadow plus text and blur options.
+hotkey, autostart and the background agent, ``[Tools]`` per-tool colour, width and shadow plus text and blur options,
+``[Stage]`` the workspace colour around the page and the last page fill colour.
 
 The legacy 1.x file ``~/.config/linshot/settings.conf`` (single ``[Settings]`` group) is read once
 when the new file does not exist; it is copied, never moved or modified. No GTK here.
@@ -21,7 +22,7 @@ NEW_DIR = "linscreencapture"
 LEGACY_DIR = "linshot"
 FILE = "settings.conf"
 
-TOOLS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "fill")
+TOOLS = ("arrow", "line", "box", "circle", "text", "pen", "marker", "eraser", "step", "callout", "bucket")
 STYLED = TOOLS + ("image",)          # also persisted; "image" (a pasted picture) never follows the universal style
 _DEFAULT_WIDTHS = {"eraser": 24.0}   # the eraser is a broad band by default
 PREFIXES = ("LinScreenCapture_", "Screenshot_")
@@ -49,8 +50,22 @@ def legacy_file(root: str | None = None) -> pathlib.Path:
     return pathlib.Path(root or GLib.get_user_config_dir()) / LEGACY_DIR / FILE
 
 
-def _default_pictures() -> str:
+SCREENSHOTS_DIR = "ScreenShots"     # the default save folder: <Pictures>/ScreenShots (2026-10-18)
+
+
+def _pictures() -> str:
     return GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PICTURES) or os.path.expanduser("~/Pictures")
+
+
+def _default_pictures() -> str:
+    return os.path.join(_pictures(), SCREENSHOTS_DIR)
+
+
+def _moved_to_default_folder(path: str) -> str:
+    """The pre-2026-10-18 default was the Pictures folder itself; a setting still on it moves to Pictures/ScreenShots.
+    Any other folder the user chose is kept."""
+    same = os.path.normpath(os.path.expanduser(path)) == os.path.normpath(_pictures())
+    return _default_pictures() if same else path
 
 
 def parse_colour(text: str) -> str | None:
@@ -121,6 +136,11 @@ class Settings:
     text_bold: bool = True
     text_italic: bool = False
     step_size: float = 14.0        # step-number badge size (font pt; radius = max(10, 0.75 × size))
+    bucket_tolerance: int = 32     # paint bucket: how far (0–255 per channel) a pixel may differ from the clicked one
+    bucket_contiguous: bool = True # paint bucket: only the connected area (off: every matching pixel)
+    # [Stage]
+    stage_colour: str = ""         # the workspace around the page; "" = the theme's
+    page_fill: str = "#ffffff"     # the colour the Page fill switch paints (remembered; a document starts unfilled)
     # bookkeeping
     root: str | None = None          # config root override (tests)
     migrated_from: str | None = None  # set when this instance came from the 1.x file
@@ -191,6 +211,8 @@ class Settings:
         self.right_collapsed = g.bool("Window", "right_collapsed", self.right_collapsed)
         self.selection_frame = g.bool("Window", "selection_frame", self.selection_frame)
         self.screenshot_path = g.str("Capture", "screenshot_path", self.screenshot_path)
+        if not g.bool("Meta", "folder_default_v2", False):          # once: the old default moves to ScreenShots
+            self.screenshot_path = _moved_to_default_folder(self.screenshot_path)
         self.prefix = g.str("Capture", "prefix", self.prefix)
         self.numbering = g.choice("Capture", "numbering", NUMBERING, self.numbering)
         self.format = g.choice("Capture", "format", FORMATS, self.format)
@@ -223,13 +245,17 @@ class Settings:
         self.text_bold = g.bool("Tools", "text_bold", self.text_bold)
         self.text_italic = g.bool("Tools", "text_italic", self.text_italic)
         self.step_size = max(8.0, min(48.0, g.float("Tools", "step_size", self.step_size)))
+        self.bucket_tolerance = max(0, min(255, g.int("Tools", "bucket_tolerance", self.bucket_tolerance)))
+        self.bucket_contiguous = g.bool("Tools", "bucket_contiguous", self.bucket_contiguous)
+        self.stage_colour = parse_colour(g.str("Stage", "colour", "")) or ""
+        self.page_fill = parse_colour(g.str("Stage", "page_fill", self.page_fill)) or self.page_fill
         self.migrated_from = g.str("Meta", "migrated_from", None) or None
 
     def _read_legacy(self, kf: GLib.KeyFile) -> None:
         """Map the 1.4 ``[Settings]`` group onto the 2.0 fields."""
         g = _Getter(kf)
         S = "Settings"
-        self.screenshot_path = g.str(S, "screenshot_path", self.screenshot_path)
+        self.screenshot_path = _moved_to_default_folder(g.str(S, "screenshot_path", self.screenshot_path))
         fmt = g.int(S, "filename_format", 2)      # 1.4 default: LinShot prefix + timestamp
         self.prefix = PREFIXES[fmt % 2]            # 0,2 -> LinScreenCapture_ (was LinShot_); 1,3 -> Screenshot_
         self.numbering = "timestamp" if fmt >= 2 else "sequence"
@@ -300,8 +326,13 @@ class Settings:
         kf.set_boolean("Tools", "text_bold", bool(self.text_bold))
         kf.set_boolean("Tools", "text_italic", bool(self.text_italic))
         kf.set_double("Tools", "step_size", float(self.step_size))
+        kf.set_integer("Tools", "bucket_tolerance", int(self.bucket_tolerance))
+        kf.set_boolean("Tools", "bucket_contiguous", bool(self.bucket_contiguous))
+        kf.set_string("Stage", "colour", self.stage_colour)
+        kf.set_string("Stage", "page_fill", self.page_fill)
         if self.migrated_from:
             kf.set_string("Meta", "migrated_from", self.migrated_from)
+        kf.set_boolean("Meta", "folder_default_v2", True)   # the ScreenShots default is applied: a later pick of Pictures stays
         self.path.parent.mkdir(parents=True, exist_ok=True)
         kf.save_to_file(str(self.path))
 

@@ -1,7 +1,7 @@
 """Centre stage: empty-state placeholder now, the document canvas from Phase 4."""
 from __future__ import annotations
 import cairo
-from gi.repository import Gdk, Gtk, Graphene
+from gi.repository import Gdk, GLib, Gtk, Graphene
 
 from ..services import icon_loader
 from ..app.view_state import ViewState
@@ -16,13 +16,13 @@ def _kind(text: str) -> Gtk.Label:
 
 
 class Stage(Gtk.Overlay):
-    def __init__(self, state: ViewState, captures: CapturesIndex):
+    def __init__(self, state: ViewState, captures: CapturesIndex, tags=None):
         super().__init__(hexpand=True, vexpand=True)
         self.state = state
         self.add_css_class("stage")
         self.pages = Gtk.Stack(hexpand=True, vexpand=True, transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=120)
         self.pages.add_named(self._build_empty(), "empty")
-        self.library = LibraryPage(captures)
+        self.library = LibraryPage(captures, tags)
         self.pages.add_named(self.library, "library")
         # canvas page: the document, scaled by ViewState.zoom, centred in a scrolled viewport
         self.document = None
@@ -168,7 +168,6 @@ class Stage(Gtk.Overlay):
         z = self.state.zoom
         iw, ih = self._composite.get_width() * z, self._composite.get_height() * z
         x, y = (w - iw) / 2, (h - ih) / 2
-        self._draw_drop_shadow(cr, x, y, iw, ih)
         cr.save()
         cr.rectangle(x, y, iw, ih)
         cr.clip()
@@ -199,6 +198,18 @@ class Stage(Gtk.Overlay):
             cls._checker = pat
         return cls._checker
 
+    _stage_css = None
+
+    def set_stage_colour(self, hx: str) -> None:
+        """The workspace colour around the page ("" = the theme's ``@stage``)."""
+        display = self.get_display()
+        if Stage._stage_css is None:
+            Stage._stage_css = Gtk.CssProvider()
+            Gtk.StyleContext.add_provider_for_display(display, Stage._stage_css,
+                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+        Stage._stage_css.load_from_string(f".stage {{ background: {hx}; }}" if hx else "")
+        self.stage_colour = hx
+
     # -- panning --------------------------------------------------------------
     def scroll_by(self, dx: float, dy: float, origin: tuple[float, float] | None = None) -> None:
         """Move the viewport by (dx, dy) px from ``origin`` (the adjustment values when a pan began)."""
@@ -206,6 +217,14 @@ class Stage(Gtk.Overlay):
                           (self.scroller.get_vadjustment(), origin[1] if origin else None, dy)):
             base = adj.get_value() if o is None else o
             adj.set_value(max(adj.get_lower(), min(base + d, adj.get_upper() - adj.get_page_size())))
+
+    def scroll_to_start(self) -> None:
+        """Show the page's top-left corner once the canvas has its new size (after the next layout)."""
+        def go():
+            for adj in (self.scroller.get_hadjustment(), self.scroller.get_vadjustment()):
+                adj.set_value(adj.get_lower())
+            return False
+        GLib.idle_add(go)
 
     def pan_origin(self) -> tuple[float, float]:
         return self.scroller.get_hadjustment().get_value(), self.scroller.get_vadjustment().get_value()
@@ -216,35 +235,6 @@ class Stage(Gtk.Overlay):
 
     def _pan_update(self, _g, dx: float, dy: float) -> None:
         self.scroll_by(-dx, -dy, getattr(self, "_pan_from", None))
-
-    SHADOW_REACH = 18      # px the stage shadow extends beyond the image edge
-    SHADOW_ALPHA = 0.55    # darkest value, right at the edge
-
-    def _draw_drop_shadow(self, cr, x: float, y: float, w: float, h: float) -> None:
-        """A smooth shadow around the image: linear gradients on the sides, radial ones on the corners.
-
-        (The 1.4-style stacked rectangles produced visible bands on dark captures.) The image itself
-        is painted pixel-exact with square corners on top of it."""
-        r, a0 = self.SHADOW_REACH, self.SHADOW_ALPHA
-        dy = 3  # the shadow sits slightly below the image
-        y += dy
-
-        def stops(grad):
-            grad.add_color_stop_rgba(0, 0, 0, 0, a0)
-            grad.add_color_stop_rgba(0.35, 0, 0, 0, a0 * 0.35)
-            grad.add_color_stop_rgba(1, 0, 0, 0, 0)
-            return grad
-        sides = (
-            (cairo.LinearGradient(x, y, x - r, y), (x - r, y, r, h)),            # left
-            (cairo.LinearGradient(x + w, y, x + w + r, y), (x + w, y, r, h)),    # right
-            (cairo.LinearGradient(x, y, x, y - r), (x, y - r, w, r)),            # top
-            (cairo.LinearGradient(x, y + h, x, y + h + r), (x, y + h, w, r)),    # bottom
-        )
-        for grad, rect in sides:
-            cr.set_source(stops(grad)); cr.rectangle(*rect); cr.fill()
-        corners = ((x, y, x - r, y - r), (x + w, y, x + w, y - r), (x, y + h, x - r, y + h), (x + w, y + h, x + w, y + h))
-        for cx, cy, rx, ry in corners:
-            cr.set_source(stops(cairo.RadialGradient(cx, cy, 0, cx, cy, r))); cr.rectangle(rx, ry, r, r); cr.fill()
 
     def point_in_image(self, cx: float, cy: float) -> bool:
         """Is canvas point (cx, cy) over the image (not the margin around it)?"""

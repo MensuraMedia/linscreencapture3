@@ -69,8 +69,6 @@ separator.hairline { background: alpha(@border, 0.7); min-height: 1px; min-width
 .rail-btn:focus-visible { outline: 2px solid @accent; outline-offset: 1px; }
 .rail-btn.outlined { background: @surface; color: @text; border: 1px solid @border; min-width: 28px; min-height: 28px; }
 .rail-btn.small { min-width: 26px; min-height: 26px; -gtk-icon-size: 16px; }
-.rail-btn.eye:checked { background: transparent; color: @muted; }
-.rail-btn.eye:checked:hover { background: @hover; color: @text; }
 .rail-btn image { color: inherit; }
 
 /* ---- header controls ---- */
@@ -97,12 +95,7 @@ button.primary-pill:hover { background: @accent_hover; }
 .empty-glyph { color: @muted; -gtk-icon-size: 48px; }
 
 /* ---- right rail ---- */
-.layer-list { background: transparent; }
-.layer-list row { min-height: 40px; padding: 0 6px; border-radius: 6px; background: transparent; }
-.layer-list row:hover { background: @hover; }
-.layer-list row:selected { background: @accent_soft; }
 .layer-name { font-size: 12px; color: @text; }
-.thumb { border: 1px solid @border; border-radius: 4px; min-width: 40px; min-height: 28px; }
 .kind { font-size: 9px; letter-spacing: 0.06em; color: @muted; border: 1px solid @border; border-radius: 4px; padding: 1px 5px; }
 .empty-box { border: 1px dashed @border; border-radius: 6px; color: @muted; min-height: 80px; }
 
@@ -192,3 +185,11 @@ button.clip-slot picture { border-radius: 4px; }
 
 /* library head */
 .library-head .rail-btn { margin-left: 2px; }
+
+/* Page dialog: the 3 × 3 anchor grid */
+button.anchor-cell { min-width: 18px; min-height: 18px; padding: 0; border-radius: 3px; }
+button.anchor-cell:checked { background: @accent; }
+
+/* Library: tag pills in the right rail, tags under a thumbnail */
+button.tag-chip { min-height: 22px; padding: 0 9px; border-radius: 11px; font-size: 12px; font-weight: normal; }
+.cap-tags { font-size: 11px; color: @accent; }

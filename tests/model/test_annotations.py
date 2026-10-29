@@ -44,7 +44,7 @@ def sample(kind: str) -> Annotation:
     return Annotation(kind, 30, 40, 150, 120, style=st)
 
 
-@pytest.mark.parametrize("kind", [k for k in KINDS if k not in ("blur", "pixelate", "image")])  # redaction and image covered elsewhere
+@pytest.mark.parametrize("kind", [k for k in KINDS if k not in ("blur", "pixelate", "image", "bucket")])  # redaction, image, bucket: elsewhere
 def test_every_kind_draws_inside_its_bounding_box(kind):
     base = surface()
     s = surface()

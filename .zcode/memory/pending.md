@@ -1,6 +1,6 @@
 # Pending
 
-- 2026-10-18: PRs open (#1, #2 into `feat/phase5`; #3 stacked on #2's branch), merge in this order: `fix/tray-alttab-icons` (must land first: without it `make test`
+- 2026-10-18: PRs open (#1, #2 into `feat/phase5`; #3 stacked on #2's branch; #4 `feat/stage-rotate-fill` stacked on #3), merge in this order: `fix/tray-alttab-icons` (must land first: without it `make test`
   deletes the real autostart entry), `feat/editor-shadows-canvas` (preview fix, shadow switches, pasted-image shadow,
   page growth; contains the docs branch), `feat/clip-tray-4up` (4-up clipboard tray, reviewed; stacked on `feat/editor-shadows-canvas`).
   Session record and open questions: `docs/CHANGES-2026-10-18.md` (§6 questions, §7 what remains). HANDOFF §0a.

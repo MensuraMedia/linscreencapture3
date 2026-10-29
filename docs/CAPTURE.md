@@ -224,7 +224,7 @@ capturing the veil. v3 crops the frozen image instead.
 | `[System] hotkey_opens_editor` | off | present the studio after every hotkey capture |
 | `[Capture] delay_seconds` | 3 | used by the Delayed toggle (in-app captures only) |
 | `[Capture] backend` | auto | backend order (§6) |
-| `[Capture] screenshot_path`, `prefix`, `numbering`, `format`, `jpeg_quality` | | the save path and naming |
+| `[Capture] screenshot_path`, `prefix`, `numbering`, `format`, `jpeg_quality` | | the save path (default `~/Pictures/ScreenShots`) and naming |
 
 Retired on 2026-10-16: `[Capture] copy_to_clipboard` (every capture is copied now) and `[Capture] selection_style`
 (replaced by the Region and Region Plus modes). Both are removed from the file at the next save.

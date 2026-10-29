@@ -2,13 +2,13 @@
 
 Open rail: a 116 px box the size of the navigator cut into ``SLOTS`` quarters in a 2 × 2 grid, newest
 top-left; hovering a cell shows its caption, a click opens a popover with a larger preview and Copy /
-Paste / Delete buttons centred below it. Collapsed rail: one 30 px clipboard button whose popover holds
+Paste / Delete buttons centred below it, and a double-click pastes the copy into the stage at once. Collapsed rail: one 30 px clipboard button whose popover holds
 the same tray. Both read ``ClipHistory``.
 """
 from __future__ import annotations
 import datetime
 
-from gi.repository import Gtk, Gdk, Gio
+from gi.repository import Gtk, Gdk, Gio, GLib
 
 from .widgets import rail_button, group_label
 from ..services import icon_loader
@@ -102,7 +102,11 @@ class ClipTray(Gtk.Grid):
     """``SLOTS`` cells in a 2 × 2 grid, newest top-left; empty cells are dashed placeholders.
 
     Each cell is a ``Gtk.MenuButton`` owning its preview popover: a popover popped up by hand from a
-    plain button's ``clicked`` handler was closed again at once by the same button release."""
+    plain button's ``clicked`` handler was closed again at once by the same button release.
+
+    Pointer clicks are claimed by a capture-phase gesture so a double-click can paste: the first click waits
+    for the double-click time, then pops the preview up (after the release, so it stays open); a second click
+    within that time pastes instead. The keyboard (Enter / Space) still opens the preview directly."""
 
     def __init__(self, history: ClipHistory, on_paste=None):
         super().__init__(row_homogeneous=True, column_homogeneous=True, row_spacing=4, column_spacing=4)
@@ -111,6 +115,8 @@ class ClipTray(Gtk.Grid):
         self.set_vexpand(False)                       # explicit: the pictures inside must not stretch the tray
         self.set_valign(Gtk.Align.END)
         self.history = history
+        self.on_paste = on_paste
+        self._pending: dict[int, int] = {}            # slot -> GLib source of a single click waiting to pop up
         self.slots: list[Gtk.MenuButton] = []
         self.pictures: list[Gtk.Picture] = []
         self.previews: list[ClipPreview] = []
@@ -125,6 +131,10 @@ class ClipTray(Gtk.Grid):
             pop = ClipPreview(history, on_paste)
             pop.connect("show", lambda p, n=n: self._showing(p, n))
             b.set_popover(pop)
+            click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
+            click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            click.connect("pressed", lambda g, n_press, _x, _y, n=n: self._pressed(g, n, n_press))
+            b.add_controller(click)
             self.attach(b, n % 2, n // 2, 1, 1)       # cells in reading order; tab order follows
             self.slots.append(b)
             self.pictures.append(pic)
@@ -153,13 +163,49 @@ class ClipTray(Gtk.Grid):
                     self.previews[n].popdown()
             else:
                 slot.add_css_class("filled")
-                slot.set_tooltip_text(f"{e.label} · {_size_label(e)} · click for a larger preview")
+                slot.set_tooltip_text(f"{e.label} · {_size_label(e)} · click for a larger preview · double-click pastes")
                 slot.update_property([Gtk.AccessibleProperty.LABEL],
                                      [f"Clipboard copy {n + 1} of {SLOTS}, {e.width}×{e.height}, {_clock(e)}"])
             if e is not None and self.history.is_current(e):
                 slot.add_css_class("current")
             else:
                 slot.remove_css_class("current")
+
+    def _pressed(self, gesture: Gtk.GestureClick, n: int, n_press: int) -> None:
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)        # the MenuButton must not toggle on its own
+        if self.entry_at(n) is None:
+            return
+        self._cancel_pending(n)
+        if n_press >= 2:
+            self.paste(n)
+            return
+        wait = Gtk.Settings.get_default().get_property("gtk-double-click-time") if Gtk.Settings.get_default() else 400
+        self._pending[n] = GLib.timeout_add(wait, self._single_click, n)
+
+    def _cancel_pending(self, n: int) -> None:
+        src = self._pending.pop(n, None)
+        if src is not None:
+            GLib.source_remove(src)
+
+    def _single_click(self, n: int) -> bool:
+        self._pending.pop(n, None)
+        if self.entry_at(n) is not None:
+            self.slots[n].popup()
+        return False
+
+    def paste(self, n: int) -> bool:
+        """Double-click: paste copy ``n`` into the stage (a layer on the open image, or a new image)."""
+        e = self.entry_at(n)
+        if e is None or self.on_paste is None:
+            return False
+        self._cancel_pending(n)
+        if self.previews[n].get_visible():
+            self.previews[n].popdown()
+        holder = self.get_ancestor(Gtk.Popover)
+        if holder is not None:
+            holder.popdown()                                    # the collapsed rail's tray popover closes too
+        self.on_paste(e)
+        return True
 
     def _showing(self, pop: ClipPreview, n: int) -> None:
         e = self.entry_at(n)

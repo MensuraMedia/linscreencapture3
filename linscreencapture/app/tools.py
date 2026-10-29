@@ -3,13 +3,16 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 
-from ..model.annotations import Annotation, Style, snap45, constrain_square, callout_box, step_radius
+from ..model.annotations import (Annotation, Style, snap45, constrain_square, callout_box, step_radius,
+                                 image_corners, image_centre, to_local, to_page, normalise_angle)
 
-DRAG_TOOLS = ("arrow", "line", "box", "circle", "fill", "blur", "pixelate", "callout", "crop")
+DRAG_TOOLS = ("arrow", "line", "box", "circle", "blur", "pixelate", "callout", "crop")   # ("fill" retired 2026-10-18)
 STROKE_TOOLS = ("pen", "marker", "eraser")
 AREA_TOOLS = {"area_box": "box", "area_round": "round", "area_points": "points"}   # tool -> Annotation.shape
-CLICK_TOOLS = ("text", "step")
+CLICK_TOOLS = ("text", "step", "bucket")
 MIN_DRAG = 3.0
+ROTATE_REACH_PX = 26      # on-screen distance of an image layer's rotate handle above its top edge
+ROTATE_SNAP = 15.0        # Shift while rotating: whole multiples of this many degrees
 
 
 def annotation_from_drag(tool: str, x1: float, y1: float, x2: float, y2: float, style: Style,
@@ -48,23 +51,32 @@ def annotation_from_click(tool: str, x: float, y: float, style: Style, text: str
 
 
 # ---------------------------------------------------------------- handles
-def handles_for(a: Annotation) -> dict[str, tuple[float, float]]:
-    """Named handle positions (image px) for the selected annotation."""
+def handles_for(a: Annotation, zoom: float = 1.0) -> dict[str, tuple[float, float]]:
+    """Named handle positions (image px) for the selected annotation.
+
+    An image layer has eight resize handles on its turned frame plus ``rotate``, ``ROTATE_REACH_PX`` screen px
+    above its top edge (``zoom`` converts that to image px)."""
     k = a.kind
+    if k == "image":
+        x, y, w, h = a.rect
+        local = {"nw": (x, y), "n": (x + w / 2, y), "ne": (x + w, y), "e": (x + w, y + h / 2),
+                 "se": (x + w, y + h), "s": (x + w / 2, y + h), "sw": (x, y + h), "w": (x, y + h / 2),
+                 "rotate": (x + w / 2, y - ROTATE_REACH_PX / max(zoom, 1e-6))}
+        return {n: to_page(a, *p) for n, p in local.items()}
     if k in ("arrow", "line"):
         return {"start": (a.x1, a.y1), "end": (a.x2, a.y2)}
     if k == "callout":
         x, y, w, h = callout_box(a)
         return {"anchor": (x, y), "target": (a.x2, a.y2)}
-    if k in ("box", "circle", "fill", "blur", "pixelate", "image"):
+    if k in ("box", "circle", "fill", "blur", "pixelate"):
         x, y, w, h = a.rect
         return {"nw": (x, y), "n": (x + w / 2, y), "ne": (x + w, y), "e": (x + w, y + h / 2),
                 "se": (x + w, y + h), "s": (x + w / 2, y + h), "sw": (x, y + h), "w": (x, y + h / 2)}
     return {}   # text, pen, marker, step: move only
 
 
-def handle_at(a: Annotation, px: float, py: float, tolerance: float) -> str | None:
-    for name, (hx, hy) in handles_for(a).items():
+def handle_at(a: Annotation, px: float, py: float, tolerance: float, zoom: float = 1.0) -> str | None:
+    for name, (hx, hy) in handles_for(a, zoom).items():
         if abs(px - hx) <= tolerance and abs(py - hy) <= tolerance:
             return name
     return None
@@ -104,11 +116,36 @@ def image_resize(a: Annotation, handle: str, px: float, py: float, keep: bool = 
     return {"x1": l, "y1": t, "x2": l + nw, "y2": t + nh}
 
 
+def image_rotate(a: Annotation, px: float, py: float, snap: bool = False) -> dict:
+    """The angle that points the rotate handle (above the top edge) at (px, py); ``snap`` (Shift): 15° steps."""
+    cx, cy = image_centre(a)
+    deg = math.degrees(math.atan2(py - cy, px - cx)) + 90.0
+    if snap:
+        deg = round(deg / ROTATE_SNAP) * ROTATE_SNAP
+    return {"angle": normalise_angle(deg)}
+
+
+def image_resize_turned(a: Annotation, handle: str, px: float, py: float, keep: bool = True, centre: bool = False) -> dict:
+    """``image_resize`` in the layer's own upright frame, so a turned picture resizes along its own sides and the
+    opposite corner stays put on the page."""
+    if not a.angle:
+        return image_resize(a, handle, px, py, keep, centre)
+    lx, ly = to_local(a, px, py)
+    ch = image_resize(a, handle, lx, ly, keep, centre)
+    ocx, ocy = image_centre(a)
+    ncx, ncy = (ch["x1"] + ch["x2"]) / 2, (ch["y1"] + ch["y2"]) / 2
+    wcx, wcy = to_page(a, ncx, ncy)                     # the new centre, turned about the old one
+    dx, dy = wcx - ncx, wcy - ncy
+    return {"x1": ch["x1"] + dx, "y1": ch["y1"] + dy, "x2": ch["x2"] + dx, "y2": ch["y2"] + dy}
+
+
 def handle_changes(a: Annotation, handle: str, px: float, py: float, ctrl: bool = False, shift: bool = False) -> dict:
-    """Field changes that move ``handle`` of ``a`` to (px, py). Image layers: see ``image_resize``."""
+    """Field changes that move ``handle`` of ``a`` to (px, py). Image layers: see ``image_resize``/``image_rotate``."""
     k = a.kind
     if k == "image":
-        return image_resize(a, handle, px, py, keep=not shift, centre=ctrl)
+        if handle == "rotate":
+            return image_rotate(a, px, py, snap=shift)
+        return image_resize_turned(a, handle, px, py, keep=not shift, centre=ctrl)
     if k in ("arrow", "line"):
         return {"x1": px, "y1": py} if handle == "start" else {"x2": px, "y2": py}
     if k == "callout":
@@ -146,6 +183,9 @@ def selection_rect(a: Annotation) -> tuple[float, float, float, float]:
         return a.x1 - r, a.y1 - r, 2 * r, 2 * r
     if a.kind == "callout":
         return callout_box(a)
+    if a.kind == "image":
+        xs = [p[0] for p in image_corners(a)]; ys = [p[1] for p in image_corners(a)]
+        return min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
     x, y, w, h = a.bounding_box()
     return x, y, w, h
 

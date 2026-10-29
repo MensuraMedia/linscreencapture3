@@ -24,11 +24,11 @@ TOOL_KEYS = {
     Gdk.KEY_v: "select", Gdk.KEY_a: "arrow", Gdk.KEY_l: "line", Gdk.KEY_b: "box", Gdk.KEY_c: "circle",
     Gdk.KEY_t: "text", Gdk.KEY_p: "pen", Gdk.KEY_m: "marker", Gdk.KEY_e: "eraser", Gdk.KEY_u: "blur",
     Gdk.KEY_x: "pixelate", Gdk.KEY_n: "step", Gdk.KEY_k: "crop", Gdk.KEY_h: "hand",
-    Gdk.KEY_r: "area_box", Gdk.KEY_o: "area_round", Gdk.KEY_j: "area_points",
+    Gdk.KEY_r: "area_box", Gdk.KEY_o: "area_round", Gdk.KEY_j: "area_points", Gdk.KEY_g: "bucket",
 }
 TOOL_KEY_LABELS = {"V": "Select", "A": "Arrow", "L": "Line", "B": "Box", "C": "Circle", "T": "Text", "P": "Pen",
                    "M": "Marker", "E": "Eraser", "U": "Blur", "X": "Pixelate", "N": "Step number", "K": "Crop",
-                   "H": "Hand (pan)", "R": "Box area", "O": "Round area", "J": "Point chain"}
+                   "H": "Hand (pan)", "R": "Box area", "O": "Round area", "J": "Point chain", "G": "Paint bucket"}
 KEY_FOR_TOOL = {tool: Gdk.keyval_name(k).upper() for k, tool in TOOL_KEYS.items()}
 NUDGE = {Gdk.KEY_Left: (-1, 0), Gdk.KEY_Right: (1, 0), Gdk.KEY_Up: (0, -1), Gdk.KEY_Down: (0, 1),
          Gdk.KEY_KP_Left: (-1, 0), Gdk.KEY_KP_Right: (1, 0), Gdk.KEY_KP_Up: (0, -1), Gdk.KEY_KP_Down: (0, 1)}
@@ -107,6 +107,10 @@ class ShortcutRouter:
                 return act("paste")
             if lower == Gdk.KEY_a:
                 return act("library-select-all" if library else "select-all")
+            if keyval in (Gdk.KEY_Page_Up, Gdk.KEY_KP_Page_Up) and not library:
+                return act("layer-front" if shift else "layer-forward")
+            if keyval in (Gdk.KEY_Page_Down, Gdk.KEY_KP_Page_Down) and not library:
+                return act("layer-back" if shift else "layer-backward")
             return False
         if keyval in (Gdk.KEY_space, Gdk.KEY_KP_Space) and not alt:
             if library:
@@ -127,6 +131,8 @@ class ShortcutRouter:
             return False                                  # digits, Enter, Delete, arrows edit the number
         if keyval in (Gdk.KEY_Delete, Gdk.KEY_KP_Delete):
             return act("library-delete" if library else "delete-layer")
+        if keyval == Gdk.KEY_F2 and library:
+            return act("library-rename")
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
             if library:
                 return act("library-open")

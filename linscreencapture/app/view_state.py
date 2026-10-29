@@ -5,7 +5,7 @@ import math
 from gi.repository import GObject
 
 TOOLS = ("select", "arrow", "line", "box", "circle", "text", "pen", "marker", "eraser",
-         "blur", "pixelate", "fill", "step", "callout", "crop", "move", "hand", "area_box", "area_round", "area_points")
+         "blur", "pixelate", "bucket", "step", "callout", "crop", "move", "hand", "area_box", "area_round", "area_points")
 ZOOM_STEP = 1.04          # each Ctrl+wheel notch / Ctrl+plus / Ctrl+minus zooms by 4 % of the current zoom
 ZOOM_MAX_STEP = 0.05      # never more than 5 % per step (whole-percent rounding could exceed it at low zoom)
 ZOOM_MIN, ZOOM_MAX = 0.1, 10.0

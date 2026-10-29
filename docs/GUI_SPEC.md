@@ -141,7 +141,7 @@ linscreencapture/
     studio_window.py     # Gtk.ApplicationWindow: header + rails + stage
     header_bar.py        # title block, status chip, zoom pill, Capture button
     tool_rail.py         # left rail, open and collapsed layouts
-    panel_rail.py        # right rail: Layers, Captures, Props, Colour, Navigator
+    panel_rail.py        # right rail: Colour, View, Edit, Page, Layers, Navigator
     stage.py             # Gtk.ScrolledWindow + DrawingArea, zoom HUD overlay
     capture_overlay.py   # full-screen region picker
     preferences.py       # Adw.PreferencesDialog
@@ -608,6 +608,47 @@ history and tray are parametrised). An **Area** tool joins the second tool row w
 Round area (O) and Point chain (J: click points, close on the first point or by double-click) — marking a region
 that Ctrl+C copies, Enter crops to (outside the shape cleared) and Delete clears to transparent as a `CUTOUT` layer.
 The naming (area, point chain, mark) is deliberately distinct from other image editors' selection vocabulary.
+
+### Amendment 2026-10-18 — rotate, page group, round handles
+
+Branch `feat/stage-rotate-fill`.
+
+1. Selection handles are round: 9 px white discs with a 1.5 px accent ring (were 8 px squares).
+2. A selected pasted image has a ninth, round handle on a stem 26 screen px above its top-centre: dragging it turns
+   the image about its centre (Shift: 15° steps). The image strip gains one compact **↻ N°** menu button (Angle spin,
+   90° left / right, upright); the long "Shift: free · Ctrl: centre" hint became an `info` icon with the same tooltip,
+   so the image strip is 923 px (was 955).
+3. The header's tool strip sits in a horizontally scrolling window, and the title / subtitle ellipsize, so no tool's
+   strip forces the window wider than its 1360 px default (a selected image used to force 1450 px).
+4. Page size, fill and stage colour live in a **Page dialog** (`Adw.Dialog`, 420 px: Size with Width, Height,
+   Keep proportions and a 3 × 3 anchor of 18 px cells; Fill; Stage; Cancel / Apply), opened by a `frame-corners`
+   button in EDIT (a short-lived in-rail PAGE group was replaced the same day at the operator's request).
+5. The clipboard tray's cells paste on double-click.
+6. The right rail has **no layer list** (operator, 2026-10-18). An **ARRANGE** group follows EDIT with four
+   buttons, low to high: send to back, send backward, bring forward, bring to front. Their glyphs are the app's own
+   (`data/icons/custom/layer-*.svg`, Phosphor's 256 grid and 16 px weight): overlapping rounded squares, the filled
+   one is the selected layer; two squares for one step, three for the whole way. Also in the collapsed rail after a
+   hairline. Ctrl+click on the canvas picks the layer beneath. This supersedes the Layers list specification in
+   sections 3 and 6.
+7. Later the same day: the stage draws **no shadow** around the page; the **Page** button moved from EDIT to the
+   VIEW row beside Fit (the zoom pill's spacing is 6 px so the row fits the 196 px content width); the right rail
+   ends with a hairline, a SETTINGS group label and a 30 px gear button, mirroring the left rail's ACTIONS group so
+   the two bottom lines are level (collapsed: an empty 30 px slot under the right line). The "Settings" text button
+   is gone.
+8. **Library** (2026-10-18): its toggle moved from the left rail (above ACTIONS) to the right rail's top row, right
+   end, mirroring Capture on the left (collapsed: under the caret). While the Library is open the right rail's middle
+   swaps to a Library panel — IMAGE (Open, Combine, Copy, Duplicate, Rename, Show in folder, Delete), SELECTION,
+   INFO and TAGS (pills + entry); the page head keeps the title, a search field, Open and Close. Thumbnails show
+   `#tags` in the accent colour; a right-click menu repeats the image actions. Icons added: `arrow-square-out`,
+   `squares-four`, `cursor-text`, `selection-slash`.
+9. **Fill** (2026-10-18): the drag-a-rectangle Fill tool is replaced in the left rail by a **Paint bucket** (`G`,
+   `paint-bucket`): a click floods the matching area. Its strip: a mini colour swatch (opens the colour dialog), the
+   eyedropper, Tolerance, Contiguous, Opacity. Whether boxes and circles are filled moved from the shape strip's Fill
+   switch to a **Shape fill** row under the right rail's swatches: Outline (`square`) · Filled (custom
+   `square-filled`).
+10. The paint bucket's glyph is the app's own `bucket-fill` (a tipped pail with a handle and a falling drop: Phosphor's
+    diagonal `paint-bucket` does not read at 18 px). The eyedropper shows an eyedropper pointer while it waits for
+    its click. Documents open at 100 %.
 
 ### Amendment 2026-10-16 — capture behaviour
 
