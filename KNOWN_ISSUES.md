@@ -21,6 +21,6 @@ clipboard behaviour: `docs/CAPTURE.md` (its §11 lists the capture limits).
 | Area tool | A marked area can be copied, cropped to or cleared; it cannot yet be moved, inverted or feathered | roadmap |
 | Eraser | Erases the composite (base and layers beneath); it cannot be restricted to one layer | by design |
 | Text | Text and callouts render upright after Rotate (their anchor moves, the glyphs do not rotate) | open |
-| Tests | Under Xvfb two window-geometry tests fail (`test_window_geometry`, `test_close_saves_settings`: 1350 vs 1360 px); cosmetic, predates the background-agent branch | open |
+| Tests | Under Xvfb four window-geometry tests fail (`test_window_geometry`, `test_close_saves_settings`: 1350 vs 1360 px; `test_both_rails_bottom_lines_are_level_open_and_collapsed`, `test_a_selected_image_strip_never_widens_the_window` since the PR #4 stack); Xvfb has no window manager; cosmetic | open |
 | Tests | `make test` uses `xvfb-run` when installed (it is on the development machine); without it, tests and `make snapshot` use the live display and briefly show windows | environment |
 | Dialogs | Settings, Flatten and Delete prompts open as separate small windows (the studio uses a plain GTK window for its custom title bar) | by design |

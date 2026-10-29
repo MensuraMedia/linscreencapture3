@@ -16,3 +16,7 @@
   until the tool defaults the folder to `screenshots/fixtures/`.
 - `AGENTS.md` / `KNOWN_ISSUES.md` say xvfb is installed on the dev machine: true for one machine only.
 - `feat/background-agent` on origin is stale (`47fe0a0`); delete once nothing refers to it.
+- 2026-10-29: branch `fix/linshot-icon-and-migration` stacks on PR #4 (HANDOFF §0b): migration fix, `python3 -P`
+  launcher, LinShot ring icon in #ffa222. Merge after #1–#4. Under Xvfb four geometry tests fail, not two
+  (`test_both_rails_bottom_lines_are_level_open_and_collapsed`, `test_a_selected_image_strip_never_widens_the_window`
+  as well); AGENTS.md / KNOWN_ISSUES still name two.

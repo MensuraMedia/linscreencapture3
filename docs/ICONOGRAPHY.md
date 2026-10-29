@@ -1,7 +1,8 @@
 # Iconography — the application icon
 
-LinScreenCapture 3 has **one application icon**: an orange `#ffa222` rounded tile (gradient `#ffb84d` → `#ff8f14`)
-with a white region-selection frame, a dashed marquee inside it, and a pointer at the bottom-right corner. Use this
+LinScreenCapture 3 has **one application icon**: the LinShot ring and centre dot, flat `#ffa222` on a transparent
+background (2026-10-29, at the operator's request: LinShot's mark, in the LinScreenCapture orange). Geometry on the
+256 grid, identical to LinShot 1.4: ring outer radius 102, inner radius 77, dot radius 26, centred. Use this
 icon, and only this icon, wherever the desktop shows the application, so users recognise it in the menu, the panel,
 the tray and Alt+Tab alike. Full colour on purpose: the panel does not recolour it, and the orange reads on dark and
 light panels.
@@ -17,10 +18,12 @@ Icon-theme name: **`com.mensuramedia.LinScreenCapture`** (the application id, `A
 
 `install.sh`, the `.deb` (`packaging/build-deb.sh` runs `install.sh --prefix /usr`) and `make launcher` install them as
 `share/icons/hicolor/scalable/apps/<APP_ID>.svg` and `share/icons/hicolor/<N>x<N>/apps/<APP_ID>.png`.
-Edit the SVG first and regenerate the PNGs from it; the two must never show different marks.
+Edit the SVG first and regenerate the PNGs from it; the two must never show different marks:
+`for s in 16 24 32 48 64 128 256 512; do rsvg-convert -w $s -h $s data/icons/hicolor/scalable/apps/com.mensuramedia.LinScreenCapture.svg -o resources/icons/linscreencapture-$s.png; done`
 
-Not the application icon: `resources/icons/shutter.png` (a black aperture glyph, unused), the old grey ring
-(replaced 2026-10-17; the theme name `linscreencapture3` is retired and `make launcher` deletes it) and the Phosphor
+Not the application icon: `resources/icons/shutter.png` (a black aperture glyph, unused), the grey (`#e6e6e6`)
+ring of LinShot 1.4 and the early 3.x builds (theme name `linscreencapture3`, retired; `make launcher` deletes it), the
+orange tile with a selection frame and pointer (2026-10-17 to 2026-10-28, replaced by the ring in orange) and the Phosphor
 glyphs in `data/icons/` (symbolic icons for in-app controls, recoloured by CSS).
 
 ## Placement

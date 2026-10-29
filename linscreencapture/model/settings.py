@@ -259,9 +259,10 @@ class Settings:
         fmt = g.int(S, "filename_format", 2)      # 1.4 default: LinShot prefix + timestamp
         self.prefix = PREFIXES[fmt % 2]            # 0,2 -> LinScreenCapture_ (was LinShot_); 1,3 -> Screenshot_
         self.numbering = "timestamp" if fmt >= 2 else "sequence"
-        self.autostart = g.bool(S, "start_with_os", self.autostart)
+        # start_with_os and default_screenshot_app are not carried over: 1.4 bound its key whatever they said, and in
+        # 3.x they gate the agent and the desktop binding, so a migrated `false` left PrintScreen dead after install.
+        # The key choice is kept; shortcut_key=0 ("none") still turns the hotkey off.
         self.hotkey = HOTKEYS[max(0, min(len(HOTKEYS) - 1, g.int(S, "shortcut_key", 1)))]
-        self.register_hotkey = g.bool(S, "default_screenshot_app", self.register_hotkey)
         for t in _LEGACY_TOOLS:
             ts = self.tools[t]
             c = parse_colour(g.str(S, f"color_{t}", ""))
