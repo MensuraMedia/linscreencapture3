@@ -49,6 +49,26 @@ Update 2026-10-14: `docs/FEATURES.md` rewritten as the complete 16-section featu
 selected layer is off by default (handles only; corner ticks for handle-less layers; `Settings.selection_frame` and a
 Settings → Window switch restore it). 106 tests. Awaiting the operator's on-screen sign-off and the PR into `main`.
 
+## 0b. 2026-10-29 — branch `fix/linshot-icon-and-migration` (third session, the Mint laptop)
+
+Cut from `feat/stage-rotate-fill` at `123db28`, so it carries PRs #1–#4 (still open, unmerged; `main` is at
+`01f5606`). On this machine LinShot 1.4 and `gnome-screenshot` were removed and the `.deb` installed; three problems
+showed up, fixed here:
+
+- **Migration left PrintScreen dead.** `Settings._load_legacy` copied LinShot's `start_with_os=false` and
+  `default_screenshot_app=false` into `autostart` / `register_hotkey`. 1.4 bound its key whatever those said, so a
+  typical 1.4 user got no desktop binding and no agent at login. Neither flag is migrated now; `shortcut_key=0`
+  ("none") still turns the hotkey off. Test: `test_legacy_off_flags_do_not_disable_the_hotkey`.
+- **The installed launcher ran the checkout** when started from inside it (`python3 -m` puts the current directory
+  first): `gresource missing`. The launcher (`install.sh`, hence the `.deb`) and the tray spawn use `python3 -P`.
+- **App icon:** at the operator's request, the LinShot ring and dot in flat `#ffa222` (exact 1.4 geometry) replaces
+  the orange tile everywhere: master SVG, the eight PNGs, so menu, Alt+Tab, tray and autostart. `docs/ICONOGRAPHY.md`.
+
+`make test` here: 200 passed, 4 failed under Xvfb (`test_window_geometry`, `test_close_saves_settings`,
+`test_both_rails_bottom_lines_are_level_open_and_collapsed`, `test_a_selected_image_strip_never_widens_the_window`);
+the same four fail on `feat/stage-rotate-fill` unmodified (no window manager under Xvfb).
+Full session record, verification and open items: `docs/CHANGES-2026-10-29.md`.
+
 ## 0a. 2026-10-18 — branch `fix/tray-alttab-icons` (second machine)
 
 Two machines work on this repository; pull before a session, push after it. Branch `fix/tray-alttab-icons` is cut
