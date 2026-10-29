@@ -5,8 +5,8 @@ helper. The agent (``app/application.py``) starts it and it talks back only over
 agent's exported application actions (``hotkey-capture``, ``show-editor``, ``quit``) and the helper exits as soon as
 the agent's bus name vanishes. XApp.StatusIcon is used on Cinnamon/MATE/Xfce; AyatanaAppIndicator3 elsewhere.
 
-The icon is the application icon (``data/icons/hicolor/scalable/apps/<APP_ID>.svg``: an orange ``TRAY_COLOUR``
-#ffa222 tile with a selection frame and a pointer; full colour, so the panel does not recolour it). Installed
+The icon is the application icon (``data/icons/hicolor/scalable/apps/<APP_ID>.svg``: the LinShot ring and centre dot in
+``TRAY_COLOUR`` #ffa222; full colour, so the panel does not recolour it). Installed
 copies use the same icon by name from the hicolor theme. A **double-click** opens the editor; a right-click opens the menu. AppIndicator has no
 click events, so there the menu's *Open editor* is the way in.
 """
