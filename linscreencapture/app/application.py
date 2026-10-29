@@ -171,7 +171,8 @@ class Application(Adw.Application):
             path = os.environ.get("PYTHONPATH")
             launcher.setenv("PYTHONPATH", pkg_parent + (os.pathsep + path if path else ""), True)
             try:
-                self._tray = launcher.spawnv([sys.executable, "-m", "linscreencapture.tray"])
+                # -P: the helper loads the agent's own package (PYTHONPATH above), never one in the current directory
+                self._tray = launcher.spawnv([sys.executable, "-P", "-m", "linscreencapture.tray"])
                 LOG.debug("agent: status icon helper started (pid %s)", self._tray.get_identifier())
             except GLib.Error as exc:
                 LOG.warning("status icon unavailable: %s", exc.message)

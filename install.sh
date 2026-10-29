@@ -12,7 +12,7 @@
 # Layout under PREFIX:
 #   lib/linscreencapture/linscreencapture/         the Python package (with the compiled .gresource)
 #   lib/linscreencapture/data/icons/hicolor/...    the application icon (the panel icon reads it)
-#   bin/linscreencapture                            launcher: python3 -m linscreencapture
+#   bin/linscreencapture                            launcher: python3 -P -m linscreencapture
 #   share/applications/com.mensuramedia.LinScreenCapture.desktop
 #   share/icons/hicolor/<size>/apps/com.mensuramedia.LinScreenCapture.{png,svg}
 #
@@ -128,7 +128,8 @@ cat > "$STAGE/launcher" <<EOF
 # LinScreenCapture launcher (installed by install.sh)
 PYTHONPATH="$PREFIX/lib/linscreencapture\${PYTHONPATH:+:\$PYTHONPATH}"
 export PYTHONPATH
-exec python3 -m linscreencapture "\$@"
+exec python3 -P -m linscreencapture "\$@"
+# -P: never import from the current directory, so starting it inside a checkout still runs the installed copy
 EOF
 sed -e "s|@BIN@|$PREFIX/bin/linscreencapture|g" "$SRC/data/$APP_ID.desktop" > "$STAGE/$APP_ID.desktop"
 
