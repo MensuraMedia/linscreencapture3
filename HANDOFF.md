@@ -49,6 +49,37 @@ Update 2026-10-14: `docs/FEATURES.md` rewritten as the complete 16-section featu
 selected layer is off by default (handles only; corner ticks for handle-less layers; `Settings.selection_frame` and a
 Settings → Window switch restore it). 106 tests. Awaiting the operator's on-screen sign-off and the PR into `main`.
 
+## 0c. 2026-11-05 — install on this machine, LinShot removed (no code changes)
+
+Machine: Linux Mint 22.2 Cinnamon, X11. The local `main` was 49 commits behind; fast-forwarded to `origin/main`
+`f0fd27b` (PR #6, all of PRs #1–#6 merged). No source changes this session; this section and the local
+`changelog.md` are the only edits.
+
+- **Installed** with `./install.sh` (user mode, `~/.local`): `~/.local/bin/linscreencapture`, `~/.local/lib/linscreencapture/`,
+  `com.mensuramedia.LinScreenCapture.desktop`, hicolor icons. All runtime packages were already present. The `.deb`
+  (`packaging/linscreencapture_3.0.0~dev1_all.deb`) was **not** installed: sudo needs the operator's password. To
+  switch to it, run `./install.sh --uninstall` first, or the `~/.local/bin` launcher shadows `/usr/bin`.
+- **Agent:** running (`--background` + `linscreencapture.tray`), owns `com.mensuramedia.LinScreenCapture` on the
+  session bus; autostart entry `~/.config/autostart/com.mensuramedia.LinScreenCapture.desktop` written on first start.
+- **LinShot 1.4 removed:** it was the shallow-clone install from `MensuraMedia/linshot3` (`~/.local/share/linshot`,
+  `~/.local/bin/linshot`, `linshot.desktop`, running as `linshot --capture`) and owned PrintScreen through Cinnamon
+  `custom0`. Process stopped, all files and `~/.config/linshot` deleted. The previous `make launcher` dev entry
+  (`linscreencapture3.desktop` + icons) was removed too, so the menu shows one entry.
+- **Migration:** the 1.x settings were migrated by the fixed loader (§0b): save folder `~/Pictures/ScreenShot`, tool
+  colours/widths, Arial 15 bold, blur 10; `autostart=true`, `register_hotkey=true`. Copy of the 1.x file:
+  `~/.config/linscreencapture/linshot-1.x-settings.conf.bak`. Pitfall: an earlier pass in this session ran the
+  pre-pull loader, which wrote both flags `false` — always pull before installing/migrating.
+- **Cinnamon keybindings:** the registrar rewrote `custom0` → `Print` → `~/.local/bin/linscreencapture --capture`,
+  name `LinScreenCapture`. Unrelated fix: `custom1` (Netdata Dashboard, `XF86Launch4` → `xdg-open http://127.0.0.1:19999`)
+  existed in dconf but was missing from `custom-list`, so Cinnamon ignored it; the list is now `['custom0', 'custom1']`.
+  The registrar preserves other entries in the list.
+- **Old checkouts removed:** `~/projects/linscreencapture` (1.4) and `~/projects/linscreencapture2` — both clean,
+  nothing unpushed or stashed, each one commit behind its GitHub remote; restore with `git clone` if ever needed.
+- **Verified:** `python3 tools/hotkey_probe.py` → exit 0: `image/png` offered, a 300 × 200 PNG on the clipboard
+  (expected 300 × 200), file saved as `~/Pictures/ScreenShot/LinScreenCapture_2026-11-05_23-40-47.png`. The
+  operator confirmed everything works. `make test` was not run (no `pytest` on this machine).
+- Agent-shell pitfall seen again: `pkill -f <path>` killed the agent's own shell (§6); use `pkill -x <name>`.
+
 ## 0b. 2026-10-29 — branch `fix/linshot-icon-and-migration` (third session, the Mint laptop)
 
 Cut from `feat/stage-rotate-fill` at `123db28`, so it carries PRs #1–#4 (still open, unmerged; `main` is at
