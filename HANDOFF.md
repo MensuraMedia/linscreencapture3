@@ -49,6 +49,21 @@ Update 2026-10-14: `docs/FEATURES.md` rewritten as the complete 16-section featu
 selected layer is off by default (handles only; corner ticks for handle-less layers; `Settings.selection_frame` and a
 Settings → Window switch restore it). 106 tests. Awaiting the operator's on-screen sign-off and the PR into `main`.
 
+## 0d. 2026-11-09 — branch `docs/site-screenshots`: promotional renders, websites (no app code changes)
+
+- **mensuramedia.com:** LinShot retired; `/app/screencapture` (EN/JA/KO), the homepage card, collage, download row
+  and `llms.txt` now present LinScreenCapture 3 and link this repo. Source in `~/projects/mensuramedia` (commits
+  `0bb8d5f`, `d1424d7`, `90a7564`; Cloudflare Pages deploy `c800af15`). The old `renders/linshot*.png` URLs lingered
+  in the custom-domain edge cache; purging needs a token with Zone · Cache Purge (Wrangler's OAuth cannot request it).
+- **New `make site-shots`** (`tools/snapshot_site.py`): renders `screenshots/dev/shell_studio_open.png` and
+  `shell_library_collapsed.png` from the running studio in a sandboxed HOME/XDG (seeded only with this repo's own
+  renders; the operator's settings, tags, autostart and hotkey are never touched). Re-run it after visible UI changes
+  and refresh the two websites.
+- **README:** new "The studio today" section with both renders; the Library bullet now lists filter, tags, Combine,
+  Rename and Show in folder (it still said open/refresh/delete).
+- **GitHub Pages** (`~/projects/github-pages`, entry `linscreencapture3`): screenshot and gallery switched to the two
+  new renders, Library feature text refreshed from the README, then `make publish`.
+
 ## 0c. 2026-11-05 — install on this machine, LinShot removed (no code changes)
 
 Machine: Linux Mint 22.2 Cinnamon, X11. The local `main` was 49 commits behind; fast-forwarded to `origin/main`

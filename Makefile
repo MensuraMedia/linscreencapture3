@@ -3,7 +3,7 @@ RESOURCE  = linscreencapture/linscreencapture.gresource
 # Uses Xvfb when available, else the live display.
 HEADLESS := $(shell command -v xvfb-run >/dev/null 2>&1 && echo 'xvfb-run -a -s "-screen 0 1600x1000x24"')
 
-.PHONY: icons resources run test snapshot clean launcher unlauncher install uninstall deb
+.PHONY: icons resources run test snapshot site-shots clean launcher unlauncher install uninstall deb
 
 icons:
 	python3 tools/sync_icons.py --source "$(ICON_SRC)"
@@ -20,6 +20,10 @@ test: resources
 
 snapshot: resources
 	$(HEADLESS) python3 tools/snapshot_shell.py
+
+# The two promotional renders (website, GitHub Pages, README), in a sandboxed HOME: see tools/snapshot_site.py.
+site-shots: resources
+	$(HEADLESS) python3 tools/snapshot_site.py
 
 clean:
 	rm -f $(RESOURCE)

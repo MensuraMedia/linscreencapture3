@@ -374,6 +374,7 @@ Overlay keys are listed in §11.
 | `make run` | resources + `python3 -m linscreencapture` |
 | `make test` | pytest, 105 tests (Xvfb if installed, else the live display: a window flashes) |
 | `make snapshot` | render to `screenshots/dev/`: `shell_default`, `shell_open`, `shell_collapsed`, `shell_library`, `shell_text_tool`, `shell_document`, `shell_annotated`, `shell_crop`, `shell_adjust`, `shell_document_zoomed`, `shell_select_all_tray`, `shell_eraser`, `shell_area_chain`, `shell_library_multiselect`, `shell_settings` (popover contents cannot be rendered and are skipped) |
+| `make site-shots` | the two promotional renders, `screenshots/dev/shell_studio_open.png` (annotated capture, both rails open) and `shell_library_collapsed.png` (Library, both rails collapsed, tags, two selected), used by the README, mensuramedia.com and the GitHub Pages page; `tools/snapshot_site.py` runs the studio with `HOME`/`XDG_CONFIG_HOME`/`XDG_DATA_HOME` in a temporary folder seeded only with this repository's renders and artboards, so nothing real is read or written |
 | `tools/snapshot_overlay.py` | render the live capture overlay (output git-ignored: it contains the real screen) |
 | `make launcher` / `make unlauncher` | install / remove the **LinScreenCapture3** menu entry pointing at this checkout |
 | `bash ~/projects/Zai-ZCode/s009_backup_project.sh …` | family backup into `~/backups/linscreencapture3/` |
