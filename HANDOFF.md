@@ -49,6 +49,18 @@ Update 2026-10-14: `docs/FEATURES.md` rewritten as the complete 16-section featu
 selected layer is off by default (handles only; corner ticks for handle-less layers; `Settings.selection_frame` and a
 Settings → Window switch restore it). 106 tests. Awaiting the operator's on-screen sign-off and the PR into `main`.
 
+## 0e. 2026-11-09 — branch `feat/fill-coffee-icon`: paint bucket shows a tilted coffee cup
+
+- Operator request: the Fill (paint bucket) tool's rail glyph is a tilted coffee cup. A plain upright Phosphor `coffee`
+  was tried first and rejected; the shipped glyph is the app's own `data/icons/custom/coffee-pour.svg`: a mug with a
+  loop handle, tipped 45°, a drop falling from the lip, 16-unit strokes, fitted to the same 20-unit margin as the
+  Phosphor glyphs so it renders at the same size. `tool_rail.py` names `coffee-pour`; the GResource manifest lists
+  `lsc-coffee-pour-symbolic.svg` (copied by hand: `~/projects/assets/icons` is absent here, so `make icons` was not
+  run). The custom `bucket-fill` glyph is removed (no other user).
+- Tool behaviour, name, tooltip and the **G** shortcut are unchanged. `screenshots/dev/shell_studio_open.png` re-rendered
+  with `make site-shots`. Tests: 200 passed, the 4 known Xvfb geometry failures (KNOWN_ISSUES.md).
+- The website and GitHub Pages renders still show the pail until they are refreshed from this render.
+
 ## 0d. 2026-11-09 — branch `docs/site-screenshots`: promotional renders, websites (no app code changes)
 
 - **mensuramedia.com:** LinShot retired; `/app/screencapture` (EN/JA/KO), the homepage card, collage, download row
