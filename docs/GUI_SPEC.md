@@ -339,7 +339,7 @@ def icon(name: str, size: int = 18) -> Gtk.Image:
 | Rail chrome | `caret-double-left`, `caret-double-right` |
 | Capture modes | `selection`, `app-window`, `monitor`, `arrows-vertical`, `timer`, `push-pin` |
 | Drawing tools | `cursor`, `arrow-up-right`, `line-segment`, `square`, `circle`, `text-t`, `pencil-simple`, `highlighter` |
-| Edit tools | `circle-dashed`, `checkerboard`, `paint-bucket`, `number-circle-one`, `chat-teardrop`, `crop`, `arrows-out`, `arrow-clockwise`, `sun`, `arrows-out-cardinal`, `copy-simple` |
+| Edit tools | `circle-dashed`, `checkerboard`, `coffee-pour` (custom), `number-circle-one`, `chat-teardrop`, `crop`, `arrows-out`, `arrow-clockwise`, `sun`, `arrows-out-cardinal`, `copy-simple` |
 | Actions | `trash`, `stack-simple`, `images`, `copy`, `download-simple` |
 | Right rail | `stack`, `sliders-horizontal`, `eye`, `eye-slash`, `eyedropper`, `arrows-clockwise` |
 | Dialogs/states | `gear`, `check-circle`, `warning-circle`, `x-circle`, `info`, `keyboard`, `folder-open`, `x` |
@@ -646,8 +646,9 @@ Branch `feat/stage-rotate-fill`.
    eyedropper, Tolerance, Contiguous, Opacity. Whether boxes and circles are filled moved from the shape strip's Fill
    switch to a **Shape fill** row under the right rail's swatches: Outline (`square`) · Filled (custom
    `square-filled`).
-10. The paint bucket's glyph is the app's own `bucket-fill` (a tipped pail with a handle and a falling drop: Phosphor's
-    diagonal `paint-bucket` does not read at 18 px). The eyedropper shows an eyedropper pointer while it waits for
+10. The paint bucket's glyph is the app's own `coffee-pour`: a mug tipped 45° with a drop falling from its lip (operator's
+    choice, 2026-11-09; Phosphor style, 16-unit strokes on the 256 grid). It replaced the custom `bucket-fill` pail,
+    which replaced Phosphor's diagonal `paint-bucket`. The eyedropper shows an eyedropper pointer while it waits for
     its click. Documents open at 100 %.
 
 ### Amendment 2026-10-16 — capture behaviour
