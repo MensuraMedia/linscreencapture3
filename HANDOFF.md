@@ -60,6 +60,20 @@ Settings → Window switch restore it). 106 tests. Awaiting the operator's on-sc
 - Tool behaviour, name, tooltip and the **G** shortcut are unchanged. `screenshots/dev/shell_studio_open.png` re-rendered
   with `make site-shots`. Tests: 200 passed, the 4 known Xvfb geometry failures (KNOWN_ISSUES.md).
 - The website and GitHub Pages renders still show the pail until they are refreshed from this render.
+- **Merged** as PR #8 (`9199d34`). `make deb` rebuilt `packaging/linscreencapture_3.0.0~dev1_all.deb` from `main`; it was
+  reinstalled with `sudo apt-get install --reinstall ./packaging/…deb` (the installed `.gresource` matches the build)
+  and the installed app restarted with its tray. The rebuilt `.deb` is committed with this HANDOFF update.
+- Stopping the app from an agent shell: `pgrep -f`/`pkill -f` with any `linscreencapture` pattern also matches the
+  agent's own shell (§6) and killed it on 2026-11-09. Read the PIDs with `ps -eo pid,args | grep '[l]inscreencapture'`
+  and `kill <pid>` the `python3 -P -m linscreencapture` and `…linscreencapture.tray` lines only.
+
+**Open after 0d/0e (2026-11-11):**
+- The website (mensuramedia.com) and GitHub Pages renders still show the pail: refresh them from
+  `screenshots/dev/shell_studio_open.png` when the operator asks (`make site-shots`, then each site's own pipeline).
+- Cloudflare edge cache still serves the deleted `/renders/linshot*.png` (apex and www): purge needs the dashboard or an
+  API token with Zone · Cache Purge (the wrangler OAuth login has no purge scope).
+- GitHub Pages: `android-on-debian` is excluded in `github-pages/data/site.json` ("page to come") so `make
+  check-online` passes; give it a page when the operator wants one.
 
 ## 0d. 2026-11-09 — branch `docs/site-screenshots`: promotional renders, websites (no app code changes)
 

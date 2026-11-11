@@ -20,3 +20,4 @@
   launcher, LinShot ring icon in #ffa222. Merge after #1–#4. Under Xvfb four geometry tests fail, not two
   (`test_both_rails_bottom_lines_are_level_open_and_collapsed`, `test_a_selected_image_strip_never_widens_the_window`
   as well); AGENTS.md / KNOWN_ISSUES still name two.
+- 2026-11-11: refresh the mensuramedia.com and GitHub Pages renders (they still show the pail glyph) when asked; Cloudflare cache purge of /renders/linshot*.png still pending (needs dashboard or a Zone · Cache Purge token); github-pages excludes android-on-debian until it has a page. HANDOFF §0e.
